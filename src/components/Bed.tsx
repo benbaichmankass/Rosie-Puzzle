@@ -85,7 +85,6 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
   });
   const allCells = Array.from({ length: rows * cols }, (_, i) => ({ r: Math.floor(i / cols), c: i % cols }));
   const freeCells = allCells.filter((c) => !taken.has(`${c.r},${c.c}`));
-  const takenCells = allCells.filter((c) => taken.has(`${c.r},${c.c}`));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none" style={{ maxHeight: 'min(44vh, 430px)', margin: '0 auto', touchAction: 'manipulation' }} role="img" aria-label="The bed">
@@ -168,11 +167,6 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
         <rect x={2} y={S - 7} width={innerW - 4} height={12} fill="#ffffff" shapeRendering="crispEdges" />
         {Array.from({ length: Math.floor(innerW / 24) }).map((_, i) => (
           <rect key={`cf${i}`} x={8 + i * 24} y={S - 3} width={12} height={4} fill={['#ff4fd8', '#3ff3ff', '#ffe04a'][i % 3]} shapeRendering="crispEdges" />
-        ))}
-
-        {/* Taken squares sink into shadow, so the free ones stand out */}
-        {takenCells.map((c) => (
-          <rect key={`tk${c.r}-${c.c}`} x={c.c * S + 2} y={c.r * S + 2} width={S - 4} height={S - 4} fill="#1b0f3d" opacity={0.42} shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
         ))}
 
         {/* Toys and treats */}
@@ -259,7 +253,6 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
             const w = S - 16;
             return (
               <g key={`fr${c.r}-${c.c}`}>
-                <rect x={x} y={y} width={w} height={w} fill="#3ff3ff" opacity={0.1} />
                 {[
                   [x, y, L, T], [x, y, T, L],
                   [x + w - L, y, L, T], [x + w - T, y, T, L],
