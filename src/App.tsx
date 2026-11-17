@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AvatarProfiles, LevelScore } from './types';
-import { PUZZLE_LEVELS, Pose, key, poseCellsAt } from './utils/puzzle';
+import { PUZZLE_LEVELS, PuzzleLevel, Pose, generateLevel, key, layoutKey, poseCellsAt } from './utils/puzzle';
 import { areAdjacent } from './utils/gridUtils';
 import { MobileFrame } from './components/MobileFrame';
 import { Bed, PersonId, PlacedPerson } from './components/Bed';
@@ -49,7 +49,8 @@ type Toast = { text: string; tone: 'info' | 'warn' | 'good' } | null;
 export default function App() {
   const [profiles, setProfiles] = useState<AvatarProfiles>(() => ({ ...DEFAULT_PROFILES, ...load(STORAGE_PROFILES_KEY, {}) }));
   const [levelIndex, setLevelIndex] = useState(0);
-  const level = PUZZLE_LEVELS[levelIndex];
+  // Each time a night is opened it gets a freshly generated layout.
+  const [level, setLevel] = useState<PuzzleLevel>(() => generateLevel(1));
 
   const [completedLevelIds, setCompleted] = useState<number[]>(() => load(STORAGE_COMPLETED_KEY, []));
   const [cuddleBonusLevelIds, setCuddles] = useState<number[]>(() => load(STORAGE_CUDDLE_KEY, []));
@@ -112,9 +113,11 @@ export default function App() {
     return () => clearInterval(t);
   }, [isWinModalOpen, levelIndex]);
 
-  const loadLevel = useCallback((index: number) => {
-    const lvl = PUZZLE_LEVELS[index] || PUZZLE_LEVELS[0];
-    setLevelIndex(index);
+  /** fresh=false keeps the current layout (Restart); otherwise a new one is generated. */
+  const loadLevel = useCallback((index: number, fresh = true) => {
+    const safe = Math.max(0, Math.min(PUZZLE_LEVELS.length - 1, index));
+    if (fresh) setLevel((prev) => generateLevel(safe + 1, undefined, prev.id === safe + 1 ? layoutKey(prev) : undefined));
+    setLevelIndex(safe);
     setSeconds(0);
     setPenalty(0);
     setGrumpiness(0);
@@ -128,10 +131,6 @@ export default function App() {
     setToast(null);
   }, []);
 
-  useEffect(() => {
-    loadLevel(levelIndex);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // What is in the way, for a given person
   const dogSet = useMemo(() => new Set(level.dogCells.map((c) => key(c.r, c.c))), [level]);
@@ -312,7 +311,7 @@ export default function App() {
         sound.enabled = next;
       }}
       onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
-      onRestartLevel={() => loadLevel(levelIndex)}
+      onRestartLevel={() => loadLevel(levelIndex, false)}
       onOpenCustomizer={() => setIsCustomizerOpen(true)}
       onPrevLevel={() => levelIndex > 0 && loadLevel(levelIndex - 1)}
       onNextLevel={() => levelIndex < PUZZLE_LEVELS.length - 1 && loadLevel(levelIndex + 1)}

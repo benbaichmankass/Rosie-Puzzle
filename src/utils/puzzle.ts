@@ -432,14 +432,32 @@ function tryGenerate(id: number, d: Difficulty, rnd: () => number): PuzzleLevel 
   };
 }
 
-export function generateLevel(id: number): PuzzleLevel {
+/** Same picture of a night, for comparing two layouts. */
+export function layoutKey(l: PuzzleLevel) {
+  return [
+    l.dogCells.map((c) => key(c.r, c.c)).sort().join(';'),
+    l.obstacles.map((o) => key(o.r, o.c)).sort().join(';'),
+    l.boyfriendPoses.map((p) => p.id).join(','),
+    l.girlfriendPoses.map((p) => p.id).join(','),
+  ].join('|');
+}
+
+/**
+ * Build a night. Pass a seed to get a repeatable layout; leave it out to get a
+ * fresh random one. `avoid` skips a layout key (e.g. the one just played).
+ */
+export function generateLevel(id: number, seed?: number, avoid?: string): PuzzleLevel {
   const d = DIFFICULTY[Math.min(id, DIFFICULTY.length) - 1];
+  const base = seed ?? Math.floor(Math.random() * 2 ** 31);
   for (let attempt = 0; attempt < 20000; attempt++) {
-    const rnd = mulberry32(id * 100003 + attempt * 7919);
+    const rnd = mulberry32(base + id * 100003 + attempt * 7919);
     const lvl = tryGenerate(id, d, rnd);
-    if (lvl) return lvl;
+    if (lvl && (!avoid || layoutKey(lvl) !== avoid)) return lvl;
   }
   throw new Error(`Could not generate level ${id}`);
 }
 
-export const PUZZLE_LEVELS: PuzzleLevel[] = DIFFICULTY.map((_, i) => generateLevel(i + 1));
+export const LEVEL_COUNT = DIFFICULTY.length;
+
+/** Fixed layouts, used only for the level list (titles, Rosie's pose). */
+export const PUZZLE_LEVELS: PuzzleLevel[] = DIFFICULTY.map((_, i) => generateLevel(i + 1, 0));
