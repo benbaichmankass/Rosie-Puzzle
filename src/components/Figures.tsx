@@ -467,6 +467,25 @@ export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT
       {/* black saddle where the neck meets the body */}
       {saddle && <ellipse cx={saddle.x} cy={saddle.y} rx={30} ry={22} fill="#1f1e22" transform={`rotate(${angle(neck) + 90} ${saddle.x} ${saddle.y})`} />}
 
+      {/* Rosie's big black spot on her rump, right above the tail */}
+      {edges
+        .filter((e) => e.part === 'tail')
+        .map((e, i) => {
+          const dir = norm(pts[e.from], pts[e.to]);
+          const c = add(add(pts[e.to], dir, -4), perp(dir), 7);
+          return (
+            <ellipse
+              key={`rump${i}`}
+              cx={c.x}
+              cy={c.y}
+              rx={25}
+              ry={21}
+              fill="#1f1e22"
+              transform={`rotate(${angle(dir)} ${c.x} ${c.y})`}
+            />
+          );
+        })}
+
       {/* paws, paddling while she dreams */}
       {edges
         .filter((e) => e.part === 'paw')
