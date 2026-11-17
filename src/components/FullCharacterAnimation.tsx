@@ -65,7 +65,7 @@ export function FullAnimatedRosie({
   const tx = (tailCell.c - minC) * 100 + 50;
   const ty = (tailCell.r - minR) * 100 + 50;
 
-  const photoSrc = profiles?.dogPhoto || '/assets/avatars/rosie.jpg';
+  const photoSrc = profiles?.dogPhoto || 'assets/avatars/rosie.jpg';
 
   return (
     <div
@@ -361,7 +361,7 @@ export function FullAnimatedBentzi({
   const w = Math.max(1, maxC - minC + 1);
   const h = Math.max(1, maxR - minR + 1);
 
-  const photoSrc = profiles?.boyfriendPhoto || '/assets/avatars/bentzi.jpg';
+  const photoSrc = profiles?.boyfriendPhoto || 'assets/avatars/bentzi.jpg';
 
   const headCell = placedCells.find((c) => c.part === 'head') || placedCells[0];
   const torsoCell = placedCells.find((c) => c.part === 'torso') || placedCells[1] || placedCells[0];
@@ -759,7 +759,7 @@ export function FullAnimatedShai({
   const w = Math.max(1, maxC - minC + 1);
   const h = Math.max(1, maxR - minR + 1);
 
-  const photoSrc = profiles?.girlfriendPhoto || '/assets/avatars/shai.jpg';
+  const photoSrc = profiles?.girlfriendPhoto || 'assets/avatars/shai.jpg';
 
   const headCell = placedCells.find((c) => c.part === 'head') || placedCells[0];
   const torsoCell = placedCells.find((c) => c.part === 'torso') || placedCells[1] || placedCells[0];

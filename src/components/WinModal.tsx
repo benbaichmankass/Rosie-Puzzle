@@ -141,7 +141,7 @@ export function WinModal({
             <div className="flex flex-col items-center">
               <div className="w-13 h-13 rounded-2xl overflow-hidden border-2 border-sky-400/80 shadow-md relative animate-human-breathe">
                 <img
-                  src={profiles.boyfriendPhoto || '/assets/avatars/bentzi.jpg'}
+                  src={profiles.boyfriendPhoto || 'assets/avatars/bentzi.jpg'}
                   alt={profiles.boyfriendName}
                   className="w-full h-full object-cover object-center"
                 />
@@ -157,7 +157,7 @@ export function WinModal({
             <div className="flex flex-col items-center">
               <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-400/80 shadow-md relative animate-dog-breathe">
                 <img
-                  src={profiles.dogPhoto || '/assets/avatars/rosie.jpg'}
+                  src={profiles.dogPhoto || 'assets/avatars/rosie.jpg'}
                   alt={profiles.dogName}
                   className="w-full h-full object-cover object-center"
                 />
@@ -173,7 +173,7 @@ export function WinModal({
             <div className="flex flex-col items-center">
               <div className="w-13 h-13 rounded-2xl overflow-hidden border-2 border-teal-400/80 shadow-md relative animate-human-breathe">
                 <img
-                  src={profiles.girlfriendPhoto || '/assets/avatars/shai.jpg'}
+                  src={profiles.girlfriendPhoto || 'assets/avatars/shai.jpg'}
                   alt={profiles.girlfriendName}
                   className="w-full h-full object-cover object-center"
                 />

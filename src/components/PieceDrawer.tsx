@@ -114,8 +114,8 @@ export function PieceDrawer({
                     <img
                       src={
                         type === 'boyfriend'
-                          ? profiles.boyfriendPhoto || '/assets/avatars/bentzi.jpg'
-                          : profiles.girlfriendPhoto || '/assets/avatars/shai.jpg'
+                          ? profiles.boyfriendPhoto || 'assets/avatars/bentzi.jpg'
+                          : profiles.girlfriendPhoto || 'assets/avatars/shai.jpg'
                       }
                       alt={label}
                       className="w-full h-full object-cover object-center"

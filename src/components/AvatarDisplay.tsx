@@ -31,12 +31,12 @@ export function AvatarDisplay({
   // Get image URL directly from profiles or fallback to public assets
   const getImageSrc = () => {
     if (type === 'dog') {
-      return profiles?.dogPhoto || '/assets/avatars/rosie.jpg';
+      return profiles?.dogPhoto || 'assets/avatars/rosie.jpg';
     }
     if (type === 'boyfriend') {
-      return profiles?.boyfriendPhoto || '/assets/avatars/bentzi.jpg';
+      return profiles?.boyfriendPhoto || 'assets/avatars/bentzi.jpg';
     }
-    return profiles?.girlfriendPhoto || '/assets/avatars/shai.jpg';
+    return profiles?.girlfriendPhoto || 'assets/avatars/shai.jpg';
   };
 
   const photoSrc = getImageSrc();

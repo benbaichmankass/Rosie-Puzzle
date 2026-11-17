@@ -12,32 +12,32 @@ interface AvatarCustomizerProps {
 }
 
 const BENTZI_PRESETS = [
-  '/assets/avatars/bentzi.jpg',
-  '/assets/aistudio/bentzi1_dd19b061.jpeg',
-  '/assets/aistudio/bentzi2_74e05a54.jpeg',
-  '/assets/aistudio/bentzi3_e15690db.jpeg',
-  '/assets/aistudio/bentzi4_fbcf5e57.jpeg',
+  'assets/avatars/bentzi.jpg',
+  'assets/aistudio/bentzi1_dd19b061.jpeg',
+  'assets/aistudio/bentzi2_74e05a54.jpeg',
+  'assets/aistudio/bentzi3_e15690db.jpeg',
+  'assets/aistudio/bentzi4_fbcf5e57.jpeg',
 ];
 
 const SHAI_PRESETS = [
-  '/assets/avatars/shai.jpg',
-  '/assets/aistudio/5_34cfa7c7.jpeg',
-  '/assets/aistudio/Shai1_739f9343.jpeg',
-  '/assets/aistudio/Shai2_ba5ddb92.jpeg',
-  '/assets/aistudio/Shai3_16ce9520.jpeg',
-  '/assets/aistudio/Shai4_9aff787a.jpeg',
+  'assets/avatars/shai.jpg',
+  'assets/aistudio/5_34cfa7c7.jpeg',
+  'assets/aistudio/Shai1_739f9343.jpeg',
+  'assets/aistudio/Shai2_ba5ddb92.jpeg',
+  'assets/aistudio/Shai3_16ce9520.jpeg',
+  'assets/aistudio/Shai4_9aff787a.jpeg',
 ];
 
 const ROSIE_PRESETS = [
-  '/assets/avatars/rosie.jpg',
-  '/assets/aistudio/Rosie1_686fbf46.jpeg',
-  '/assets/aistudio/Rosie2_739f9343.jpeg',
-  '/assets/aistudio/Rosie3_5475fca3.jpeg',
-  '/assets/aistudio/Rosie4_0167efc7.jpeg',
-  '/assets/aistudio/Rosie5_dde648c3.jpeg',
-  '/assets/aistudio/Rosie6_739f9343.jpeg',
-  '/assets/aistudio/Rosie7_28a8417a.jpeg',
-  '/assets/aistudio/Rosie8_28a8417a.jpeg',
+  'assets/avatars/rosie.jpg',
+  'assets/aistudio/Rosie1_686fbf46.jpeg',
+  'assets/aistudio/Rosie2_739f9343.jpeg',
+  'assets/aistudio/Rosie3_5475fca3.jpeg',
+  'assets/aistudio/Rosie4_0167efc7.jpeg',
+  'assets/aistudio/Rosie5_dde648c3.jpeg',
+  'assets/aistudio/Rosie6_739f9343.jpeg',
+  'assets/aistudio/Rosie7_28a8417a.jpeg',
+  'assets/aistudio/Rosie8_28a8417a.jpeg',
 ];
 
 export function AvatarCustomizer({

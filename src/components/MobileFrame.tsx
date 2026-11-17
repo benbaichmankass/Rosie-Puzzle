@@ -157,17 +157,17 @@ export function MobileFrame({
               title="Click to view & select character photos"
             >
               <img
-                src={profiles.boyfriendPhoto || '/assets/avatars/bentzi.jpg'}
+                src={profiles.boyfriendPhoto || 'assets/avatars/bentzi.jpg'}
                 alt={profiles.boyfriendName}
                 className="w-5.5 h-5.5 rounded-full object-cover border-2 border-sky-400 shadow-xs"
               />
               <img
-                src={profiles.dogPhoto || '/assets/avatars/rosie.jpg'}
+                src={profiles.dogPhoto || 'assets/avatars/rosie.jpg'}
                 alt={profiles.dogName}
                 className="w-6 h-6 rounded-full object-cover border-2 border-amber-400 shadow-xs z-10"
               />
               <img
-                src={profiles.girlfriendPhoto || '/assets/avatars/shai.jpg'}
+                src={profiles.girlfriendPhoto || 'assets/avatars/shai.jpg'}
                 alt={profiles.girlfriendName}
                 className="w-5.5 h-5.5 rounded-full object-cover border-2 border-teal-400 shadow-xs"
               />

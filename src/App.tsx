@@ -36,9 +36,9 @@ const DEFAULT_PROFILES: AvatarProfiles = {
   boyfriendName: 'Bentzi',
   girlfriendName: 'Shai',
   dogName: 'Rosie',
-  boyfriendPhoto: '/assets/avatars/bentzi.jpg',
-  girlfriendPhoto: '/assets/avatars/shai.jpg',
-  dogPhoto: '/assets/avatars/rosie.jpg',
+  boyfriendPhoto: 'assets/avatars/bentzi.jpg',
+  girlfriendPhoto: 'assets/avatars/shai.jpg',
+  dogPhoto: 'assets/avatars/rosie.jpg',
   dogBreed: 'border_collie' as any,
 };
 
@@ -62,9 +62,9 @@ export default function App() {
               ? 'Shai'
               : parsed.girlfriendName,
           dogName: 'Rosie',
-          boyfriendPhoto: '/assets/avatars/boyfriend.jpg',
-          girlfriendPhoto: '/assets/avatars/girlfriend.jpg',
-          dogPhoto: '/assets/avatars/rosie.jpg',
+          boyfriendPhoto: 'assets/avatars/boyfriend.jpg',
+          girlfriendPhoto: 'assets/avatars/girlfriend.jpg',
+          dogPhoto: 'assets/avatars/rosie.jpg',
         };
       }
     } catch {}
@@ -457,14 +457,14 @@ export default function App() {
         new Set([...completedLevelIds, currentLevel.id])
       );
       setCompletedLevelIds(newCompleted);
-      localStorage.setItem(STORAGE_COMPLETED_KEY, JSON.stringify(newCompleted));
+      try { localStorage.setItem(STORAGE_COMPLETED_KEY, JSON.stringify(newCompleted)); } catch {}
 
       if (cuddle) {
         const newCuddles = Array.from(
           new Set([...cuddleBonusLevelIds, currentLevel.id])
         );
         setCuddleBonusLevelIds(newCuddles);
-        localStorage.setItem(STORAGE_CUDDLE_KEY, JSON.stringify(newCuddles));
+        try { localStorage.setItem(STORAGE_CUDDLE_KEY, JSON.stringify(newCuddles)); } catch {}
       }
 
       setTimeout(() => {
