@@ -20,6 +20,9 @@ interface BedProps {
   /** Rect covering the grid, used to work out where a dragged person lands. */
   gridRef: React.Ref<SVGRectElement>;
   dropCol: { id: PersonId; col: number; width: number } | null;
+  /** Green cloud over the squares where two people overlapped. */
+  fart: { key: number; cells: { r: number; c: number }[] } | null;
+  growling: boolean;
 }
 
 const FRAME = 22; // side posts
@@ -29,7 +32,7 @@ const FOOT = 38; // footboard
 // Patchwork quilt colours, alternating like a checker.
 const QUILT = ['#f4c7a1', '#f9e2c8', '#cfe0c3', '#f9e2c8'];
 
-export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef, dropCol }: BedProps) {
+export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef, dropCol, fart, growling }: BedProps) {
   const { rows, cols } = level;
   const innerW = cols * S;
   const innerH = rows * S;
@@ -116,7 +119,7 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
 
         {/* Rosie */}
         <motion.g key={shakeKey} animate={shakeKey ? { x: [0, -6, 6, -4, 4, 0] } : undefined} transition={{ duration: 0.4 }}>
-          <DogFigure cells={level.dogCells} grumpy={grumpiness} />
+          <DogFigure cells={level.dogCells} grumpy={grumpiness} growling={growling} />
         </motion.g>
 
         {/* People in bed */}
@@ -136,6 +139,48 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
             </motion.g>
           );
         })}
+
+        {/* Stink cloud */}
+        {fart && (
+          <g key={fart.key} style={{ pointerEvents: 'none' }}>
+            {fart.cells.map((cell, i) =>
+              [0, 1, 2, 3, 4].map((k) => {
+                const cx = cell.c * S + S / 2 + (k - 2) * 16;
+                const cy = cell.r * S + S / 2 + (k % 2) * 12;
+                return (
+                  <motion.circle
+                    key={`${i}-${k}`}
+                    cx={cx}
+                    cy={cy}
+                    r={18 + (k % 3) * 6}
+                    fill={k % 2 ? '#9cc95a' : '#b7d97a'}
+                    stroke="#7aa63c"
+                    strokeWidth={2}
+                    initial={{ opacity: 0, scale: 0.2, y: 0 }}
+                    animate={{ opacity: [0, 0.85, 0.7, 0], scale: [0.2, 1.1, 1.4, 1.8], y: [0, -10, -30, -55], x: [0, (k - 2) * 4, (k - 2) * 8, (k - 2) * 12] }}
+                    transition={{ duration: 1.8, delay: k * 0.06, ease: 'easeOut' }}
+                  />
+                );
+              })
+            )}
+            {fart.cells.slice(0, 1).map((cell) => (
+              <motion.text
+                key="pff"
+                x={cell.c * S + S / 2}
+                y={cell.r * S + 22}
+                textAnchor="middle"
+                fontSize={26}
+                fontWeight={900}
+                fill="#4d7a1f"
+                initial={{ opacity: 0, scale: 0.4 }}
+                animate={{ opacity: [0, 1, 1, 0], scale: [0.4, 1.2, 1, 1], y: [0, -12, -24, -36] }}
+                transition={{ duration: 1.6 }}
+              >
+                PFFRT!
+              </motion.text>
+            ))}
+          </g>
+        )}
 
         {/* While dragging: only mark which pillow the head is over */}
         {dropCol && (

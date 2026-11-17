@@ -83,6 +83,67 @@ class SoundEngine {
     } catch {}
   }
 
+  /** A short, wobbly "pfrrrt": a buzzing low tone plus breathy noise. */
+  public playFart() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const dur = 0.75;
+
+      // Buzzing lip-trill tone
+      const osc = ctx.createOscillator();
+      const wobble = ctx.createOscillator();
+      const wobbleGain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(95, now);
+      osc.frequency.linearRampToValueAtTime(70, now + dur * 0.6);
+      osc.frequency.linearRampToValueAtTime(110, now + dur);
+      wobble.type = 'square';
+      wobble.frequency.setValueAtTime(22, now);
+      wobble.frequency.linearRampToValueAtTime(14, now + dur);
+      wobbleGain.gain.setValueAtTime(30, now);
+      wobble.connect(wobbleGain);
+      wobbleGain.connect(osc.frequency);
+
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.setValueAtTime(420, now);
+      tone.Q.setValueAtTime(6, now);
+
+      // Breathy noise
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.setValueAtTime(180, now);
+      band.frequency.linearRampToValueAtTime(120, now + dur);
+      band.Q.setValueAtTime(3, now);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.32, now + 0.04);
+      gain.gain.setValueAtTime(0.28, now + dur * 0.55);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+
+      osc.connect(tone);
+      tone.connect(gain);
+      noise.connect(band);
+      band.connect(gain);
+      gain.connect(ctx.destination);
+
+      wobble.start(now);
+      osc.start(now);
+      noise.start(now);
+      wobble.stop(now + dur);
+      osc.stop(now + dur);
+      noise.stop(now + dur);
+    } catch {}
+  }
+
   public playDogGrowl() {
     const ctx = this.getContext();
     if (!ctx) return;

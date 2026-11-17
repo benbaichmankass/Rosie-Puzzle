@@ -61,6 +61,11 @@ export default function App() {
   const [penalty, setPenalty] = useState(0);
   const [grumpiness, setGrumpiness] = useState(0);
   const [shakeKey, setShakeKey] = useState(0);
+  const [fart, setFart] = useState<{ key: number; cells: { r: number; c: number }[] } | null>(null);
+  const [growling, setGrowling] = useState(false);
+  const grumpRef = useRef(0);
+  grumpRef.current = grumpiness;
+  const timers = useRef<number[]>([]);
 
   const [poseIdx, setPoseIdx] = useState<Record<PersonId, number>>({ boyfriend: 0, girlfriend: 0 });
   const [drag, setDrag] = useState<{ id: PersonId; grab: { r: number; c: number }; x: number; y: number } | null>(null);
@@ -129,6 +134,10 @@ export default function App() {
     setIsCuddleBonus(false);
     setWarningModal(null);
     setToast(null);
+    setFart(null);
+    setGrowling(false);
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
   }, []);
 
 
@@ -194,6 +203,34 @@ export default function App() {
     const pose = currentPose(id);
     const cells = poseCellsAt(pose, col).map((c) => key(c.r, c.c));
     const others = otherSet(id);
+    const squished = cells.filter((k) => others.has(k));
+    if (squished.length) {
+      // Two people squashed onto one square: someone farts, then Rosie growls.
+      const other: PersonId = id === 'boyfriend' ? 'girlfriend' : 'boyfriend';
+      const farter = Math.random() < 0.5 ? id : other;
+      sound.playFart();
+      setPenalty((p) => p + 50);
+      setFart({ key: Date.now(), cells: squished.map((k) => ({ r: +k.split(',')[0], c: +k.split(',')[1] })) });
+      showToast(`Pfffrt! ${names[farter]} farted.`, 'warn');
+      const t1 = window.setTimeout(() => {
+        const g = Math.min(3, grumpRef.current + 1);
+        setGrumpiness(g);
+        setShakeKey((k) => k + 1);
+        setPenalty((p) => p + 100);
+        if (g >= 3) {
+          sound.playDogChomp();
+          setWarningModal('bite');
+        } else {
+          sound.playDogGrowl();
+          setGrowling(true);
+          showToast(`Pfffrt! ${names[farter]} farted, and ${profiles.dogName} growls at the smell.`, 'warn');
+          timers.current.push(window.setTimeout(() => setGrowling(false), 1800));
+        }
+      }, 750);
+      const t2 = window.setTimeout(() => setFart(null), 2200);
+      timers.current.push(t1, t2);
+      return;
+    }
     if (cells.some((k) => dogSet.has(k))) {
       const g = grumpiness + 1;
       setShakeKey((k) => k + 1);
@@ -219,11 +256,6 @@ export default function App() {
       sound.playSqueak();
       setPenalty((p) => p + 25);
       showToast('Ouch, there’s a toy there. Try another pose or spot.', 'warn');
-      return;
-    }
-    if (cells.some((k) => others.has(k))) {
-      sound.playRotate();
-      showToast(`That’s ${names[id === 'boyfriend' ? 'girlfriend' : 'boyfriend']}’s spot.`, 'warn');
       return;
     }
     sound.playPop();
@@ -344,6 +376,8 @@ export default function App() {
             onPersonTap={getOut}
             shakeKey={shakeKey}
             gridRef={gridRef}
+            fart={fart}
+            growling={growling}
             dropCol={drag && dragInfo?.overBed ? { id: drag.id, col: dragInfo.col, width: currentPose(drag.id).width } : null}
           />
           {toast && (

@@ -364,12 +364,12 @@ export function PersonFigure({
 // ---------------------------------------------------------------------------
 // Rosie: mostly white with grey ticking, black head with a white blaze
 // ---------------------------------------------------------------------------
-export function DogFigure({ cells, grumpy }: { cells: DogCellT[]; grumpy: number }) {
+export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT[]; grumpy: number; growling?: boolean }) {
   const t = useClock(true);
   const breath = Math.sin((t / 3.1) * Math.PI * 2);
   const ear = pulse(t, 6.5, 2, 0.5);
   const paddle = pulse(t, 8, 5, 1.4);
-  const wag = grumpy ? 0 : Math.sin(t * 2.2) * 14;
+  const wag = grumpy || growling ? 0 : Math.sin(t * 2.2) * 14;
 
   const pts = cells.map((c) => center(c.r, c.c));
   const H = pts[0];
@@ -454,7 +454,12 @@ export function DogFigure({ cells, grumpy }: { cells: DogCellT[]; grumpy: number
         <ellipse cx={3} cy={8} rx={28} ry={26} fill="rgba(60,30,10,0.14)" />
         <RosieFace ear={ear} />
       </g>
-      {grumpy === 0 ? (
+      {growling ? (
+        <g>
+          <rect x={H.x + 6} y={H.y - 66} width={78} height={34} rx={14} fill="#fff4e6" stroke="#d9480f" strokeWidth={3} />
+          <text x={H.x + 45} y={H.y - 42} fontSize={22} fontWeight={900} fill="#d9480f" textAnchor="middle">GRRR</text>
+        </g>
+      ) : grumpy === 0 ? (
         <Zzz at={H} up={{ x: -neck.x, y: -neck.y }} side={perp(neck)} t={t} phase={0.4} />
       ) : (
         <text x={H.x + 24} y={H.y - 30} fontSize={26} fontWeight={800} fill="#d9480f">
