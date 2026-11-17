@@ -1,5 +1,5 @@
 import React from 'react';
-import { LevelConfig } from '../types';
+import { PuzzleLevel as LevelConfig } from '../utils/puzzle';
 import { X, Star, CheckCircle, Lock } from 'lucide-react';
 import { sound } from '../utils/audio';
 
