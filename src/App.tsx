@@ -6,7 +6,7 @@ import { MobileFrame } from './components/MobileFrame';
 import { Bed, PersonId, PlacedPerson } from './components/Bed';
 import { PersonFigure, S } from './components/Figures';
 import { PoseControls } from './components/PoseControls';
-import { ZenTimer } from './components/ZenTimer';
+import { motion, AnimatePresence } from 'motion/react';
 import { DogWarningModal } from './components/DogWarningModal';
 import { WinModal } from './components/WinModal';
 import { LevelSelectModal } from './components/LevelSelectModal';
@@ -55,7 +55,6 @@ export default function App() {
   const [completedLevelIds, setCompleted] = useState<number[]>(() => load(STORAGE_COMPLETED_KEY, []));
   const [cuddleBonusLevelIds, setCuddles] = useState<number[]>(() => load(STORAGE_CUDDLE_KEY, []));
   const [highScores, setHighScores] = useState<Record<number, number>>(() => load(STORAGE_SCORES_KEY, {}));
-  const [isZenTimerEnabled, setIsZenTimerEnabled] = useState<boolean>(() => load(STORAGE_ZENTIMER_KEY, true));
 
   const [seconds, setSeconds] = useState(0);
   const [penalty, setPenalty] = useState(0);
@@ -74,6 +73,26 @@ export default function App() {
   const [selected, setSelected] = useState<PersonId | null>('boyfriend');
 
   const [toast, setToast] = useState<Toast>(null);
+  // Arcade extras: floating score pop-ups and a READY? / GO! intro each night.
+  const [pops, setPops] = useState<{ id: number; text: string; cls: string; x: number }[]>([]);
+  const popId = useRef(0);
+  const pop = (text: string, cls = 'neon-red') => {
+    const id = ++popId.current;
+    const x = 30 + Math.random() * 40;
+    setPops((p) => [...p, { id, text, cls, x }]);
+    window.setTimeout(() => setPops((p) => p.filter((q) => q.id !== id)), 1150);
+  };
+  const [introKey, setIntroKey] = useState(1);
+  const [intro, setIntro] = useState<'ready' | 'go' | null>('ready');
+  useEffect(() => {
+    setIntro('ready');
+    const a = window.setTimeout(() => setIntro('go'), 1500);
+    const b = window.setTimeout(() => setIntro(null), 2100);
+    return () => {
+      window.clearTimeout(a);
+      window.clearTimeout(b);
+    };
+  }, [introKey]);
   const toastTimer = useRef<number | undefined>(undefined);
   const [warningModal, setWarningModal] = useState<'grumble' | 'growl' | 'bite' | null>(null);
   const [isWinModalOpen, setIsWinModalOpen] = useState(false);
@@ -178,6 +197,8 @@ export default function App() {
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
     sound.stopSnoring();
+    setPops([]);
+    setIntroKey((k) => k + 1);
   }, []);
 
 
@@ -235,6 +256,7 @@ export default function App() {
       save(STORAGE_CUDDLE_KEY, c);
     }
     // Calm 'lights out' bell, then the two of them snore until the next night starts.
+    pop('PERFECT FIT!', 'neon-yellow');
     sound.playBedtimeBell();
     sound.startSnoring(2.6);
     setTimeout(() => setIsWinModalOpen(true), 900);
@@ -260,6 +282,7 @@ export default function App() {
       const farter = Math.random() < 0.5 ? id : other;
       sound.playFart();
       setPenalty((p) => p + 50);
+      pop('-50 PFFRT!', 'neon-green');
       setFart({ key: Date.now(), cells: squished.map((k) => ({ r: +k.split(',')[0], c: +k.split(',')[1] })) });
       showToast(`Pfffrt! ${names[farter]} farted.`, 'warn');
       const t1 = window.setTimeout(() => {
@@ -267,6 +290,7 @@ export default function App() {
         setGrumpiness(g);
         setShakeKey((k) => k + 1);
         setPenalty((p) => p + 100);
+        pop('-100', 'neon-red');
         if (g >= 3) {
           loseNight();
         } else {
@@ -285,15 +309,18 @@ export default function App() {
       setShakeKey((k) => k + 1);
       if (g >= 3) {
         setPenalty((p) => p + 300);
+        pop('-300', 'neon-red');
         loseNight();
       } else if (g === 2) {
         sound.playDogGrowl();
         setPenalty((p) => p + 150);
+        pop('-150 GRRR', 'neon-red');
         setGrumpiness(2);
         setWarningModal('growl');
       } else {
         sound.playDogGrumble();
         setPenalty((p) => p + 100);
+        pop('-100', 'neon-red');
         setGrumpiness(1);
         showToast(`${profiles.dogName} grumbles. That's her spot!`, 'warn');
       }
@@ -303,6 +330,7 @@ export default function App() {
     if (hit) {
       // Each item makes its own noise when someone lies on it.
       setPenalty((p) => p + 25);
+      pop(hit.type === 'phone' ? '-25 BZZT' : hit.type === 'tissues' ? '-25 CRINKLE' : hit.type.startsWith('treat') ? '-25 CRUNCH' : '-25 SQUEAK', 'neon-yellow');
       const who = names[id];
       if (hit.type === 'phone') {
         sound.playPhoneBuzz();
@@ -331,6 +359,7 @@ export default function App() {
       return;
     }
     sound.playPop();
+    pop('NICE!', 'neon-cyan');
     const next = { ...placedCol, [id]: col };
     setPlacedCol(next);
     const other: PersonId = id === 'boyfriend' ? 'girlfriend' : 'boyfriend';
@@ -397,7 +426,7 @@ export default function App() {
 
   const dragInfo = drag ? dropInfo(drag.x, drag.y, drag.id, drag.grab) : null;
 
-  const mood = ['Sound asleep', 'Grumbling in her sleep', 'Snarling, half asleep', 'Wide awake and barking'][grumpiness];
+  const mood = ['Sound asleep', 'Grumbling', 'Snarling', 'AWAKE!'][grumpiness];
 
   return (
     <MobileFrame
@@ -423,27 +452,38 @@ export default function App() {
       onPrevLevel={() => levelIndex > 0 && loadLevel(levelIndex - 1)}
       onNextLevel={() => levelIndex < PUZZLE_LEVELS.length - 1 && loadLevel(levelIndex + 1)}
     >
-      <div className="px-3 pt-2 flex flex-col gap-2">
-        {isZenTimerEnabled && (
-          <ZenTimer
-            seconds={seconds}
-            speedBonus={speedBonus}
-            currentScore={liveScore}
-            penaltyPoints={penalty}
-            isEnabled={isZenTimerEnabled}
-            onToggleEnabled={() => {
-              setIsZenTimerEnabled(false);
-              save(STORAGE_ZENTIMER_KEY, false);
-            }}
-          />
-        )}
-        <div className="flex items-center justify-between text-xs font-semibold text-amber-950/80 px-1">
-          <span>
-            {profiles.dogName}: <span className={grumpiness ? 'text-orange-700' : 'text-emerald-700'}>{mood}</span>
-          </span>
-          <span>Fill every square to sleep</span>
+      <div className="px-3 pt-3 flex flex-col gap-2">
+        {/* Arcade HUD */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            ['SCORE', String(liveScore).padStart(6, '0'), 'neon-yellow'],
+            ['TIME', `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, 'neon-cyan'],
+            ['HI', String(highScores[level.id] || 0).padStart(6, '0'), 'neon-pink'],
+          ].map(([label, value, cls]) => (
+            <div key={label} className="pixel-panel px-1.5 py-1 text-center">
+              <div className="font-arcade text-[7px] text-[#8f86d6]">{label}</div>
+              <div className={`font-arcade text-[11px] mt-1 ${cls}`}>{value}</div>
+            </div>
+          ))}
         </div>
-        <div className="relative">
+        <div className="flex items-center gap-2 px-0.5">
+          <span className="font-arcade text-[8px] text-[#8f86d6] uppercase">{profiles.dogName}</span>
+          <div className="flex gap-1" aria-label={`Wake meter ${grumpiness} of 3`}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="w-6 h-3 border-2 border-[#05030f]"
+                style={{
+                  background: i < grumpiness ? ['var(--neon-yellow)', 'var(--neon-orange)', 'var(--neon-red)'][i] : '#2c2370',
+                  boxShadow: i < grumpiness ? `0 0 8px ${['#ffe04a', '#ff9b3d', '#ff4d5e'][i]}` : undefined,
+                }}
+              />
+            ))}
+          </div>
+          <span className={`font-pixel text-[13px] truncate ${grumpiness ? 'neon-red' : 'neon-green'}`}>{mood}</span>
+          <span className="ml-auto font-arcade text-[7px] text-[#8f86d6] text-right leading-tight">FILL EVERY<br />SQUARE</span>
+        </div>
+        <div className={`relative arcade-screen ${grumpiness >= 2 ? 'critical' : grumpiness === 1 ? 'danger' : ''}`}>
           <Bed
             level={level}
             placed={placed}
@@ -455,13 +495,59 @@ export default function App() {
             growling={growling}
             dropCol={drag && dragInfo?.overBed ? { id: drag.id, col: dragInfo.col, width: currentPose(drag.id).width } : null}
           />
+
+          {/* Floating score pop-ups */}
+          {pops.map((p) => (
+            <div
+              key={p.id}
+              className={`score-pop absolute top-[38%] font-arcade text-[14px] whitespace-nowrap pointer-events-none text-outline ${p.cls}`}
+              style={{ left: `${p.x}%` }}
+            >
+              {p.text}
+            </div>
+          ))}
+
+          {/* READY? / GO! */}
+          <AnimatePresence>
+            {intro && (
+              <motion.div
+                key={`intro-${introKey}`}
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none bg-[#05030f]/55 rounded-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <motion.div
+                  initial={{ scale: 2.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                  className="font-arcade text-[20px] neon-yellow text-outline"
+                >
+                  NIGHT {String(level.id).padStart(2, '0')}
+                </motion.div>
+                <div className="font-pixel text-[16px] font-semibold text-[#e9e5ff] mt-2 px-4 text-center">{level.title.replace(/^Night \d+:\s*/, '')}</div>
+                <div className="font-pixel text-[13px] text-[#cfc8ff] mt-1.5 px-6 text-center leading-snug">{level.storyNote}</div>
+                <motion.div
+                  key={intro}
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+                  className={`font-arcade mt-4 text-outline ${intro === 'go' ? 'text-[28px] neon-green' : 'text-[14px] neon-pink blink'}`}
+                >
+                  {intro === 'go' ? 'GO!' : 'READY?'}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {toast && (
             <div
               role="status"
-              className={`absolute left-3 right-3 top-3 rounded-2xl px-3 py-2 text-sm font-semibold shadow-lg text-center ${
-                toast.tone === 'warn' ? 'bg-orange-50 text-orange-900 border border-orange-200' : 'bg-white text-amber-950 border border-amber-200'
-              }`}
+              className="absolute left-2 right-2 bottom-2 z-20 pixel-panel px-3 py-2 font-pixel text-[14px] leading-snug text-[#f4f1ff]"
+              style={{ borderColor: toast.tone === 'warn' ? 'var(--neon-orange)' : 'var(--neon-cyan)' }}
             >
+              <span className={`font-arcade text-[8px] mr-1.5 ${toast.tone === 'warn' ? 'neon-yellow' : 'neon-cyan'}`}>{toast.tone === 'warn' ? '!' : '▶'}</span>
               {toast.text}
             </div>
           )}
@@ -495,7 +581,7 @@ export default function App() {
             pointerEvents: 'none',
             zIndex: 60,
             overflow: 'visible',
-            filter: 'drop-shadow(0 10px 12px rgba(60,30,10,0.35))',
+            filter: 'drop-shadow(0 0 10px rgba(63,243,255,0.7)) drop-shadow(0 10px 10px rgba(0,0,0,0.5))',
           }}
         >
           <PersonFigure pose={currentPose(drag.id)} who={drag.id} sleeping={false} />

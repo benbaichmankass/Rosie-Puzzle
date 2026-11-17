@@ -1,20 +1,6 @@
 import React from 'react';
-import {
-  Volume2,
-  VolumeX,
-  Camera,
-  RotateCcw,
-  List,
-  ChevronLeft,
-  ChevronRight,
-  Sun,
-  Moon,
-  Info,
-  Maximize,
-  Minimize,
-} from 'lucide-react';
+import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
 import { AvatarProfiles } from '../types';
-import { AvatarDisplay } from './AvatarDisplay';
 import { sound } from '../utils/audio';
 
 interface MobileFrameProps {
@@ -23,10 +9,10 @@ interface MobileFrameProps {
   totalLevels: number;
   levelTitle: string;
   storyNote: string;
-  isNightLamp: boolean;
+  isNightLamp?: boolean;
   soundEnabled: boolean;
   profiles: AvatarProfiles;
-  onToggleNightLamp: () => void;
+  onToggleNightLamp?: () => void;
   onToggleSound: () => void;
   onOpenCustomizer?: () => void;
   onOpenLevelSelect: () => void;
@@ -37,16 +23,23 @@ interface MobileFrameProps {
   onNextLevel: () => void;
 }
 
+function IconBtn({ onClick, label, children, className = 'btn-dark' }: { onClick?: () => void; label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <button onClick={onClick} title={label} aria-label={label} className={`arcade-btn ${className} w-8 h-8 flex items-center justify-center`}>
+      {children}
+    </button>
+  );
+}
+
+/** Arcade cabinet shell: marquee title, stage switcher, quick buttons, then the game. */
 export function MobileFrame({
   children,
   levelNumber,
   totalLevels,
   levelTitle,
   storyNote,
-  isNightLamp,
   soundEnabled,
   profiles,
-  onToggleNightLamp,
   onToggleSound,
   onOpenCustomizer,
   onOpenLevelSelect,
@@ -56,170 +49,66 @@ export function MobileFrame({
   onPrevLevel,
   onNextLevel,
 }: MobileFrameProps) {
+  const pad = (n: number) => String(n).padStart(2, '0');
   return (
-    <div
-      className={`min-h-screen w-full flex items-center justify-center p-0 sm:p-4 transition-colors duration-500 select-none ${
-        isNightLamp
-          ? 'bg-amber-950/40 text-amber-950'
-          : 'bg-slate-950 text-slate-100'
-      }`}
-    >
-      {/* Mobile Device Container */}
-      <div
-        className={`w-full max-w-[420px] min-h-screen sm:min-h-[760px] sm:max-h-[92vh] flex flex-col justify-between rounded-none sm:rounded-[38px] shadow-2xl border-0 sm:border-8 transition-colors duration-500 overflow-y-auto sm:overflow-hidden ${
-          isNightLamp
-            ? 'bg-amber-50/95 border-amber-800/30'
-            : 'bg-stone-900 border-stone-800 text-stone-100'
-        }`}
-      >
-        {/* Mobile Phone Top Notch / Status Bar */}
-        <div className="pt-2 px-5 pb-1 flex items-center justify-between text-xs font-semibold opacity-75">
-          <span>9:41 PM 🌙</span>
-          {/* Subtle phone notch bar */}
-          <div className="w-20 h-4 bg-stone-300/40 dark:bg-stone-700/60 rounded-full mx-auto -mt-1 hidden sm:block"></div>
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span>Bedtime</span>
-            <div className="w-4 h-2 rounded-xs border border-current flex items-center p-0.5">
-              <div className="w-2.5 h-1 bg-current rounded-2xs"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Top Control Bar */}
-        <div className="px-4 py-1.5 flex items-center justify-between border-b border-amber-200/50 dark:border-stone-800">
-          {/* Level Switcher & Select */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onPrevLevel}
-              disabled={levelNumber <= 1}
-              className="p-1 rounded-lg hover:bg-amber-200/50 dark:hover:bg-stone-800 disabled:opacity-30 active:scale-95 transition-all"
-              title="Previous Level"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={onOpenLevelSelect}
-              className="px-2 py-1 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 text-xs font-bold flex items-center gap-1 shadow-2xs active:scale-95 transition-all"
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Night {levelNumber}/{totalLevels}</span>
-            </button>
-
-            <button
-              onClick={onNextLevel}
-              disabled={levelNumber >= totalLevels}
-              className="p-1 rounded-lg hover:bg-amber-200/50 dark:hover:bg-stone-800 disabled:opacity-30 active:scale-95 transition-all"
-              title="Next Level"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="flex items-center gap-1">
-            {/* Lamp Toggle */}
-            <button
-              onClick={onToggleNightLamp}
-              className="p-1.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 dark:hover:bg-stone-700 shadow-2xs active:scale-95 transition-all"
-              title={isNightLamp ? 'Turn Off Night Lamp' : 'Turn On Warm Lamp'}
-            >
-              {isNightLamp ? (
-                <Sun className="w-3.5 h-3.5 text-amber-600" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-indigo-400" />
-              )}
-            </button>
-
-            {/* Sound Toggle */}
-            <button
-              onClick={onToggleSound}
-              className="p-1.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 dark:hover:bg-stone-700 shadow-2xs active:scale-95 transition-all"
-              title={soundEnabled ? 'Mute Audio' : 'Enable Audio'}
-            >
-              {soundEnabled ? (
-                <Volume2 className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
-              ) : (
-                <VolumeX className="w-3.5 h-3.5 text-rose-500" />
-              )}
-            </button>
-
-            {/* Restart Level */}
-            <button
+    <div className="arcade-sky min-h-screen w-full flex justify-center text-[#f4f1ff] select-none">
+      <div className="w-full max-w-[420px] min-h-screen flex flex-col">
+        {/* Marquee */}
+        <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-2">
+          <h1 className="font-arcade text-[13px] leading-none marquee-title whitespace-nowrap">BEDTIME PUZZLE</h1>
+          <div className="flex items-center gap-1.5">
+            <IconBtn onClick={onToggleSound} label={soundEnabled ? 'Mute' : 'Sound on'}>
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-[var(--neon-red)]" />}
+            </IconBtn>
+            <IconBtn
               onClick={() => {
                 onRestartLevel();
                 sound.playPop();
               }}
-              className="p-1.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 dark:hover:bg-stone-700 shadow-2xs active:scale-95 transition-all"
-              title="Reset Bed"
+              label="Restart this night"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
-            </button>
-
-            {/* Full screen */}
+              <RotateCcw className="w-4 h-4" />
+            </IconBtn>
             {onToggleFullscreen && (
-              <button
-                onClick={onToggleFullscreen}
-                className="p-1.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 dark:hover:bg-stone-700 shadow-2xs active:scale-95 transition-all"
-                title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-                aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
-              >
-                {isFullscreen ? (
-                  <Minimize className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
-                ) : (
-                  <Maximize className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
-                )}
-              </button>
+              <IconBtn onClick={onToggleFullscreen} label={isFullscreen ? 'Exit full screen' : 'Full screen'}>
+                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </IconBtn>
             )}
-
-            {/* Trio Photo Avatar Button with Customizer */}
             <button
               onClick={onOpenCustomizer}
-              className="flex items-center -space-x-1.5 px-2 py-0.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 border border-amber-300/80 dark:border-stone-700 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="Click to view & select character photos"
+              title="Character photos"
+              aria-label="Character photos"
+              className="arcade-btn btn-dark h-8 px-1 flex items-center -space-x-1.5"
             >
-              <img
-                src={profiles.boyfriendPhoto || 'assets/avatars/bentzi.jpg'}
-                alt={profiles.boyfriendName}
-                className="w-5.5 h-5.5 rounded-full object-cover border-2 border-sky-400 shadow-xs"
-              />
-              <img
-                src={profiles.dogPhoto || 'assets/avatars/rosie.jpg'}
-                alt={profiles.dogName}
-                className="w-6 h-6 rounded-full object-cover border-2 border-amber-400 shadow-xs z-10"
-              />
-              <img
-                src={profiles.girlfriendPhoto || 'assets/avatars/shai.jpg'}
-                alt={profiles.girlfriendName}
-                className="w-5.5 h-5.5 rounded-full object-cover border-2 border-teal-400 shadow-xs"
-              />
-              <span className="text-[9px] font-black text-amber-950 dark:text-amber-200 pl-2">
-                📸
-              </span>
+              {[profiles.boyfriendPhoto || 'assets/avatars/bentzi.jpg', profiles.dogPhoto || 'assets/avatars/rosie.jpg', profiles.girlfriendPhoto || 'assets/avatars/shai.jpg'].map((src, i) => (
+                <img key={i} src={src} alt="" className="w-5 h-5 rounded-sm object-cover border-2 border-[#05030f]" />
+              ))}
             </button>
           </div>
         </div>
 
-        {/* Story Note / Hint Banner */}
-        <div className="px-4 pt-2">
-          <div className="px-3 py-1.5 rounded-2xl bg-amber-100/90 dark:bg-stone-800/80 border border-amber-200 dark:border-stone-700 text-amber-950 dark:text-amber-100 flex items-start gap-2 shadow-2xs">
-            <Info className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-[11px] font-medium leading-snug">
-              {storyNote}
-            </p>
-          </div>
+        {/* Stage switcher */}
+        <div className="px-3 flex items-center gap-2">
+          <IconBtn onClick={onPrevLevel} label="Previous night" className="btn-cyan">
+            <ChevronLeft className="w-5 h-5" />
+          </IconBtn>
+          <button onClick={onOpenLevelSelect} className="flex-1 min-w-0 pixel-panel px-2 py-1.5 text-left active:translate-y-[2px]">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-arcade text-[11px] neon-yellow whitespace-nowrap">
+                NIGHT {pad(levelNumber)}<span className="text-[#8f86d6] [text-shadow:none]">/{pad(totalLevels)}</span>
+              </span>
+              <span className="font-arcade text-[8px] text-[#8f86d6]">SELECT ▾</span>
+            </div>
+            <div className="font-pixel text-[13px] font-semibold leading-tight truncate text-[#e9e5ff]">{levelTitle.replace(/^Night \d+:\s*/, '')}</div>
+          </button>
+          <IconBtn onClick={onNextLevel} label="Next night" className="btn-cyan">
+            <ChevronRight className="w-5 h-5" />
+          </IconBtn>
         </div>
 
-        {/* Main Content Area (Bed & Tray) */}
-        <div className="flex-1 px-3 py-2 flex flex-col justify-between overflow-y-auto">
-          {children}
-        </div>
-
-        {/* Subtle home bar */}
-        <div className="pb-2 pt-1 flex justify-center">
-          <div className="w-32 h-1 bg-stone-300 dark:bg-stone-700 rounded-full"></div>
-        </div>
+        <div className="flex-1 flex flex-col">{children}</div>
       </div>
+      <div className="crt-overlay" aria-hidden />
     </div>
   );
 }

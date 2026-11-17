@@ -43,30 +43,34 @@ export function PoseControls(p: Props) {
   };
 
   return (
-    <div className="px-3 pb-4 pt-2 flex flex-col gap-2">
+    <div className="px-3 pb-4 pt-3 flex flex-col gap-2.5">
       <div className="grid grid-cols-2 gap-2">
-        {IDS.map((pid) => {
+        {IDS.map((pid, n) => {
           const active = pid === id;
           const ring = LOOKS[pid].ring;
           return (
             <button
               key={pid}
               onClick={() => p.onSelect(pid)}
-              className={`flex items-center gap-2 rounded-2xl px-2 py-1.5 border-2 text-left transition-all active:scale-[0.98] ${
-                active ? 'bg-white shadow-sm' : 'bg-amber-100/60 border-transparent'
-              }`}
-              style={{ borderColor: active ? ring : 'transparent' }}
+              className={`relative flex items-center gap-2 px-2 py-1.5 text-left pixel-panel transition-transform active:translate-y-[2px] ${active ? '' : 'opacity-70'}`}
+              style={active ? { borderColor: ring, boxShadow: `0 0 0 3px #05030f, 0 0 14px ${ring}, 0 6px 0 3px #05030f` } : undefined}
             >
-              <img src={p.photos[pid]} alt="" className="w-9 h-9 rounded-full object-cover border-2" style={{ borderColor: ring }} />
+              <span
+                className="absolute -top-2 left-1.5 font-arcade text-[8px] px-1 py-0.5 border-2 border-[#05030f]"
+                style={{ background: ring, color: '#fff' }}
+              >
+                P{n + 1}
+              </span>
+              <img src={p.photos[pid]} alt="" className="w-9 h-9 rounded-sm object-cover border-2" style={{ borderColor: ring }} />
               <span className="min-w-0">
-                <span className="block text-sm font-bold leading-tight truncate">{p.names[pid]}</span>
-                <span className="block text-[11px] text-amber-900/70 leading-tight">
+                <span className="block font-arcade text-[10px] leading-tight truncate uppercase">{p.names[pid]}</span>
+                <span className="block font-pixel text-[12px] leading-tight mt-0.5 text-[#b9b0f5]">
                   {p.isPlaced[pid] ? (
-                    <span className="inline-flex items-center gap-0.5 text-emerald-700 font-semibold">
-                      <Check className="w-3 h-3" /> In bed
+                    <span className="inline-flex items-center gap-0.5 neon-green font-semibold">
+                      <Check className="w-3 h-3" /> IN BED
                     </span>
                   ) : (
-                    `Pose ${p.poseIdx[pid] + 1} of ${p.poses[pid].length}`
+                    `POSE ${p.poseIdx[pid] + 1}/${p.poses[pid].length}`
                   )}
                 </span>
               </span>
@@ -76,35 +80,39 @@ export function PoseControls(p: Props) {
       </div>
 
       {id && !p.isPlaced[id] ? (
-        <div className="rounded-3xl bg-white/80 border border-amber-200 shadow-sm p-3 flex flex-col gap-1">
+        <div className="pixel-panel p-2.5 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => p.onCyclePose(id, -1)}
-              className="w-11 h-11 shrink-0 rounded-full bg-amber-100 hover:bg-amber-200 flex items-center justify-center active:scale-95"
+              className="arcade-btn btn-pink w-12 h-12 shrink-0 flex items-center justify-center"
               aria-label="Previous pose"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-7 h-7" strokeWidth={3} />
             </button>
             <div
-              className={`flex-1 min-w-0 h-[122px] flex items-center justify-center rounded-2xl transition-opacity ${p.isDragging ? 'opacity-25' : ''}`}
-              style={{ touchAction: 'none', cursor: 'grab' }}
+              className={`relative flex-1 min-w-0 h-[118px] flex items-center justify-center rounded-md transition-opacity ${p.isDragging ? 'opacity-25' : ''}`}
+              style={{
+                touchAction: 'none',
+                cursor: 'grab',
+                background: 'radial-gradient(ellipse at center, rgba(63,243,255,0.16), transparent 70%)',
+              }}
               onPointerDown={startDrag}
             >
               <AnimatePresence mode="popLayout" initial={false}>
                 {(() => {
                   const pose = p.poses[id][p.poseIdx[id]];
                   const vb = poseViewBox(pose);
-                  const h = 116;
+                  const h = 112;
                   return (
                     <motion.svg
                       key={`${id}-${p.poseIdx[id]}`}
                       data-pose={p.poseIdx[id]}
                       viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-                      style={{ height: h, width: (h * vb.w) / vb.h, maxWidth: '100%' }}
-                      initial={{ opacity: 0, scale: 0.85, rotate: -4 }}
-                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                      exit={{ opacity: 0, scale: 0.85, rotate: 4 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+                      style={{ height: h, width: (h * vb.w) / vb.h, maxWidth: '100%', filter: 'drop-shadow(0 0 6px rgba(63,243,255,0.35))' }}
+                      initial={{ opacity: 0, scale: 0.6, x: 30 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.6, x: -30 }}
+                      transition={{ type: 'spring', stiffness: 520, damping: 24 }}
                       aria-label={`${p.names[id]}: ${pose.name}`}
                     >
                       <PoseShape pose={pose} who={id} />
@@ -115,29 +123,26 @@ export function PoseControls(p: Props) {
             </div>
             <button
               onClick={() => p.onCyclePose(id, 1)}
-              className="w-11 h-11 shrink-0 rounded-full bg-amber-100 hover:bg-amber-200 flex items-center justify-center active:scale-95"
+              className="arcade-btn btn-pink w-12 h-12 shrink-0 flex items-center justify-center"
               aria-label="Next pose"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-7 h-7" strokeWidth={3} />
             </button>
           </div>
-          <div className="text-xs font-bold text-amber-950 text-center">
-            {p.poses[id][p.poseIdx[id]].name}
-            <span className="font-medium text-amber-900/60"> · {p.poseIdx[id] + 1}/{p.poses[id].length}</span>
+          <div className="text-center">
+            <span className="font-arcade text-[10px] neon-cyan uppercase">{p.poses[id][p.poseIdx[id]].name}</span>
+            <span className="font-arcade text-[8px] text-[#8f86d6]"> {p.poseIdx[id] + 1}/{p.poses[id].length}</span>
           </div>
-          <p className="text-[11px] text-center text-amber-900/70 leading-snug inline-flex items-center justify-center gap-1">
-            <Hand className="w-3.5 h-3.5" /> Drag {p.names[id]} onto the bed. Heads go on the pillows.
+          <p className="font-pixel text-[12px] text-center text-[#b9b0f5] leading-snug inline-flex items-center justify-center gap-1">
+            <Hand className="w-3.5 h-3.5" /> <span className="blink">DRAG</span> {p.names[id]} onto the bed. Heads on pillows!
           </p>
         </div>
       ) : id && p.isPlaced[id] ? (
-        <button
-          onClick={() => p.onGetOut(id)}
-          className="h-12 rounded-2xl bg-amber-200 hover:bg-amber-300 font-bold text-amber-950 flex items-center justify-center gap-2 active:scale-[0.98]"
-        >
-          <LogOut className="w-4 h-4" /> Get {p.names[id]} out of bed
+        <button onClick={() => p.onGetOut(id)} className="arcade-btn btn-yellow h-12 font-arcade text-[10px] flex items-center justify-center gap-2">
+          <LogOut className="w-4 h-4" /> GET {p.names[id].toUpperCase()} OUT
         </button>
       ) : (
-        <div className="rounded-3xl bg-white/70 border border-amber-200 p-3 text-center text-sm text-amber-900">
+        <div className="pixel-panel p-3 text-center font-pixel text-[13px] text-[#cfc8ff]">
           Both of you are in bed. Tap someone to get them out and try another pose.
         </div>
       )}
