@@ -1,25 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  LevelConfig,
-  PlayerPiece,
-  DogState,
-  Obstacle,
-  CellCoord,
-  AvatarProfiles,
-  LevelScore,
-} from './types';
-import { LEVELS, generateRandomBedItems } from './utils/levels';
-import {
-  rotateCells,
-  flipCells,
-  canPlace,
-  coordKey,
-  areAdjacent,
-} from './utils/gridUtils';
-import { BOYFRIEND_POSES, GIRLFRIEND_POSES, bendPieceLimb } from './utils/poses';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AvatarProfiles, LevelScore } from './types';
+import { PUZZLE_LEVELS, PuzzleLevel, Pose, generateLevel, key, layoutKey, poseCellsAt } from './utils/puzzle';
+import { areAdjacent } from './utils/gridUtils';
 import { MobileFrame } from './components/MobileFrame';
-import { BedGrid } from './components/BedGrid';
-import { PieceDrawer } from './components/PieceDrawer';
+import { Bed, PersonId, PlacedPerson } from './components/Bed';
+import { PersonFigure, S } from './components/Figures';
+import { PoseControls } from './components/PoseControls';
+import { motion, AnimatePresence } from 'motion/react';
 import { DogWarningModal } from './components/DogWarningModal';
 import { WinModal } from './components/WinModal';
 import { LevelSelectModal } from './components/LevelSelectModal';
@@ -27,788 +14,644 @@ import { AvatarCustomizer } from './components/AvatarCustomizer';
 import { sound } from './utils/audio';
 
 const STORAGE_PROFILES_KEY = 'bedtime_puzzle_profiles_v2';
-const STORAGE_COMPLETED_KEY = 'bedtime_puzzle_completed_v1';
-const STORAGE_CUDDLE_KEY = 'bedtime_puzzle_cuddle_v1';
-const STORAGE_SCORES_KEY = 'bedtime_puzzle_highscores_v1';
+const STORAGE_COMPLETED_KEY = 'bedtime_puzzle_completed_v2';
+const STORAGE_CUDDLE_KEY = 'bedtime_puzzle_cuddle_v2';
+const STORAGE_SCORES_KEY = 'bedtime_puzzle_highscores_v2';
 const STORAGE_ZENTIMER_KEY = 'bedtime_puzzle_zentimer_v1';
 
 const DEFAULT_PROFILES: AvatarProfiles = {
   boyfriendName: 'Bentzi',
   girlfriendName: 'Shai',
   dogName: 'Rosie',
-  boyfriendPhoto: '/assets/avatars/bentzi.jpg',
-  girlfriendPhoto: '/assets/avatars/shai.jpg',
-  dogPhoto: '/assets/avatars/rosie.jpg',
+  boyfriendPhoto: 'assets/avatars/bentzi.jpg',
+  girlfriendPhoto: 'assets/avatars/shai.jpg',
+  dogPhoto: 'assets/avatars/rosie.jpg',
   dogBreed: 'border_collie' as any,
 };
 
+const IDS: PersonId[] = ['boyfriend', 'girlfriend'];
+
+function load<T>(k: string, fallback: T): T {
+  try {
+    const s = localStorage.getItem(k);
+    if (s !== null) return JSON.parse(s);
+  } catch {}
+  return fallback;
+}
+function save(k: string, v: unknown) {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
+}
+
+type Toast = { text: string; tone: 'info' | 'warn' | 'good' } | null;
+
 export default function App() {
-  // Profiles with Bentzi, Shai, and Rosie (black and white dog)
-  const [profiles, setProfiles] = useState<AvatarProfiles>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_PROFILES_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          boyfriendName:
-            !parsed.boyfriendName || parsed.boyfriendName === 'Boyfriend'
-              ? 'Bentzi'
-              : parsed.boyfriendName,
-          girlfriendName:
-            !parsed.girlfriendName ||
-            parsed.girlfriendName === 'Girlfriend' ||
-            parsed.girlfriendName === 'Me'
-              ? 'Shai'
-              : parsed.girlfriendName,
-          dogName: 'Rosie',
-          boyfriendPhoto: '/assets/avatars/boyfriend.jpg',
-          girlfriendPhoto: '/assets/avatars/girlfriend.jpg',
-          dogPhoto: '/assets/avatars/rosie.jpg',
-        };
-      }
-    } catch {}
-    return DEFAULT_PROFILES;
-  });
+  const [profiles, setProfiles] = useState<AvatarProfiles>(() => ({ ...DEFAULT_PROFILES, ...load(STORAGE_PROFILES_KEY, {}) }));
+  const [levelIndex, setLevelIndex] = useState(0);
+  // Each time a night is opened it gets a freshly generated layout.
+  const [level, setLevel] = useState<PuzzleLevel>(() => generateLevel(1));
 
-  // Level Progression
-  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
-  const currentLevel = LEVELS[currentLevelIndex] || LEVELS[0];
+  const [completedLevelIds, setCompleted] = useState<number[]>(() => load(STORAGE_COMPLETED_KEY, []));
+  const [cuddleBonusLevelIds, setCuddles] = useState<number[]>(() => load(STORAGE_CUDDLE_KEY, []));
+  const [highScores, setHighScores] = useState<Record<number, number>>(() => load(STORAGE_SCORES_KEY, {}));
 
-  const [completedLevelIds, setCompletedLevelIds] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_COMPLETED_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [seconds, setSeconds] = useState(0);
+  const [penalty, setPenalty] = useState(0);
+  const [grumpiness, setGrumpiness] = useState(0);
+  const [shakeKey, setShakeKey] = useState(0);
+  const [fart, setFart] = useState<{ key: number; cells: { r: number; c: number }[] } | null>(null);
+  const [growling, setGrowling] = useState(false);
+  const grumpRef = useRef(0);
+  grumpRef.current = grumpiness;
+  const timers = useRef<number[]>([]);
 
-  const [cuddleBonusLevelIds, setCuddleBonusLevelIds] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_CUDDLE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [poseIdx, setPoseIdx] = useState<Record<PersonId, number>>({ boyfriend: 0, girlfriend: 0 });
+  const [drag, setDrag] = useState<{ id: PersonId; grab: { r: number; c: number }; x: number; y: number } | null>(null);
+  const gridRef = useRef<SVGRectElement>(null);
+  const [placedCol, setPlacedCol] = useState<Partial<Record<PersonId, number>>>({});
+  const [selected, setSelected] = useState<PersonId | null>('boyfriend');
 
-  const [highScores, setHighScores] = useState<Record<number, number>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SCORES_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {};
-  });
-
-  // Zen Timer, Penalties, & Real-time Live Score
-  const [zenTimerSeconds, setZenTimerSeconds] = useState(0);
-  const [penaltyPoints, setPenaltyPoints] = useState(0);
-
-  const [isZenTimerEnabled, setIsZenTimerEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_ZENTIMER_KEY);
-      if (saved !== null) return JSON.parse(saved);
-    } catch {}
-    return true;
-  });
-
-  const [lastWinScore, setLastWinScore] = useState<LevelScore>({
-    basePoints: 1000,
-    speedBonus: 500,
-    cuddleBonus: 0,
-    penaltyPoints: 0,
-    totalPoints: 1500,
-    timeSeconds: 0,
-  });
-  const [isNewHighScore, setIsNewHighScore] = useState(false);
-
-  // Active Level State
-  const [dog, setDog] = useState<DogState>({
-    cells: currentLevel.dogCells,
-    grumpiness: currentLevel.startingGrumpiness || 0,
-    maxGrumpiness: 3,
-  });
-
-  const [obstacles, setObstacles] = useState<Obstacle[]>(currentLevel.obstacles);
-
-  // Pose indices
-  const [bfPoseIndex, setBfPoseIndex] = useState(0);
-  const [gfPoseIndex, setGfPoseIndex] = useState(0);
-
-  const [boyfriend, setBoyfriend] = useState<PlayerPiece>({
-    id: 'boyfriend',
-    name: profiles.boyfriendName,
-    cells: currentLevel.boyfriendDefaultCells,
-    color: 'bg-sky-200',
-    avatarColor: 'text-sky-800',
-    rotation: 0,
-    isFlipped: false,
-    placedPos: null,
-  });
-
-  const [girlfriend, setGirlfriend] = useState<PlayerPiece>({
-    id: 'girlfriend',
-    name: profiles.girlfriendName,
-    cells: currentLevel.girlfriendDefaultCells,
-    color: 'bg-teal-200',
-    avatarColor: 'text-teal-800',
-    rotation: 0,
-    isFlipped: false,
-    placedPos: null,
-  });
-
-  const [selectedPieceId, setSelectedPieceId] = useState<
-    'boyfriend' | 'girlfriend' | null
-  >('boyfriend');
-
-  const [hoverCoord, setHoverCoord] = useState<CellCoord | null>(null);
-
-  // Modals & Atmosphere
-  const [warningModal, setWarningModal] = useState<{
-    type: 'grumble' | 'growl' | 'bite' | 'pee';
-  } | null>(null);
-  const [peePuddles, setPeePuddles] = useState<CellCoord[]>([]);
+  const [toast, setToast] = useState<Toast>(null);
+  // Arcade extras: floating score pop-ups and a READY? / GO! intro each night.
+  const [pops, setPops] = useState<{ id: number; text: string; cls: string; x: number }[]>([]);
+  const popId = useRef(0);
+  const pop = (text: string, cls = 'neon-red') => {
+    const id = ++popId.current;
+    const x = 30 + Math.random() * 40;
+    setPops((p) => [...p, { id, text, cls, x }]);
+    window.setTimeout(() => setPops((p) => p.filter((q) => q.id !== id)), 1150);
+  };
+  const [introKey, setIntroKey] = useState(1);
+  const [intro, setIntro] = useState<'ready' | 'go' | null>('ready');
+  useEffect(() => {
+    setIntro('ready');
+    const a = window.setTimeout(() => setIntro('go'), 1500);
+    const b = window.setTimeout(() => setIntro(null), 2100);
+    return () => {
+      window.clearTimeout(a);
+      window.clearTimeout(b);
+    };
+  }, [introKey]);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const [warningModal, setWarningModal] = useState<'grumble' | 'growl' | 'bite' | null>(null);
   const [isWinModalOpen, setIsWinModalOpen] = useState(false);
   const [isCuddleBonus, setIsCuddleBonus] = useState(false);
+  const [lastWinScore, setLastWinScore] = useState<LevelScore>({
+    basePoints: 1000, speedBonus: 0, cuddleBonus: 0, penaltyPoints: 0, totalPoints: 0, timeSeconds: 0,
+  });
+  const [isNewHighScore, setIsNewHighScore] = useState(false);
   const [isLevelSelectOpen, setIsLevelSelectOpen] = useState(false);
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [isNightLamp, setIsNightLamp] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Direct touch drag connection from Drawer to Bed
-  const startDragFromDrawerRef = useRef<
-    ((id: 'boyfriend' | 'girlfriend', e: React.PointerEvent) => void) | null
-  >(null);
+  // Load the recorded sounds on the first tap (browsers only allow audio after a gesture).
+  useEffect(() => {
+    const first = () => sound.preload();
+    window.addEventListener('pointerdown', first, { once: true });
+    const onFs = () => setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return () => {
+      window.removeEventListener('pointerdown', first);
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+    };
+  }, []);
 
-  // Live speed bonus calculation
-  const targetSeconds = currentLevel.targetZenSeconds || 30;
-  const currentSpeedBonus = Math.max(
-    100,
-    Math.round(1500 * Math.max(0.1, 1 - zenTimerSeconds / (targetSeconds * 2.5)))
-  );
+  const toggleFullscreen = async () => {
+    const doc = document as any;
+    const el = document.documentElement as any;
+    try {
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        await (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc);
+        return;
+      }
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) throw new Error('unsupported');
+      // Some embedded views neither enter full screen nor reject: give it 1.5s.
+      await Promise.race([
+        Promise.resolve(req.call(el, { navigationUI: 'hide' })),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+      ]);
+      if (!(doc.fullscreenElement || doc.webkitFullscreenElement)) throw new Error('not entered');
+      try {
+        await (screen.orientation as any)?.lock?.('portrait');
+      } catch {}
+    } catch {
+      showToast('This browser won’t go full screen here. Use the browser menu and choose “Add to Home screen” to play full screen.', 'info');
+    }
+  };
 
-  // Real-time live score
-  const currentLiveScore = Math.max(0, 1000 + currentSpeedBonus - penaltyPoints);
+  const poses: Record<PersonId, Pose[]> = { boyfriend: level.boyfriendPoses, girlfriend: level.girlfriendPoses };
+  const currentPose = (id: PersonId) => poses[id][poseIdx[id]];
+  const names: Record<PersonId, string> = { boyfriend: profiles.boyfriendName, girlfriend: profiles.girlfriendName };
+  const photos = {
+    boyfriend: profiles.boyfriendPhoto || DEFAULT_PROFILES.boyfriendPhoto!,
+    girlfriend: profiles.girlfriendPhoto || DEFAULT_PROFILES.girlfriendPhoto!,
+    dog: profiles.dogPhoto || DEFAULT_PROFILES.dogPhoto!,
+  };
 
-  // Zen Timer ticker
+  const placed: Partial<Record<PersonId, PlacedPerson>> = {};
+  IDS.forEach((id) => {
+    if (placedCol[id] !== undefined) placed[id] = { pose: currentPose(id), col: placedCol[id]! };
+  });
+
+  const showToast = (text: string, tone: 'info' | 'warn' | 'good' = 'info') => {
+    setToast({ text, tone });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+  };
+
+  // Score
+  const targetSeconds = level.targetZenSeconds;
+  const speedBonus = Math.max(100, Math.round(1500 * Math.max(0.1, 1 - seconds / (targetSeconds * 2.5))));
+  const liveScore = Math.max(0, 1000 + speedBonus - penalty);
+
   useEffect(() => {
     if (isWinModalOpen) return;
-    const interval = setInterval(() => {
-      setZenTimerSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isWinModalOpen, currentLevelIndex]);
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isWinModalOpen, levelIndex]);
 
-  const handleToggleZenTimer = () => {
-    setIsZenTimerEnabled((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_ZENTIMER_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+  /** fresh=false keeps the current layout (Restart); otherwise a new one is generated. */
+  const loadLevel = useCallback((index: number, fresh = true) => {
+    const safe = Math.max(0, Math.min(PUZZLE_LEVELS.length - 1, index));
+    if (fresh) setLevel((prev) => generateLevel(safe + 1, undefined, prev.id === safe + 1 ? layoutKey(prev) : undefined));
+    setLevelIndex(safe);
+    setSeconds(0);
+    setPenalty(0);
+    setGrumpiness(0);
+    setPoseIdx({ boyfriend: 0, girlfriend: 0 });
+    setDrag(null);
+    setPlacedCol({});
+    setSelected('boyfriend');
+    setIsWinModalOpen(false);
+    setIsCuddleBonus(false);
+    setWarningModal(null);
+    setToast(null);
+    setFart(null);
+    setGrowling(false);
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
+    sound.stopSnoring();
+    setPops([]);
+    setIntroKey((k) => k + 1);
+  }, []);
+
+
+  // What is in the way, for a given person
+  const dogSet = useMemo(() => new Set(level.dogCells.map((c) => key(c.r, c.c))), [level]);
+  const toySet = useMemo(() => new Set(level.obstacles.map((o) => key(o.r, o.c))), [level]);
+  const otherSet = (id: PersonId) => {
+    const other = IDS.find((x) => x !== id)!;
+    const p = placed[other];
+    return new Set(p ? poseCellsAt(p.pose, p.col).map((c) => key(c.r, c.c)) : []);
   };
 
-  // Reset or Load Level (dynamically generates 1-3 items moving each round)
-  const loadLevel = useCallback(
-    (index: number) => {
-      const lvl = LEVELS[index] || LEVELS[0];
-      setCurrentLevelIndex(index);
-      setZenTimerSeconds(0);
-      setPenaltyPoints(0);
-      setDog({
-        cells: [...lvl.dogCells],
-        grumpiness: lvl.startingGrumpiness || 0,
-        maxGrumpiness: 3,
-      });
+  const clampCol = (pose: Pose, c: number) => Math.max(0, Math.min(level.cols - pose.width, c));
 
-      // User pointer 1: Move toys/treats each round with 1-3 items on bed
-      const roundItems = generateRandomBedItems(lvl.rows, lvl.cols, lvl.dogCells);
-      setObstacles(roundItems);
-      setPeePuddles([]);
-
-      setBfPoseIndex(0);
-      setGfPoseIndex(0);
-      setBoyfriend({
-        id: 'boyfriend',
-        name: profiles.boyfriendName,
-        cells: [...lvl.boyfriendDefaultCells],
-        color: 'bg-sky-200',
-        avatarColor: 'text-sky-800',
-        rotation: 0,
-        isFlipped: false,
-        placedPos: null,
-        poseId: BOYFRIEND_POSES[0]?.id || 'bf-l-pose',
-      });
-      setGirlfriend({
-        id: 'girlfriend',
-        name: profiles.girlfriendName,
-        cells: [...lvl.girlfriendDefaultCells],
-        color: 'bg-teal-200',
-        avatarColor: 'text-teal-800',
-        rotation: 0,
-        isFlipped: false,
-        placedPos: null,
-        poseId: GIRLFRIEND_POSES[0]?.id || 'gf-l-pose',
-      });
-      setSelectedPieceId('boyfriend');
-      setHoverCoord(null);
-      setIsWinModalOpen(false);
-      setIsCuddleBonus(false);
-      setWarningModal(null);
-      setIsNewHighScore(false);
-    },
-    [profiles.boyfriendName, profiles.girlfriendName]
-  );
-
-  useEffect(() => {
-    loadLevel(currentLevelIndex);
-  }, [currentLevelIndex, loadLevel]);
-
-  // Rotate piece
-  const handleRotatePiece = (id: 'boyfriend' | 'girlfriend') => {
-    if (id === 'boyfriend') {
-      const rotated = rotateCells(boyfriend.cells);
-      setBoyfriend((prev) => ({
-        ...prev,
-        cells: rotated,
-        rotation: (prev.rotation + 90) % 360,
-        placedPos: null,
-      }));
-      setSelectedPieceId('boyfriend');
-    } else {
-      const rotated = rotateCells(girlfriend.cells);
-      setGirlfriend((prev) => ({
-        ...prev,
-        cells: rotated,
-        rotation: (prev.rotation + 90) % 360,
-        placedPos: null,
-      }));
-      setSelectedPieceId('girlfriend');
-    }
-  };
-
-  // Flip piece
-  const handleFlipPiece = (id: 'boyfriend' | 'girlfriend') => {
-    if (id === 'boyfriend') {
-      const flipped = flipCells(boyfriend.cells);
-      setBoyfriend((prev) => ({
-        ...prev,
-        cells: flipped,
-        isFlipped: !prev.isFlipped,
-        placedPos: null,
-      }));
-      setSelectedPieceId('boyfriend');
-    } else {
-      const flipped = flipCells(girlfriend.cells);
-      setGirlfriend((prev) => ({
-        ...prev,
-        cells: flipped,
-        isFlipped: !prev.isFlipped,
-        placedPos: null,
-      }));
-      setSelectedPieceId('girlfriend');
-    }
-  };
-
-  // Change Pose (cycles through static poses)
-  const handleChangePose = (id: 'boyfriend' | 'girlfriend') => {
+  const cyclePose = (id: PersonId, dir: 1 | -1) => {
+    if (placed[id]) return;
     sound.playRotate();
-    if (id === 'boyfriend') {
-      const nextIdx = (bfPoseIndex + 1) % BOYFRIEND_POSES.length;
-      setBfPoseIndex(nextIdx);
-      const newPose = BOYFRIEND_POSES[nextIdx];
-      setBoyfriend((prev) => {
-        let placedPos = prev.placedPos;
-        if (placedPos) {
-          const blockedSet = new Set<string>();
-          dog.cells.forEach((c) => blockedSet.add(coordKey(c.r, c.c)));
-          obstacles.forEach((o) => blockedSet.add(coordKey(o.r, o.c)));
-          peePuddles.forEach((p) => blockedSet.add(coordKey(p.r, p.c)));
-          if (girlfriend.placedPos) {
-            girlfriend.cells.forEach((c) =>
-              blockedSet.add(coordKey(girlfriend.placedPos!.r + c.r, girlfriend.placedPos!.c + c.c))
-            );
-          }
-          if (!canPlace(newPose.cells, placedPos, currentLevel.rows, currentLevel.cols, blockedSet)) {
-            // Cannot stay in bed with new pose because it would overlap! Recall to tray
-            placedPos = null;
-          }
-        }
-        return {
-          ...prev,
-          cells: [...newPose.cells],
-          poseId: newPose.id,
-          rotation: 0,
-          isFlipped: false,
-          placedPos,
-        };
-      });
-      setSelectedPieceId('boyfriend');
-    } else {
-      const nextIdx = (gfPoseIndex + 1) % GIRLFRIEND_POSES.length;
-      setGfPoseIndex(nextIdx);
-      const newPose = GIRLFRIEND_POSES[nextIdx];
-      setGirlfriend((prev) => {
-        let placedPos = prev.placedPos;
-        if (placedPos) {
-          const blockedSet = new Set<string>();
-          dog.cells.forEach((c) => blockedSet.add(coordKey(c.r, c.c)));
-          obstacles.forEach((o) => blockedSet.add(coordKey(o.r, o.c)));
-          peePuddles.forEach((p) => blockedSet.add(coordKey(p.r, p.c)));
-          if (boyfriend.placedPos) {
-            boyfriend.cells.forEach((c) =>
-              blockedSet.add(coordKey(boyfriend.placedPos!.r + c.r, boyfriend.placedPos!.c + c.c))
-            );
-          }
-          if (!canPlace(newPose.cells, placedPos, currentLevel.rows, currentLevel.cols, blockedSet)) {
-            placedPos = null;
-          }
-        }
-        return {
-          ...prev,
-          cells: [...newPose.cells],
-          poseId: newPose.id,
-          rotation: 0,
-          isFlipped: false,
-          placedPos,
-        };
-      });
-      setSelectedPieceId('girlfriend');
-    }
+    const n = poses[id].length;
+    const next = (poseIdx[id] + dir + n) % n;
+    setPoseIdx((p) => ({ ...p, [id]: next }));
+    setSelected(id);
   };
 
-  // Adjust limb (falls back to cycling pose)
-  const handleAdjustLimb = (
-    id: 'boyfriend' | 'girlfriend',
-    _limbPart?: 'leg' | 'arm' | 'feet'
-  ) => {
-    handleChangePose(id);
-  };
-
-  // Recall piece to drawer
-  const handleRecallPiece = (id: 'boyfriend' | 'girlfriend') => {
-    if (id === 'boyfriend') {
-      setBoyfriend((prev) => ({ ...prev, placedPos: null }));
-      setSelectedPieceId('boyfriend');
-    } else {
-      setGirlfriend((prev) => ({ ...prev, placedPos: null }));
-      setSelectedPieceId('girlfriend');
-    }
-    sound.playPop();
-  };
-
-  // Collision Penalty Handler
-  const handlePenalize = (points: number, reason: string) => {
-    setPenaltyPoints((prev) => prev + points);
-    if (reason.includes('Rosie')) {
-      // Increase dog grumpiness warning
-      setDog((prev) => ({
-        ...prev,
-        grumpiness: Math.min(2, prev.grumpiness + 1),
-      }));
-    }
-  };
-
-  // Check Win Condition
-  const checkWinCondition = (
-    bfPos: CellCoord | null,
-    gfPos: CellCoord | null,
-    bfCells: CellCoord[],
-    gfCells: CellCoord[]
-  ) => {
-    if (bfPos && gfPos) {
-      // Both in bed!
-      const cuddle = areAdjacent(bfCells, bfPos, gfCells, gfPos);
-      setIsCuddleBonus(cuddle);
-
-      // Score calculation
-      const basePoints = 1000;
-      const speedBonus = currentSpeedBonus;
-      const cuddleBonus = cuddle ? 500 : 0;
-      const totalPoints = Math.max(100, basePoints + speedBonus + cuddleBonus - penaltyPoints);
-
-      const scoreObj: LevelScore = {
-        basePoints,
-        speedBonus,
-        cuddleBonus,
-        penaltyPoints,
-        totalPoints,
-        timeSeconds: zenTimerSeconds,
-      };
-      setLastWinScore(scoreObj);
-
-      const previousHigh = highScores[currentLevel.id] || 0;
-      const isNewRecord = totalPoints > previousHigh;
-      setIsNewHighScore(isNewRecord);
-
-      if (isNewRecord) {
-        const updatedScores = {
-          ...highScores,
-          [currentLevel.id]: totalPoints,
-        };
-        setHighScores(updatedScores);
-        try {
-          localStorage.setItem(STORAGE_SCORES_KEY, JSON.stringify(updatedScores));
-        } catch {}
-      }
-
-      // Save progression
-      const newCompleted = Array.from(
-        new Set([...completedLevelIds, currentLevel.id])
+  const finishNight = (newPlaced: Partial<Record<PersonId, number>>) => {
+    const bf = poseCellsAt(currentPose('boyfriend'), newPlaced.boyfriend!);
+    const gf = poseCellsAt(currentPose('girlfriend'), newPlaced.girlfriend!);
+    const filled = dogSet.size + toySet.size + bf.length + gf.length;
+    const empty = level.rows * level.cols - filled;
+    if (empty > 0) {
+      sound.playDogGrumble();
+      showToast(
+        `${empty} empty square${empty > 1 ? 's' : ''} left, and Rosie will sprawl into ${empty > 1 ? 'them' : 'it'}. Get someone out and try another pose.`,
+        'warn'
       );
-      setCompletedLevelIds(newCompleted);
-      localStorage.setItem(STORAGE_COMPLETED_KEY, JSON.stringify(newCompleted));
-
-      if (cuddle) {
-        const newCuddles = Array.from(
-          new Set([...cuddleBonusLevelIds, currentLevel.id])
-        );
-        setCuddleBonusLevelIds(newCuddles);
-        localStorage.setItem(STORAGE_CUDDLE_KEY, JSON.stringify(newCuddles));
-      }
-
-      setTimeout(() => {
-        setIsWinModalOpen(true);
-      }, 350);
-    }
-  };
-
-  // Place piece with strict authoritative collision check:
-  // Bentzi and Shai CANNOT share any squares, overlap with Rosie, or hit obstacles!
-  const handlePlacePiece = (
-    pieceId: 'boyfriend' | 'girlfriend',
-    origin: CellCoord
-  ) => {
-    // 1. Authoritative check: build blocked set
-    const blockedSet = new Set<string>();
-    dog.cells.forEach((c) => blockedSet.add(coordKey(c.r, c.c)));
-    obstacles.forEach((o) => blockedSet.add(coordKey(o.r, o.c)));
-    peePuddles.forEach((p) => blockedSet.add(coordKey(p.r, p.c)));
-
-    const otherPiece = pieceId === 'boyfriend' ? girlfriend : boyfriend;
-    if (otherPiece.placedPos) {
-      otherPiece.cells.forEach((c) => {
-        blockedSet.add(coordKey(otherPiece.placedPos!.r + c.r, otherPiece.placedPos!.c + c.c));
-      });
-    }
-
-    const currentPiece = pieceId === 'boyfriend' ? boyfriend : girlfriend;
-    if (!canPlace(currentPiece.cells, origin, currentLevel.rows, currentLevel.cols, blockedSet)) {
-      // Reject placement! Cannot overlap!
-      sound.playRotate();
       return;
     }
+    const cuddle = areAdjacent(bf, { r: 0, c: 0 }, gf, { r: 0, c: 0 });
+    setIsCuddleBonus(cuddle);
+    const cuddleBonus = cuddle ? 500 : 0;
+    const totalPoints = Math.max(100, 1000 + speedBonus + cuddleBonus - penalty);
+    setLastWinScore({ basePoints: 1000, speedBonus, cuddleBonus, penaltyPoints: penalty, totalPoints, timeSeconds: seconds });
+    const isRecord = totalPoints > (highScores[level.id] || 0);
+    setIsNewHighScore(isRecord);
+    if (isRecord) {
+      const hs = { ...highScores, [level.id]: totalPoints };
+      setHighScores(hs);
+      save(STORAGE_SCORES_KEY, hs);
+    }
+    const done = Array.from(new Set([...completedLevelIds, level.id]));
+    setCompleted(done);
+    save(STORAGE_COMPLETED_KEY, done);
+    if (cuddle) {
+      const c = Array.from(new Set([...cuddleBonusLevelIds, level.id]));
+      setCuddles(c);
+      save(STORAGE_CUDDLE_KEY, c);
+    }
+    // Calm 'lights out' bell, then the two of them snore until the next night starts.
+    pop('PERFECT FIT!', 'neon-yellow');
+    sound.playBedtimeBell();
+    sound.startSnoring(2.6);
+    setTimeout(() => setIsWinModalOpen(true), 900);
+  };
 
-    sound.playPop();
-    if (pieceId === 'boyfriend') {
-      setBoyfriend((prev) => ({ ...prev, placedPos: origin }));
-      if (!girlfriend.placedPos) {
-        setSelectedPieceId('girlfriend');
+  /** Third strike: Rosie wakes up barking and the night is lost. */
+  const loseNight = () => {
+    setGrumpiness(3);
+    setGrowling(false);
+    sound.playLoseBarks();
+    setWarningModal('bite');
+  };
+
+  const tuckIn = (id: PersonId, col: number) => {
+    if (placed[id]) return;
+    const pose = currentPose(id);
+    const cells = poseCellsAt(pose, col).map((c) => key(c.r, c.c));
+    const others = otherSet(id);
+    const squished = cells.filter((k) => others.has(k));
+    if (squished.length) {
+      // Two people squashed onto one square: someone farts, then Rosie growls.
+      const other: PersonId = id === 'boyfriend' ? 'girlfriend' : 'boyfriend';
+      const farter = Math.random() < 0.5 ? id : other;
+      sound.playFart();
+      setPenalty((p) => p + 50);
+      pop('-50 PFFRT!', 'neon-green');
+      setFart({ key: Date.now(), cells: squished.map((k) => ({ r: +k.split(',')[0], c: +k.split(',')[1] })) });
+      showToast(`Pfffrt! ${names[farter]} farted.`, 'warn');
+      const t1 = window.setTimeout(() => {
+        const g = Math.min(3, grumpRef.current + 1);
+        setGrumpiness(g);
+        setShakeKey((k) => k + 1);
+        setPenalty((p) => p + 100);
+        pop('-100', 'neon-red');
+        if (g >= 3) {
+          loseNight();
+        } else {
+          sound.playDogGrowl();
+          setGrowling(true);
+          showToast(`Pfffrt! ${names[farter]} farted, and ${profiles.dogName} growls at the smell.`, 'warn');
+          timers.current.push(window.setTimeout(() => setGrowling(false), 1800));
+        }
+      }, 750);
+      const t2 = window.setTimeout(() => setFart(null), 2200);
+      timers.current.push(t1, t2);
+      return;
+    }
+    if (cells.some((k) => dogSet.has(k))) {
+      const g = grumpiness + 1;
+      setShakeKey((k) => k + 1);
+      if (g >= 3) {
+        setPenalty((p) => p + 300);
+        pop('-300', 'neon-red');
+        loseNight();
+      } else if (g === 2) {
+        sound.playDogGrowl();
+        setPenalty((p) => p + 150);
+        pop('-150 GRRR', 'neon-red');
+        setGrumpiness(2);
+        setWarningModal('growl');
       } else {
-        setSelectedPieceId(null);
+        sound.playDogGrumble();
+        setPenalty((p) => p + 100);
+        pop('-100', 'neon-red');
+        setGrumpiness(1);
+        showToast(`${profiles.dogName} grumbles. That's her spot!`, 'warn');
       }
-      checkWinCondition(origin, girlfriend.placedPos, boyfriend.cells, girlfriend.cells);
-    } else {
-      setGirlfriend((prev) => ({ ...prev, placedPos: origin }));
-      if (!boyfriend.placedPos) {
-        setSelectedPieceId('boyfriend');
+      return;
+    }
+    const hit = level.obstacles.find((o) => cells.includes(key(o.r, o.c)));
+    if (hit) {
+      // Each item makes its own noise when someone lies on it.
+      setPenalty((p) => p + 25);
+      pop(hit.type === 'phone' ? '-25 BZZT' : hit.type === 'tissues' ? '-25 CRINKLE' : hit.type.startsWith('treat') ? '-25 CRUNCH' : '-25 SQUEAK', 'neon-yellow');
+      const who = names[id];
+      if (hit.type === 'phone') {
+        sound.playPhoneBuzz();
+        showToast(`Bzzzt! ${who} rolled onto a phone and it buzzed. ${profiles.dogName} stirs.`, 'warn');
+        const t = window.setTimeout(() => {
+          const g = Math.min(3, grumpRef.current + 1);
+          setGrumpiness(g);
+          if (g >= 3) {
+            loseNight();
+          } else sound.playDogGrumble();
+        }, 650);
+        timers.current.push(t);
+      } else if (hit.type === 'squeaky_dildo') {
+        sound.playSqueak();
+        showToast(`SQUEAK! ${who} lay on the... novelty toy. Awkward. Try somewhere else.`, 'warn');
+      } else if (hit.type === 'tissues') {
+        sound.playCrinkle();
+        showToast(`Crinkle crinkle. ${who} squashed the tissue box.`, 'warn');
+      } else if (hit.type === 'treat_bone' || hit.type === 'treat_bacon') {
+        sound.playCrunch();
+        showToast(`Crunch! ${who} lay on one of ${profiles.dogName}’s treats.`, 'warn');
       } else {
-        setSelectedPieceId(null);
+        sound.playSqueak();
+        showToast(`Squeak! ${who} lay on one of ${profiles.dogName}’s toys.`, 'warn');
       }
-      checkWinCondition(boyfriend.placedPos, origin, boyfriend.cells, girlfriend.cells);
-    }
-  };
-
-  // Drag-and-drop Nudge for Rosie
-  const handleNudgeDog = (dr: number, dc: number) => {
-    if (dog.grumpiness >= 2) {
-      // BITE & PEE! Rosie refuses to move, snaps, and pees on the sheets!
-      sound.playDogChomp();
-      sound.playPeeSplash();
-      const peeSpot = dog.cells[0] || { r: 1, c: 1 };
-      setPeePuddles((prev) => [...prev, peeSpot]);
-      setObstacles((prev) => [
-        ...prev,
-        { id: `pee-${Date.now()}`, type: 'pee_puddle', r: peeSpot.r, c: peeSpot.c },
-      ]);
-      setPenaltyPoints((prev) => prev + 250);
-      setWarningModal({ type: 'pee' });
       return;
     }
-
-    // Check bounds
-    const nextDogCells = dog.cells.map((c) => ({
-      r: c.r + dr,
-      c: c.c + dc,
-    }));
-
-    const isWithinBounds = nextDogCells.every(
-      (c) => c.r >= 0 && c.r < currentLevel.rows && c.c >= 0 && c.c < currentLevel.cols
-    );
-
-    if (!isWithinBounds) {
-      sound.playDogGrumble();
-      return;
-    }
-
-    // Check if dog is dragged onto a treat
-    const targetTreat = obstacles.find(
-      (o) =>
-        (o.type === 'treat_bone' || o.type === 'treat_bacon') &&
-        nextDogCells.some((c) => c.r === o.r && c.c === o.c)
-    );
-
-    if (targetTreat) {
-      handleConsumeTreat(targetTreat);
-      setDog((prev) => ({
-        ...prev,
-        cells: nextDogCells,
-        grumpiness: 0,
-      }));
-      return;
-    }
-
-    // Check conflicts with solid toy obstacles or pee puddles
-    const obsSet = new Set(obstacles.map((o) => coordKey(o.r, o.c)));
-    if (nextDogCells.some((c) => obsSet.has(coordKey(c.r, c.c)))) {
-      sound.playDogGrumble();
-      return;
-    }
-
-    // Check conflicts with placed humans
-    const bfCells = boyfriend.placedPos
-      ? boyfriend.cells.map((c) => coordKey(c.r + boyfriend.placedPos!.r, c.c + boyfriend.placedPos!.c))
-      : [];
-    const gfCells = girlfriend.placedPos
-      ? girlfriend.cells.map((c) => coordKey(c.r + girlfriend.placedPos!.r, c.c + girlfriend.placedPos!.c))
-      : [];
-    const humanSet = new Set([...bfCells, ...gfCells]);
-
-    if (nextDogCells.some((c) => humanSet.has(coordKey(c.r, c.c)))) {
-      sound.playDogGrumble();
-      return;
-    }
-
-    // Increase grumpiness
-    const nextGrumpiness = dog.grumpiness + 1;
-
-    // Penalty pointer 2: Rosie sometimes pees on the bed if upset!
-    const peeChance = nextGrumpiness >= 2 ? 0.65 : 0.4;
-    const doesPee = Math.random() < peeChance;
-
-    if (doesPee) {
-      sound.playPeeSplash();
-      // Leave pee puddle at the dog's vacated spot
-      const peeSpot = { ...dog.cells[0] };
-      setPeePuddles((prev) => [...prev, peeSpot]);
-      setObstacles((prev) => [
-        ...prev,
-        { id: `pee-${Date.now()}`, type: 'pee_puddle', r: peeSpot.r, c: peeSpot.c },
-      ]);
-      setPenaltyPoints((prev) => prev + 200);
-      setDog((prev) => ({
-        ...prev,
-        cells: nextDogCells,
-        grumpiness: nextGrumpiness,
-      }));
-      setWarningModal({ type: 'pee' });
-      return;
-    }
-
-    setDog((prev) => ({
-      ...prev,
-      cells: nextDogCells,
-      grumpiness: nextGrumpiness,
-    }));
-
-    if (nextGrumpiness === 1) {
-      sound.playDogGrumble();
-      setWarningModal({ type: 'grumble' });
-    } else if (nextGrumpiness === 2) {
-      sound.playDogGrowl();
-      setWarningModal({ type: 'growl' });
-    }
-  };
-
-  // Give treat to soothe dog
-  const handleConsumeTreat = (treat: Obstacle) => {
-    sound.playCrunch();
-    setObstacles((prev) => prev.filter((o) => o.id !== treat.id));
-    setPenaltyPoints((prev) => Math.max(0, prev - 100)); // treat reward
-    setDog((prev) => ({
-      ...prev,
-      grumpiness: 0,
-    }));
-  };
-
-  // Clean up Rosie's pee accident with towel
-  const handleCleanPee = () => {
     sound.playPop();
-    setObstacles((prev) => prev.filter((o) => o.type !== 'pee_puddle'));
-    setPeePuddles([]);
-    setPenaltyPoints((prev) => prev + 50); // small 50 pt cleaning fee
-    setWarningModal(null);
+    pop('NICE!', 'neon-cyan');
+    const next = { ...placedCol, [id]: col };
+    setPlacedCol(next);
+    const other: PersonId = id === 'boyfriend' ? 'girlfriend' : 'boyfriend';
+    setSelected(next[other] === undefined ? other : null);
+    if (next.boyfriend !== undefined && next.girlfriend !== undefined) finishNight(next);
   };
 
-  // Re-roll dynamic 1-3 toys & treats each round
-  const handleRerollToys = () => {
+  const getOut = (id: PersonId) => {
     sound.playPop();
-    const roundItems = generateRandomBedItems(currentLevel.rows, currentLevel.cols, dog.cells);
-    setObstacles(roundItems);
+    setPlacedCol((p) => {
+      const n = { ...p };
+      delete n[id];
+      return n;
+    });
+    setSelected(id);
   };
 
-  // Apologize to soothe dog if bitten
-  const handleApologize = () => {
-    sound.playSnore();
-    setDog((prev) => ({
-      ...prev,
-      grumpiness: 1,
-    }));
-    setWarningModal(null);
+  // ---- Dragging a pose from the tray onto the bed ----
+  const dropInfo = (x: number, y: number, id: PersonId, grab: { r: number; c: number }) => {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const cellPx = rect.width / level.cols;
+    const pose = currentPose(id);
+    // Where the top-left of the pose would be under the finger
+    const left = x - (grab.c + 0.5) * cellPx;
+    const top = y - (grab.r + 0.5) * cellPx;
+    const overBed =
+      left + pose.width * cellPx > rect.left - cellPx * 0.5 &&
+      left < rect.right + cellPx * 0.5 - cellPx &&
+      top < rect.bottom - cellPx * 0.5 &&
+      top + pose.height * cellPx > rect.top - cellPx * 0.2;
+    const col = clampCol(pose, Math.round((left - rect.left) / cellPx));
+    return { cellPx, left, top, overBed, col };
   };
+
+  // Latest handlers, so window listeners added mid-gesture never go stale.
+  const latest = useRef({ dropInfo, tuckIn });
+  latest.current = { dropInfo, tuckIn };
+
+  const startDrag = (id: PersonId, grab: { r: number; c: number }, e: React.PointerEvent) => {
+    sound.playRotate();
+    setSelected(id);
+    setDrag({ id, grab, x: e.clientX, y: e.clientY });
+    const onMove = (ev: PointerEvent) => setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d));
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+    const onUp = (ev: PointerEvent) => {
+      cleanup();
+      const info = latest.current.dropInfo(ev.clientX, ev.clientY, id, grab);
+      setDrag(null);
+      if (info?.overBed) latest.current.tuckIn(id, info.col);
+    };
+    const onCancel = () => {
+      cleanup();
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  };
+
+  const dragInfo = drag ? dropInfo(drag.x, drag.y, drag.id, drag.grab) : null;
+
+  // Live count of squares nobody is lying on yet.
+  const emptyCount = (() => {
+    const t = new Set<string>([...dogSet, ...toySet]);
+    IDS.forEach((id) => {
+      const p = placed[id];
+      if (p) poseCellsAt(p.pose, p.col).forEach((c) => t.add(key(c.r, c.c)));
+    });
+    return level.rows * level.cols - t.size;
+  })();
+
+  const mood = ['Sound asleep', 'Grumbling', 'Snarling', 'AWAKE!'][grumpiness];
 
   return (
     <MobileFrame
-      levelNumber={currentLevel.id}
-      totalLevels={LEVELS.length}
-      levelTitle={currentLevel.title}
-      storyNote={currentLevel.storyNote}
+      levelNumber={level.id}
+      totalLevels={PUZZLE_LEVELS.length}
+      levelTitle={level.title}
+      storyNote={level.storyNote}
       isNightLamp={isNightLamp}
       soundEnabled={soundEnabled}
       profiles={profiles}
-      onToggleNightLamp={() => setIsNightLamp((prev) => !prev)}
+      onToggleNightLamp={() => setIsNightLamp((p) => !p)}
       onToggleSound={() => {
         const next = !soundEnabled;
         setSoundEnabled(next);
         sound.enabled = next;
+        if (!next) sound.stopSnoring();
       }}
       onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
-      onRestartLevel={() => loadLevel(currentLevelIndex)}
+      onRestartLevel={() => loadLevel(levelIndex, false)}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={toggleFullscreen}
       onOpenCustomizer={() => setIsCustomizerOpen(true)}
-      onPrevLevel={() => {
-        if (currentLevelIndex > 0) {
-          loadLevel(currentLevelIndex - 1);
-        }
-      }}
-      onNextLevel={() => {
-        if (currentLevelIndex < LEVELS.length - 1) {
-          loadLevel(currentLevelIndex + 1);
-        }
-      }}
+      onPrevLevel={() => levelIndex > 0 && loadLevel(levelIndex - 1)}
+      onNextLevel={() => levelIndex < PUZZLE_LEVELS.length - 1 && loadLevel(levelIndex + 1)}
     >
-      {/* Bed Mattress Grid with Drag & Drop, Live Penalties, & Limb rendering */}
-      <BedGrid
-        rows={currentLevel.rows}
-        cols={currentLevel.cols}
-        dog={dog}
-        obstacles={obstacles}
-        boyfriend={boyfriend}
-        girlfriend={girlfriend}
-        selectedPieceId={selectedPieceId}
-        profiles={profiles}
-        allowDogNudge={currentLevel.allowDogNudge}
-        peePuddles={peePuddles}
-        onPlacePiece={handlePlacePiece}
-        onRecallPiece={handleRecallPiece}
-        onNudgeDog={handleNudgeDog}
-        onConsumeTreat={handleConsumeTreat}
-        onPenalize={handlePenalize}
-        onRerollToys={handleRerollToys}
-        onAdjustLimb={handleAdjustLimb}
-        onSelectPiece={(id) => setSelectedPieceId(id)}
-        hoverCoord={hoverCoord}
-        setHoverCoord={setHoverCoord}
-        zenTimer={{
-          seconds: zenTimerSeconds,
-          speedBonus: currentSpeedBonus,
-          currentScore: currentLiveScore,
-          penaltyPoints: penaltyPoints,
-          isEnabled: isZenTimerEnabled,
-          onToggleEnabled: handleToggleZenTimer,
-        }}
-        onRegisterStartDrag={(fn) => {
-          startDragFromDrawerRef.current = fn;
-        }}
+      <div className="px-3 pt-3 flex flex-col gap-2">
+        {/* Arcade HUD */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            ['SCORE', String(liveScore).padStart(6, '0'), 'neon-yellow'],
+            ['TIME', `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, 'neon-cyan'],
+            ['HI', String(highScores[level.id] || 0).padStart(6, '0'), 'neon-pink'],
+          ].map(([label, value, cls]) => (
+            <div key={label} className="pixel-panel px-1.5 py-1 text-center">
+              <div className="font-arcade text-[7px] text-[#8f86d6]">{label}</div>
+              <div className={`font-arcade text-[11px] mt-1 ${cls}`}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 px-0.5">
+          <span className="font-arcade text-[8px] text-[#8f86d6] uppercase">{profiles.dogName}</span>
+          <div className="flex gap-1" aria-label={`Wake meter ${grumpiness} of 3`}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="w-6 h-3 border-2 border-[#05030f]"
+                style={{
+                  background: i < grumpiness ? ['var(--neon-yellow)', 'var(--neon-orange)', 'var(--neon-red)'][i] : '#2c2370',
+                  boxShadow: i < grumpiness ? `0 0 8px ${['#ffe04a', '#ff9b3d', '#ff4d5e'][i]}` : undefined,
+                }}
+              />
+            ))}
+          </div>
+          <span className={`font-pixel text-[13px] truncate ${grumpiness ? 'neon-red' : 'neon-green'}`}>{mood}</span>
+          <span className="ml-auto font-arcade text-[7px] text-[#8f86d6] text-right leading-tight whitespace-nowrap">
+            EMPTY
+            <br />
+            <span className={`text-[11px] ${emptyCount === 0 ? 'neon-green' : 'neon-cyan'}`}>{emptyCount}</span>
+          </span>
+        </div>
+        <div className={`relative arcade-screen ${grumpiness >= 2 ? 'critical' : grumpiness === 1 ? 'danger' : ''}`}>
+          <Bed
+            level={level}
+            placed={placed}
+            grumpiness={grumpiness}
+            onPersonTap={getOut}
+            shakeKey={shakeKey}
+            gridRef={gridRef}
+            fart={fart}
+            growling={growling}
+            dropCol={drag && dragInfo?.overBed ? { id: drag.id, col: dragInfo.col, width: currentPose(drag.id).width } : null}
+          />
+
+          {/* Floating score pop-ups */}
+          {pops.map((p) => (
+            <div
+              key={p.id}
+              className={`score-pop absolute top-[38%] font-arcade text-[14px] whitespace-nowrap pointer-events-none text-outline ${p.cls}`}
+              style={{ left: `${p.x}%` }}
+            >
+              {p.text}
+            </div>
+          ))}
+
+          {/* READY? / GO! */}
+          <AnimatePresence>
+            {intro && (
+              <motion.div
+                key={`intro-${introKey}`}
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none bg-[#05030f]/55 rounded-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <motion.div
+                  initial={{ scale: 2.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                  className="font-arcade text-[20px] neon-yellow text-outline"
+                >
+                  NIGHT {String(level.id).padStart(2, '0')}
+                </motion.div>
+                <div className="font-pixel text-[16px] font-semibold text-[#e9e5ff] mt-2 px-4 text-center">{level.title.replace(/^Night \d+:\s*/, '')}</div>
+                <div className="font-pixel text-[13px] text-[#cfc8ff] mt-1.5 px-6 text-center leading-snug">{level.storyNote}</div>
+                <motion.div
+                  key={intro}
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+                  className={`font-arcade mt-4 text-outline ${intro === 'go' ? 'text-[28px] neon-green' : 'text-[14px] neon-pink blink'}`}
+                >
+                  {intro === 'go' ? 'GO!' : 'READY?'}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {toast && (
+            <div
+              role="status"
+              className="absolute left-2 right-2 bottom-2 z-20 pixel-panel px-3 py-2 font-pixel text-[14px] leading-snug text-[#f4f1ff]"
+              style={{ borderColor: toast.tone === 'warn' ? 'var(--neon-orange)' : 'var(--neon-cyan)' }}
+            >
+              <span className={`font-arcade text-[8px] mr-1.5 ${toast.tone === 'warn' ? 'neon-yellow' : 'neon-cyan'}`}>{toast.tone === 'warn' ? '!' : '▶'}</span>
+              {toast.text}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <PoseControls
+        selected={selected}
+        names={names}
+        photos={photos}
+        poses={poses}
+        poseIdx={poseIdx}
+        isPlaced={{ boyfriend: !!placed.boyfriend, girlfriend: !!placed.girlfriend }}
+        isDragging={!!drag}
+        draggingId={drag?.id ?? null}
+        onSelect={(id) => setSelected(id)}
+        onCyclePose={cyclePose}
+        onStartDrag={startDrag}
+        onGetOut={getOut}
       />
 
-      {/* Piece Drawer / Tray with Limbs and Pose Switcher */}
-      <PieceDrawer
-        boyfriend={boyfriend}
-        girlfriend={girlfriend}
-        selectedPieceId={selectedPieceId}
-        profiles={profiles}
-        onSelectPiece={(id) => setSelectedPieceId(id)}
-        onRotatePiece={handleRotatePiece}
-        onFlipPiece={handleFlipPiece}
-        onRecallPiece={handleRecallPiece}
-        onChangePose={handleChangePose}
-        bfPoseName={BOYFRIEND_POSES[bfPoseIndex]?.name || 'L-Shape'}
-        gfPoseName={GIRLFRIEND_POSES[gfPoseIndex]?.name || 'L-Shape'}
-        onAdjustLimb={handleAdjustLimb}
-        onStartDragPiece={(id, e) => {
-          if (startDragFromDrawerRef.current) {
-            startDragFromDrawerRef.current(id, e);
-          }
-        }}
-      />
+      {/* The person being dragged follows the finger, at bed scale */}
+      {drag && dragInfo && (
+        <svg
+          viewBox={`0 0 ${currentPose(drag.id).width * S} ${currentPose(drag.id).height * S}`}
+          style={{
+            position: 'fixed',
+            left: dragInfo.left,
+            top: dragInfo.top - 12,
+            width: currentPose(drag.id).width * dragInfo.cellPx,
+            height: currentPose(drag.id).height * dragInfo.cellPx,
+            pointerEvents: 'none',
+            zIndex: 60,
+            overflow: 'visible',
+            filter: 'drop-shadow(0 0 10px rgba(63,243,255,0.7)) drop-shadow(0 10px 10px rgba(0,0,0,0.5))',
+          }}
+        >
+          <PersonFigure pose={currentPose(drag.id)} who={drag.id} sleeping={false} />
+        </svg>
+      )}
 
-      {/* Dog Warning / Bite / Pee Modal */}
       <DogWarningModal
         isOpen={warningModal !== null}
-        type={warningModal?.type || 'growl'}
+        type={warningModal || 'growl'}
         profiles={profiles}
         onClose={() => setWarningModal(null)}
-        onApologize={handleApologize}
-        onCleanPee={handleCleanPee}
+        onApologize={() => {
+          // "Try this night again": same layout, everyone out of bed, Rosie calm.
+          sound.stopBarking();
+          loadLevel(levelIndex, false);
+        }}
+        onCleanPee={() => setWarningModal(null)}
       />
 
-      {/* Character Photo Customizer Modal */}
       <AvatarCustomizer
         isOpen={isCustomizerOpen}
         profiles={profiles}
         onUpdateProfiles={(updated) => {
           setProfiles(updated);
-          try {
-            localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(updated));
-          } catch {}
+          save(STORAGE_PROFILES_KEY, updated);
         }}
         onClose={() => setIsCustomizerOpen(false)}
       />
 
-      {/* Win Modal with Zen Timer Speed Score Breakdown */}
       <WinModal
         isOpen={isWinModalOpen}
-        levelId={currentLevel.id}
-        levelTitle={currentLevel.title}
+        levelId={level.id}
+        levelTitle={level.title}
         isCuddleBonus={isCuddleBonus}
         profiles={profiles}
         timeSeconds={lastWinScore.timeSeconds}
         score={lastWinScore}
         isNewHighScore={isNewHighScore}
-        hasNextLevel={currentLevelIndex < LEVELS.length - 1}
-        onNextLevel={() => {
-          setIsWinModalOpen(false);
-          loadLevel(currentLevelIndex + 1);
-        }}
-        onReplayLevel={() => {
-          setIsWinModalOpen(false);
-          loadLevel(currentLevelIndex);
-        }}
+        hasNextLevel={levelIndex < PUZZLE_LEVELS.length - 1}
+        onNextLevel={() => loadLevel(levelIndex + 1)}
+        onReplayLevel={() => loadLevel(levelIndex)}
         onOpenLevelSelect={() => {
           setIsWinModalOpen(false);
           setIsLevelSelectOpen(true);
         }}
       />
 
-      {/* Level Select Modal */}
       <LevelSelectModal
         isOpen={isLevelSelectOpen}
-        levels={LEVELS}
-        currentLevelId={currentLevel.id}
+        levels={PUZZLE_LEVELS}
+        currentLevelId={level.id}
         completedLevelIds={completedLevelIds}
         cuddleBonusLevelIds={cuddleBonusLevelIds}
         onSelectLevel={(id) => {
-          const idx = LEVELS.findIndex((l) => l.id === id);
+          const idx = PUZZLE_LEVELS.findIndex((l) => l.id === id);
           if (idx !== -1) loadLevel(idx);
         }}
         onClose={() => setIsLevelSelectOpen(false)}

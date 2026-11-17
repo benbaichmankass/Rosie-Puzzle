@@ -142,6 +142,58 @@ export function ObstacleIcon({ type, className = 'w-7 h-7' }: ObstacleIconProps)
         </div>
       );
 
+    case 'phone':
+      return (
+        <div className={`relative flex items-center justify-center ${className}`} title="Phone left in bed">
+          <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm" style={{ transform: 'rotate(-14deg)' }}>
+            <rect x="10" y="3" width="16" height="30" rx="4" fill="#1F2430" />
+            <rect x="11.5" y="6" width="13" height="23" rx="1.5" fill="#5B8DEF" />
+            <rect x="11.5" y="6" width="13" height="7" rx="1.5" fill="#7FA8F5" />
+            <rect x="13" y="16" width="4" height="4" rx="1" fill="#F7C948" />
+            <rect x="19" y="16" width="4" height="4" rx="1" fill="#6FD08C" />
+            <rect x="13" y="22" width="4" height="4" rx="1" fill="#F28B82" />
+            <rect x="19" y="22" width="4" height="4" rx="1" fill="#C9A7F5" />
+            <rect x="15" y="4.2" width="6" height="1" rx="0.5" fill="#444B5C" />
+            {/* buzz marks */}
+            <path d="M6 12 L4 14 L6 16 M30 20 L32 22 L30 24" stroke="#8B93A7" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+          </svg>
+          <span className="absolute -top-1 -right-1 text-[9px] bg-slate-200 text-slate-700 rounded-full px-1 font-bold shadow-xs">bzz</span>
+        </div>
+      );
+
+    case 'squeaky_dildo':
+      return (
+        <div className={`relative flex items-center justify-center ${className}`} title="Squeaky novelty toy">
+          <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm" style={{ transform: 'rotate(28deg)' }}>
+            {/* suction-cup base */}
+            <ellipse cx="18" cy="31" rx="9" ry="3.2" fill="#C2185B" />
+            {/* rounded shaft */}
+            <rect x="12.5" y="9" width="11" height="22" rx="5.5" fill="#F06292" />
+            <ellipse cx="18" cy="10" rx="6.5" ry="5.5" fill="#F48FB1" />
+            <path d="M14.5 15 Q18 17 21.5 15" stroke="#EC407A" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+            <rect x="14.5" y="18" width="2.2" height="9" rx="1.1" fill="#FFFFFF" opacity="0.45" />
+          </svg>
+          <span className="absolute -top-1 -right-1 text-[9px] bg-pink-200 text-pink-800 rounded-full px-1 font-bold shadow-xs">squeak</span>
+        </div>
+      );
+
+    case 'tissues':
+      return (
+        <div className={`relative flex items-center justify-center ${className}`} title="Box of tissues">
+          <svg viewBox="0 0 36 36" className="w-full h-full drop-shadow-sm">
+            {/* tissue poking out */}
+            <path d="M13 13 Q14 4 18 7 Q22 3 23 13 Z" fill="#FFFFFF" stroke="#D9D4CC" strokeWidth="1" />
+            {/* box */}
+            <path d="M5 14 L31 14 L31 30 L5 30 Z" fill="#7EC8C0" />
+            <path d="M5 14 L31 14 L31 18 L5 18 Z" fill="#9ED8D1" />
+            <ellipse cx="18" cy="15.5" rx="6.5" ry="1.8" fill="#4E9C94" />
+            <path d="M8 22 Q12 20 16 22 T24 22 T30 22" stroke="#FFFFFF" strokeWidth="1.4" fill="none" opacity="0.8" />
+            <path d="M8 26 Q12 24 16 26 T24 26 T30 26" stroke="#FFFFFF" strokeWidth="1.4" fill="none" opacity="0.6" />
+          </svg>
+          <span className="absolute -top-1 -right-1 text-[9px] bg-teal-100 text-teal-800 rounded-full px-1 font-bold shadow-xs">crinkle</span>
+        </div>
+      );
+
     default:
       return null;
   }
