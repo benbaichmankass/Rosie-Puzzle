@@ -105,7 +105,7 @@ export function LevelSelectModal({
         </div>
         <p className="mt-3 text-[10px] leading-snug text-amber-900/60 text-center">
           Sounds from SoundBible.com by Mike Koenig, John Stracke, Popup Pixels, Sound Explorer and Daniel Simon
-          (CC BY 3.0), and Lisa Redfern (public domain).
+          (CC BY 3.0), Lisa Redfern (public domain), and dog growls by congusbongus on OpenGameArt.org (CC BY 3.0).
         </p>
       </div>
     </div>

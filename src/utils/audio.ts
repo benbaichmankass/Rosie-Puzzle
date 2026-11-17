@@ -123,7 +123,8 @@ function playBuffer(ctx: AudioContext, buf: AudioBuffer) {
  * Each cue plays just the useful slice of its file, loudness-normalised.
  */
 interface Cue {
-  file: string;
+  /** one file, or several to pick from at random (variety) */
+  file: string | string[];
   start: number;
   dur: number;
   vol: number;
@@ -134,10 +135,10 @@ interface Cue {
 const CUES: Record<string, Cue> = {
   pop: { file: 'pop', start: 0.25, dur: 0.16, vol: 0.45 },
   click: { file: 'click', start: 0, dur: 0.12, vol: 0.35 },
-  // Sleepy, low snarl: the quieter opening of the growl, slowed and muffled,
-  // like a dog being shoved but not really awake.
-  growl: { file: 'growl', start: 0.0, dur: 1.15, vol: 0.55, rate: 0.78, lowpass: 900 },
-  grumble: { file: 'growl', start: 0.05, dur: 0.6, vol: 0.38, rate: 0.72, lowpass: 650 },
+  // Low, half-asleep snarls: real dog growl recordings (OpenGameArt,
+  // congusbongus, CC BY 3.0), one picked at random each time.
+  growl: { file: ['snarl-1.m4a', 'snarl-2.m4a', 'snarl-3.m4a'], start: 0, dur: 1.05, vol: 0.75, rate: 0.95 },
+  grumble: { file: ['snarl-1.m4a', 'snarl-2.m4a', 'snarl-3.m4a'], start: 0, dur: 0.55, vol: 0.45, rate: 0.9, lowpass: 1200 },
   // Losing the night: a run of real barks.
   barks: { file: 'bark', start: 0.6, dur: 2.2, vol: 0.85, rate: 0.9 },
   bite: { file: 'bite', start: 0, dur: 0.6, vol: 0.9 },
@@ -153,7 +154,7 @@ const CUES: Record<string, Cue> = {
   phone: { file: 'phone', start: 0, dur: 1.1, vol: 0.75 },
   crinkle: { file: 'crinkle', start: 0.3, dur: 0.9, vol: 0.7 },
 };
-const FILES = Array.from(new Set(Object.values(CUES).map((c) => c.file)));
+const FILES = Array.from(new Set(Object.values(CUES).flatMap((c) => (Array.isArray(c.file) ? c.file : [c.file]))));
 
 class SoundEngine {
   private samples: Record<string, { buf: AudioBuffer; norm: number }> = {};
@@ -166,7 +167,7 @@ class SoundEngine {
     this.loading = true;
     FILES.forEach(async (f) => {
       try {
-        const res = await fetch(`assets/sounds/${f}.mp3`);
+        const res = await fetch(`assets/sounds/${f.includes('.') ? f : `${f}.mp3`}`);
         const buf = await ctx.decodeAudioData(await res.arrayBuffer());
         let peak = 1e-6;
         for (let c = 0; c < buf.numberOfChannels; c++) {
@@ -184,7 +185,8 @@ class SoundEngine {
   private clip(name: string, delay = 0, rate?: number, keep?: (n: AudioScheduledSourceNode, g: GainNode) => void): boolean {
     const ctx = this.ctx;
     const cue = CUES[name];
-    const s = cue && this.samples[cue.file];
+    const options = cue ? (Array.isArray(cue.file) ? cue.file : [cue.file]).filter((f) => this.samples[f]) : [];
+    const s = options.length ? this.samples[options[Math.floor(Math.random() * options.length)]] : undefined;
     if (!this.enabled || !ctx || !cue || !s) return false;
     try {
       const src = ctx.createBufferSource();
