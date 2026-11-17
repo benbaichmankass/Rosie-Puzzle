@@ -562,6 +562,7 @@ export default function App() {
         poseIdx={poseIdx}
         isPlaced={{ boyfriend: !!placed.boyfriend, girlfriend: !!placed.girlfriend }}
         isDragging={!!drag}
+        draggingId={drag?.id ?? null}
         onSelect={(id) => setSelected(id)}
         onCyclePose={cyclePose}
         onStartDrag={startDrag}
