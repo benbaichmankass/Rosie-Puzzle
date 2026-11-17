@@ -240,6 +240,14 @@ export default function App() {
     setTimeout(() => setIsWinModalOpen(true), 900);
   };
 
+  /** Third strike: Rosie wakes up barking and the night is lost. */
+  const loseNight = () => {
+    setGrumpiness(3);
+    setGrowling(false);
+    sound.playLoseBarks();
+    setWarningModal('bite');
+  };
+
   const tuckIn = (id: PersonId, col: number) => {
     if (placed[id]) return;
     const pose = currentPose(id);
@@ -260,8 +268,7 @@ export default function App() {
         setShakeKey((k) => k + 1);
         setPenalty((p) => p + 100);
         if (g >= 3) {
-          sound.playDogChomp();
-          setWarningModal('bite');
+          loseNight();
         } else {
           sound.playDogGrowl();
           setGrowling(true);
@@ -277,10 +284,8 @@ export default function App() {
       const g = grumpiness + 1;
       setShakeKey((k) => k + 1);
       if (g >= 3) {
-        sound.playDogChomp();
         setPenalty((p) => p + 300);
-        setGrumpiness(3);
-        setWarningModal('bite');
+        loseNight();
       } else if (g === 2) {
         sound.playDogGrowl();
         setPenalty((p) => p + 150);
@@ -306,8 +311,7 @@ export default function App() {
           const g = Math.min(3, grumpRef.current + 1);
           setGrumpiness(g);
           if (g >= 3) {
-            sound.playDogChomp();
-            setWarningModal('bite');
+            loseNight();
           } else sound.playDogGrumble();
         }, 650);
         timers.current.push(t);
@@ -393,7 +397,7 @@ export default function App() {
 
   const dragInfo = drag ? dropInfo(drag.x, drag.y, drag.id, drag.grab) : null;
 
-  const mood = ['Sound asleep', 'Grumbling', 'Growling', 'Snapping!'][grumpiness];
+  const mood = ['Sound asleep', 'Grumbling in her sleep', 'Snarling, half asleep', 'Wide awake and barking'][grumpiness];
 
   return (
     <MobileFrame
@@ -504,9 +508,9 @@ export default function App() {
         profiles={profiles}
         onClose={() => setWarningModal(null)}
         onApologize={() => {
-          sound.playSnore();
-          setGrumpiness(1);
-          setWarningModal(null);
+          // "Try this night again": same layout, everyone out of bed, Rosie calm.
+          sound.stopBarking();
+          loadLevel(levelIndex, false);
         }}
         onCleanPee={() => setWarningModal(null)}
       />

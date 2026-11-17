@@ -128,12 +128,18 @@ interface Cue {
   dur: number;
   vol: number;
   rate?: number;
+  /** muffle above this frequency (Hz) */
+  lowpass?: number;
 }
 const CUES: Record<string, Cue> = {
   pop: { file: 'pop', start: 0.25, dur: 0.16, vol: 0.45 },
   click: { file: 'click', start: 0, dur: 0.12, vol: 0.35 },
-  growl: { file: 'growl', start: 0, dur: 2.5, vol: 0.9 },
-  grumble: { file: 'growl', start: 0, dur: 0.75, vol: 0.55, rate: 0.92 },
+  // Sleepy, low snarl: the quieter opening of the growl, slowed and muffled,
+  // like a dog being shoved but not really awake.
+  growl: { file: 'growl', start: 0.0, dur: 1.15, vol: 0.55, rate: 0.78, lowpass: 900 },
+  grumble: { file: 'growl', start: 0.05, dur: 0.6, vol: 0.38, rate: 0.72, lowpass: 650 },
+  // Losing the night: a run of real barks.
+  barks: { file: 'bark', start: 0.6, dur: 2.2, vol: 0.85, rate: 0.9 },
   bite: { file: 'bite', start: 0, dur: 0.6, vol: 0.9 },
   bark: { file: 'bark', start: 1.0, dur: 0.35, vol: 0.8 },
   crunch: { file: 'crunch', start: 1.05, dur: 0.6, vol: 0.8 },
@@ -192,7 +198,13 @@ class SoundEngine {
       g.gain.linearRampToValueAtTime(level, t + 0.01);
       g.gain.setValueAtTime(level, t + len * 0.75);
       g.gain.linearRampToValueAtTime(0.0001, t + len);
-      src.connect(g);
+      if (cue.lowpass) {
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = cue.lowpass;
+        src.connect(lp);
+        lp.connect(g);
+      } else src.connect(g);
       g.connect(ctx.destination);
       src.start(t, cue.start, cue.dur);
       keep?.(src, g);
@@ -322,6 +334,37 @@ class SoundEngine {
       bell(523.25, now + 0.84, 0.95, 3.6); // C5
       bell(261.63, now + 0.84, 0.35, 3.8); // warm C4 underneath
     } catch {}
+  }
+
+  private barkNodes: { n: AudioScheduledSourceNode; g: GainNode }[] = [];
+
+  /** Rosie wakes up for real: a run of barks (only when the night is lost). */
+  public playLoseBarks() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    this.preload();
+    this.stopSnoring();
+    const ok = this.clip('barks', 0, undefined, (n, g) => this.barkNodes.push({ n, g }));
+    if (!ok) {
+      this.playDogBark();
+      window.setTimeout(() => this.playDogBark(), 380);
+      window.setTimeout(() => this.playDogBark(), 760);
+    }
+  }
+
+  public stopBarking() {
+    const ctx = this.ctx;
+    this.barkNodes.forEach(({ n, g }) => {
+      try {
+        if (ctx) {
+          g.gain.cancelScheduledValues(ctx.currentTime);
+          g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+          g.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+          n.stop(ctx.currentTime + 0.2);
+        }
+      } catch {}
+    });
+    this.barkNodes = [];
   }
 
   private snoreTimer: number | undefined;

@@ -10,8 +10,8 @@ part (a short slice) and loudness-normalised. Files live in `public/assets/sound
 | pop.mp3 | placing a person | Button Click | Mike Koenig | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | https://soundbible.com/893-Button-Click.html |
 | click.mp3 | switching pose | Click On | Mike Koenig | CC BY 3.0 | https://soundbible.com/1280-Click-On.html |
 | growl.mp3 | Rosie's growl and grumble | Dog Growling | Mike Koenig | CC BY 3.0 | https://soundbible.com/523-Dog-Growling.html |
-| bite.mp3 | Rosie's bite | Dog Bite | Mike Koenig | CC BY 3.0 | https://soundbible.com/1529-Dog-Bite.html |
-| bark.mp3 | bark after a bite | Puppy Barking | Daniel Simon | CC BY 3.0 | https://soundbible.com/2136-Puppy-Barking.html |
+| bite.mp3 | (no longer used) | Dog Bite | Mike Koenig | CC BY 3.0 | https://soundbible.com/1529-Dog-Bite.html |
+| bark.mp3 | barks when a night is lost | Puppy Barking | Daniel Simon | CC BY 3.0 | https://soundbible.com/2136-Puppy-Barking.html |
 | crunch.mp3 | lying on a treat | Biting Apple | Mike Koenig | CC BY 3.0 | https://soundbible.com/407-Biting-Apple.html |
 | squeak.mp3 | toys, novelty toy | Dog Toy Squeaks | Mike Koenig | CC BY 3.0 | https://soundbible.com/186-Dog-Toy-Squeaks.html |
 | win.mp3 | (no longer used; the win sound is a synthesized bedtime bell) | Winning Triumphal Fanfare | John Stracke | CC BY 3.0 | https://soundbible.com/1823-Winning-Triumphal-Fanfare.html |

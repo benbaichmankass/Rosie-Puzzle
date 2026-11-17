@@ -55,7 +55,7 @@ export function DogWarningModal({
               {type === 'pee'
                 ? '💦 OH NO! PEE ACCIDENT! -200 PTS'
                 : type === 'bite'
-                ? '💥 CHOMP! Playful Bite!'
+                ? '🐕 WOOF WOOF! Night lost'
                 : type === 'growl'
                 ? '⚠️ Growl Warning!'
                 : '💤 Mild Grumble'}
@@ -101,7 +101,7 @@ export function DogWarningModal({
                   sleeping={false}
                 />
                 <div className="absolute -bottom-2 -right-4 bg-rose-600 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-lg rotate-12">
-                  *NIP!*
+                  WOOF!
                 </div>
               </motion.div>
             ) : (
@@ -120,7 +120,7 @@ export function DogWarningModal({
             {type === 'pee'
               ? `💦 ${profiles.dogName} peed on the bed!`
               : type === 'bite'
-              ? `YOWCH! ${profiles.dogName} bit you!`
+              ? `${profiles.dogName} woke up barking!`
               : type === 'growl'
               ? `${profiles.dogName} is growling!`
               : `${profiles.dogName} shifted and sighed...`}
@@ -131,9 +131,9 @@ export function DogWarningModal({
             {type === 'pee'
               ? `You upset ${profiles.dogName} too much and she had an accident on the sheets! You got a -200 pts laundry penalty. Neither ${profiles.boyfriendName} nor ${profiles.girlfriendName} will sleep on the wet spot!`
               : type === 'bite'
-              ? `You pushed her too far! ${profiles.dogName} playfully chomped ${profiles.boyfriendName} & ${profiles.girlfriendName}'s toes to defend her bed spot. Give her space or lure her with treats!`
+              ? `That was one shove too many. ${profiles.dogName} is wide awake and barking, and ${profiles.boyfriendName} & ${profiles.girlfriendName} got kicked out of bed. This night is lost.`
               : type === 'growl'
-              ? `She is warning ${profiles.boyfriendName} & ${profiles.girlfriendName}: "Grrrrr... one more nudge and I might nip!" Try nudging another way or use a treat.`
+              ? `Half asleep, she's warning ${profiles.boyfriendName} & ${profiles.girlfriendName}: "Grrrr... one more shove and I'm getting up." One more mistake and the night is lost.`
               : `She grumbled: "Hey, I'm trying to sleep here!" Her patience is wearing thin.`}
           </p>
 
@@ -167,7 +167,7 @@ export function DogWarningModal({
                 }}
                 className="w-full py-3 px-4 rounded-2xl bg-rose-500 hover:bg-rose-600 active:scale-98 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
               >
-                <span>🐾 Apologize & Rub Belly</span>
+                <span>🛏️ Try this night again</span>
               </button>
             ) : (
               <button
