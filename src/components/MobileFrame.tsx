@@ -52,7 +52,13 @@ export function MobileFrame({
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
     <div className="arcade-sky min-h-screen w-full flex justify-center text-[#f4f1ff] select-none">
-      <div className="w-full max-w-[420px] min-h-screen flex flex-col">
+      {/* twinkling pixel stars in the night sky */}
+      {[
+        [6, 9, '#fff', 0], [92, 14, '#ffe04a', 0.6], [14, 46, '#3ff3ff', 1.1], [88, 58, '#ff4fd8', 0.3], [4, 78, '#ffe04a', 1.6], [95, 86, '#fff', 0.9],
+      ].map(([l, t, c, d], i) => (
+        <span key={i} className="sky-star" style={{ left: `${l}%`, top: `${t}%`, background: c as string, boxShadow: `4px 0 ${c}, -4px 0 ${c}, 0 4px ${c}, 0 -4px ${c}`, animationDelay: `${d}s`, transform: `scale(${0.6 + (i % 3) * 0.2})` }} />
+      ))}
+      <div className="relative z-[1] w-full max-w-[420px] min-h-screen flex flex-col">
         {/* Marquee */}
         <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-2">
           <h1 className="font-arcade text-[13px] leading-none marquee-title whitespace-nowrap">BEDTIME PUZZLE</h1>
@@ -87,6 +93,7 @@ export function MobileFrame({
           </div>
         </div>
 
+        <div className="retro-stripes mx-3 mb-2" aria-hidden />
         {/* Stage switcher */}
         <div className="px-3 flex items-center gap-2">
           <IconBtn onClick={onPrevLevel} label="Previous night" className="btn-cyan">

@@ -29,8 +29,42 @@ const FRAME = 22; // side posts
 const HEAD = 66; // headboard above the pillows
 const FOOT = 38; // footboard
 
-// Patchwork quilt colours, alternating like a checker.
-const QUILT = ['#f4c7a1', '#f9e2c8', '#cfe0c3', '#f9e2c8'];
+const INK = '#1b0f3d';
+// Bright retro quilt: [face, highlight, shadow]
+const QUILT: [string, string, string][] = [
+  ['#ff5fa8', '#ffa3cf', '#c62f78'],
+  ['#36d6c6', '#9af5ea', '#1b958a'],
+  ['#ffd23f', '#fff09a', '#d39a12'],
+  ['#9b6bff', '#c9b0ff', '#6a3fd0'],
+];
+
+/** A chunky pixel block: notched corners, dark outline, bevel light and shade, and a glint. */
+function Pix({ x, y, w, h, fill, hi, lo, p = 6, line = INK, glint = true }: { x: number; y: number; w: number; h: number; fill: string; hi?: string; lo?: string; p?: number; line?: string; glint?: boolean; key?: React.Key }) {
+  return (
+    <g shapeRendering="crispEdges">
+      <rect x={x + p} y={y} width={w - 2 * p} height={h} fill={line} />
+      <rect x={x} y={y + p} width={w} height={h - 2 * p} fill={line} />
+      <rect x={x + 2 * p} y={y + p} width={w - 4 * p} height={h - 2 * p} fill={fill} />
+      <rect x={x + p} y={y + 2 * p} width={w - 2 * p} height={h - 4 * p} fill={fill} />
+      {hi && <rect x={x + 2 * p} y={y + p} width={w - 4 * p} height={p} fill={hi} />}
+      {hi && <rect x={x + p} y={y + 2 * p} width={p} height={h - 4 * p} fill={hi} />}
+      {lo && <rect x={x + 2 * p} y={y + h - 2 * p} width={w - 4 * p} height={p} fill={lo} />}
+      {lo && <rect x={x + w - 2 * p} y={y + 2 * p} width={p} height={h - 4 * p} fill={lo} />}
+      {glint && <rect x={x + 2 * p} y={y + 2 * p} width={p} height={p} fill="#ffffff" opacity={0.9} />}
+    </g>
+  );
+}
+
+/** Little four-point pixel star. */
+function PixStar({ x, y, c = '#ffe04a', s = 4, delay = 0 }: { x: number; y: number; c?: string; s?: number; delay?: number; key?: React.Key }) {
+  return (
+    <g shapeRendering="crispEdges" className="pix-twinkle" style={{ animationDelay: `${delay}s` }}>
+      <rect x={x - s / 2} y={y - s * 1.5} width={s} height={s * 3} fill={c} />
+      <rect x={x - s * 1.5} y={y - s / 2} width={s * 3} height={s} fill={c} />
+      <rect x={x - s / 2} y={y - s / 2} width={s} height={s} fill="#fff" />
+    </g>
+  );
+}
 
 export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef, dropCol, fart, growling }: BedProps) {
   const { rows, cols } = level;
@@ -43,69 +77,85 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none" style={{ maxHeight: 'min(44vh, 430px)', margin: '0 auto', touchAction: 'manipulation' }} role="img" aria-label="The bed">
-      <defs>
-        <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#9a6845" />
-          <stop offset="1" stopColor="#6f4429" />
-        </linearGradient>
-        <linearGradient id="woodLight" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#b98559" />
-          <stop offset="1" stopColor="#94623f" />
-        </linearGradient>
-        <linearGradient id="pillow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="1" stopColor="#ece6dc" />
-        </linearGradient>
-      </defs>
-
-      {/* Headboard */}
-      <path
-        d={`M0 ${HEAD + 40} L0 34 Q0 8 30 6 Q${W / 2} -10 ${W - 30} 6 Q${W} 8 ${W} 34 L${W} ${HEAD + 40} Z`}
-        fill="url(#wood)"
-      />
-      <path
-        d={`M${FRAME + 6} ${HEAD + 10} L${FRAME + 6} 40 Q${FRAME + 6} 24 ${FRAME + 28} 22 Q${W / 2} 10 ${W - FRAME - 28} 22 Q${W - FRAME - 6} 24 ${W - FRAME - 6} 40 L${W - FRAME - 6} ${HEAD + 10} Z`}
-        fill="url(#woodLight)"
-      />
-      {Array.from({ length: cols * 2 - 1 }).map((_, i) => (
-        <circle key={i} cx={FRAME + ((i + 1) * innerW) / (cols * 2)} cy={38} r={4} fill="#7a4b2d" opacity={0.6} />
+      {/* Headboard: stepped pixel arch in shiny purple */}
+      <g shapeRendering="crispEdges">
+        {[
+          [0, 30, W, HEAD + 30],
+          [12, 18, W - 24, 20],
+          [30, 8, W - 60, 20],
+          [W * 0.3, 0, W * 0.4, 16],
+        ].map(([x, y, w, h], i) => (
+          <rect key={`hbo${i}`} x={x} y={y} width={w} height={h} fill={INK} />
+        ))}
+        {[
+          [6, 36, W - 12, HEAD + 20],
+          [18, 24, W - 36, 20],
+          [36, 14, W - 72, 20],
+          [W * 0.3 + 6, 6, W * 0.4 - 12, 16],
+        ].map(([x, y, w, h], i) => (
+          <rect key={`hb${i}`} x={x} y={y} width={w} height={h} fill="#7b3fe4" />
+        ))}
+        {/* shine along the top edge */}
+        <rect x={W * 0.3 + 6} y={6} width={W * 0.4 - 12} height={6} fill="#c9a6ff" />
+        <rect x={36} y={14} width={W * 0.3 - 30} height={6} fill="#b48cff" />
+        <rect x={W * 0.7} y={14} width={W * 0.3 - 36} height={6} fill="#b48cff" />
+        <rect x={18} y={24} width={18} height={6} fill="#a47cff" />
+        <rect x={W - 36} y={24} width={18} height={6} fill="#a47cff" />
+        {/* inset night-sky panel */}
+        <rect x={FRAME + 8} y={32} width={innerW - 16} height={HEAD - 40} fill={INK} />
+        <rect x={FRAME + 14} y={38} width={innerW - 28} height={HEAD - 52} fill="#2b1a6e" />
+      </g>
+      {/* moon + twinkling stars on the headboard */}
+      <g shapeRendering="crispEdges">
+        <rect x={FRAME + 30} y={44} width={14} height={14} fill="#fff3b0" />
+        <rect x={FRAME + 26} y={48} width={22} height={6} fill="#fff3b0" />
+        <rect x={FRAME + 38} y={44} width={10} height={10} fill="#2b1a6e" />
+      </g>
+      {Array.from({ length: cols + 1 }).map((_, i) => (
+        <PixStar key={i} x={FRAME + 80 + (i * (innerW - 110)) / cols} y={i % 2 ? 46 : 56} c={['#ffe04a', '#3ff3ff', '#ff4fd8'][i % 3]} s={3 + (i % 2)} delay={i * 0.37} />
       ))}
 
-      {/* Side posts */}
-      <rect x={0} y={HEAD - 10} width={FRAME} height={innerH + 30} rx={8} fill="url(#wood)" />
-      <rect x={W - FRAME} y={HEAD - 10} width={FRAME} height={innerH + 30} rx={8} fill="url(#wood)" />
+      {/* Side posts with gold knobs */}
+      {[0, W - FRAME].map((x) => (
+        <g key={x}>
+          <Pix x={x} y={HEAD - 10} w={FRAME} h={innerH + 30} fill="#7b3fe4" hi="#b48cff" lo="#4e22a8" p={4} glint={false} />
+          <Pix x={x - 2} y={HEAD - 26} w={FRAME + 4} h={20} fill="#ffc83a" hi="#fff3a6" lo="#c98a00" p={4} />
+        </g>
+      ))}
 
-      {/* Mattress + sheet */}
-      <rect x={FRAME - 4} y={HEAD - 6} width={innerW + 8} height={innerH + 12} rx={16} fill="#fffaf2" stroke="#e8dccb" strokeWidth={3} />
+      {/* Mattress */}
+      <rect x={FRAME - 4} y={HEAD - 6} width={innerW + 8} height={innerH + 12} fill={INK} shapeRendering="crispEdges" />
+      <rect x={FRAME} y={HEAD - 2} width={innerW} height={innerH + 4} fill="#f2ecff" shapeRendering="crispEdges" />
 
       <g transform={`translate(${FRAME} ${HEAD})`}>
         {/* Pillow row (row 0) */}
         {Array.from({ length: pillowCount }).map((_, i) => (
-          <g key={i}>
-            <rect x={i * pillowW + 8} y={6} width={pillowW - 16} height={S * 0.8} rx={30} fill="url(#pillow)" stroke="#ddd2c2" strokeWidth={3} />
-            <path d={`M${i * pillowW + 26} ${S * 0.45} Q${i * pillowW + pillowW / 2} ${S * 0.38} ${(i + 1) * pillowW - 26} ${S * 0.45}`} stroke="#e1d6c6" strokeWidth={3} fill="none" />
-          </g>
+          <Pix key={i} x={i * pillowW + 6} y={6} w={pillowW - 12} h={S * 0.8} fill="#ffffff" hi="#ffffff" lo="#cfd4ff" p={6} />
+        ))}
+        {Array.from({ length: pillowCount }).map((_, i) => (
+          <rect key={`ps${i}`} x={i * pillowW + 30} y={S * 0.42} width={pillowW - 60} height={4} fill="#dfe3ff" shapeRendering="crispEdges" />
         ))}
 
-        {/* Duvet: patchwork squares from row 1 down */}
-        <rect x={0} y={S - 4} width={innerW} height={innerH - S + 4} rx={10} fill="#e9b88f" />
+        {/* Duvet: shiny pixel patchwork from row 1 down */}
+        <rect x={0} y={S - 4} width={innerW} height={innerH - S + 4} fill={INK} shapeRendering="crispEdges" />
         {Array.from({ length: rows - 1 }).map((_, ri) =>
           Array.from({ length: cols }).map((__, c) => {
             const r = ri + 1;
+            const [f, hi, lo] = QUILT[(r * 3 + c) % 4];
             return (
               <g key={`${r}-${c}`}>
-                <rect x={c * S + 3} y={r * S + 3} width={S - 6} height={S - 6} rx={8} fill={QUILT[(r + c) % 2 === 0 ? 0 : 1 + (c % 3 === 0 ? 1 : 0)]} />
-                <rect x={c * S + 11} y={r * S + 11} width={S - 22} height={S - 22} rx={5} fill="none" stroke="#c98d63" strokeWidth={2} strokeDasharray="7 6" opacity={0.6} />
+                <Pix x={c * S + 2} y={r * S + 2} w={S - 4} h={S - 4} fill={f} hi={hi} lo={lo} p={5} />
+                {/* pixel stitching */}
+                <rect x={c * S + 22} y={r * S + 22} width={S - 44} height={S - 44} fill="none" stroke={lo} strokeWidth={3} strokeDasharray="6 6" opacity={0.7} shapeRendering="crispEdges" />
               </g>
             );
           })
         )}
         {/* Folded duvet cuff */}
-        <rect x={-2} y={S - 10} width={innerW + 4} height={18} rx={9} fill="#fffaf2" stroke="#e5d6c2" strokeWidth={2} />
-        <path d={`M8 ${S - 1} H${innerW - 8}`} stroke="#9fc1d9" strokeWidth={3} strokeDasharray="14 8" />
-        {/* Pillow-row squares, shown faintly */}
-        {Array.from({ length: cols }).map((_, c) => (
-          <rect key={c} x={c * S + 4} y={4} width={S - 8} height={S - 18} rx={10} fill="none" stroke="#d8c8b4" strokeWidth={2} strokeDasharray="5 7" />
+        <rect x={-2} y={S - 10} width={innerW + 4} height={18} fill={INK} shapeRendering="crispEdges" />
+        <rect x={2} y={S - 7} width={innerW - 4} height={12} fill="#ffffff" shapeRendering="crispEdges" />
+        {Array.from({ length: Math.floor(innerW / 24) }).map((_, i) => (
+          <rect key={`cf${i}`} x={8 + i * 24} y={S - 3} width={12} height={4} fill={['#ff4fd8', '#3ff3ff', '#ffe04a'][i % 3]} shapeRendering="crispEdges" />
         ))}
 
         {/* Toys and treats */}
@@ -184,7 +234,7 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
 
         {/* While dragging: only mark which pillow the head is over */}
         {dropCol && (
-          <rect x={dropCol.col * S + 4} y={4} width={dropCol.width * S - 8} height={S * 0.8} rx={18} fill="rgba(255,255,255,0.35)" stroke="#8a6a4a" strokeWidth={3} strokeDasharray="10 8" style={{ pointerEvents: 'none' }} />
+          <rect x={dropCol.col * S + 4} y={4} width={dropCol.width * S - 8} height={S * 0.8} fill="rgba(63,243,255,0.25)" stroke="#3ff3ff" strokeWidth={4} strokeDasharray="10 8" shapeRendering="crispEdges" style={{ pointerEvents: 'none' }} />
         )}
 
         <rect ref={gridRef} x={0} y={0} width={innerW} height={innerH} fill="transparent" style={{ pointerEvents: 'none' }} />
@@ -199,10 +249,12 @@ export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef,
       </g>
 
       {/* Footboard */}
-      <rect x={0} y={HEAD + innerH + 4} width={W} height={FOOT - 14} rx={12} fill="url(#wood)" />
-      <rect x={10} y={HEAD + innerH + 10} width={W - 20} height={8} rx={4} fill="#b98559" opacity={0.5} />
-      <rect x={6} y={H - 14} width={16} height={14} rx={3} fill="#5c3720" />
-      <rect x={W - 22} y={H - 14} width={16} height={14} rx={3} fill="#5c3720" />
+      <Pix x={0} y={HEAD + innerH + 2} w={W} h={FOOT - 10} fill="#7b3fe4" hi="#b48cff" lo="#4e22a8" p={5} />
+      {Array.from({ length: cols }).map((_, i) => (
+        <rect key={`fs${i}`} x={FRAME + i * S + S / 2 - 6} y={HEAD + innerH + 12} width={12} height={8} fill="#ffc83a" shapeRendering="crispEdges" />
+      ))}
+      <rect x={6} y={H - 10} width={16} height={10} fill={INK} shapeRendering="crispEdges" />
+      <rect x={W - 22} y={H - 10} width={16} height={10} fill={INK} shapeRendering="crispEdges" />
     </svg>
   );
 }

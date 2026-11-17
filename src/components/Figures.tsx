@@ -427,6 +427,21 @@ export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT
   const edges = cells
     .map((c, i) => (c.parent >= 0 ? { from: c.parent, to: i, part: c.part } : null))
     .filter(Boolean) as { from: number; to: number; part: string }[];
+  const bodyEdges = edges.filter((e) => e.part !== 'paw');
+  const legEdges = edges.filter((e) => e.part === 'paw');
+  const isTrunk = (i: number) => i !== 0 && cells[i].part !== 'paw';
+  // A leg runs from the body out to a paw about two thirds into its square.
+  const legs = legEdges.map((e, i) => {
+    const dir = norm(pts[e.from], pts[e.to]);
+    const n = perp(dir);
+    const sway = (i % 2 ? 1 : -1) * 5 * paddle;
+    // A leg next to her head is a front paw stretched out beside her chin, not out of her skull.
+    const side = e.from === 0 ? 20 : 0;
+    const hip = add(add(pts[e.from], dir, e.from === 0 ? 4 : 18), n, side);
+    const foot = add(add(add(pts[e.to], dir, 10), n, sway), n, side);
+    const knee = add(add(lerp(hip, foot, 0.55), n, (i % 2 ? -1 : 1) * 6), dir, 0);
+    return { dir, n, hip, knee, foot };
+  });
   const firstChild = edges.find((e) => e.from === 0);
   const neck = firstChild ? norm(H, pts[firstChild.to]) : { x: 0, y: 1 };
   const bodyR = 39 + breath * 1.6;
@@ -434,7 +449,7 @@ export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT
 
   // Deterministic grey ticking spots per square
   const spots = cells.flatMap((c, i) =>
-    i === 0
+    !isTrunk(i)
       ? []
       : [0, 1, 2, 3, 4].map((k) => {
           const h = Math.sin((c.r * 31 + c.c * 17 + k * 7.3) * 12.9898) * 43758.5453;
@@ -448,19 +463,34 @@ export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT
   return (
     <g>
       <g transform="translate(4 7)" opacity={0.13}>
-        {edges.map((e, i) => (
+        {bodyEdges.map((e, i) => (
           <path key={i} d={poly([pts[e.from], pts[e.to]])} stroke="#3b1f0f" strokeWidth={78} strokeLinecap="round" fill="none" />
+        ))}
+        {legs.map((l, i) => (
+          <path key={`ls${i}`} d={`M${l.hip.x} ${l.hip.y} Q${l.knee.x} ${l.knee.y} ${l.foot.x} ${l.foot.y}`} stroke="#3b1f0f" strokeWidth={30} strokeLinecap="round" fill="none" />
         ))}
       </g>
       {/* outline then white fur, filling every square she occupies */}
-      {edges.map((e, i) => (
+      {/* legs first, so the body covers where they join */}
+      {legs.map((l, i) => {
+        const d = `M${l.hip.x} ${l.hip.y} Q${l.knee.x} ${l.knee.y} ${l.foot.x} ${l.foot.y}`;
+        return (
+          <g key={`leg${i}`}>
+            <path d={d} stroke={edge} strokeWidth={30} strokeLinecap="round" fill="none" />
+            <path d={d} stroke={white} strokeWidth={25} strokeLinecap="round" fill="none" />
+            {/* grey ticking down the leg */}
+            <circle cx={(l.knee.x + l.foot.x) / 2} cy={(l.knee.y + l.foot.y) / 2} r={2.5} fill="#8f8a86" opacity={0.55} />
+          </g>
+        );
+      })}
+      {bodyEdges.map((e, i) => (
         <path key={`o${i}`} d={poly([pts[e.from], pts[e.to]])} stroke={edge} strokeWidth={2 * bodyR + 4} strokeLinecap="round" fill="none" />
       ))}
-      {cells.map((c, i) => (i === 0 ? null : <circle key={`oc${i}`} cx={pts[i].x} cy={pts[i].y} r={bodyR + 2} fill={edge} />))}
-      {edges.map((e, i) => (
+      {cells.map((c, i) => (!isTrunk(i) ? null : <circle key={`oc${i}`} cx={pts[i].x} cy={pts[i].y} r={bodyR + 2} fill={edge} />))}
+      {bodyEdges.map((e, i) => (
         <path key={`w${i}`} d={poly([pts[e.from], pts[e.to]])} stroke={white} strokeWidth={2 * bodyR} strokeLinecap="round" fill="none" />
       ))}
-      {cells.map((c, i) => (i === 0 ? null : <circle key={`wc${i}`} cx={pts[i].x} cy={pts[i].y} r={bodyR} fill={white} />))}
+      {cells.map((c, i) => (!isTrunk(i) ? null : <circle key={`wc${i}`} cx={pts[i].x} cy={pts[i].y} r={bodyR} fill={white} />))}
       {spots.map((s, i) => (
         <circle key={`s${i}`} cx={s.x} cy={s.y} r={s.r} fill="#8f8a86" opacity={0.55} />
       ))}
@@ -486,22 +516,18 @@ export function DogFigure({ cells, grumpy, growling = false }: { cells: DogCellT
           );
         })}
 
-      {/* paws, paddling while she dreams */}
-      {edges
-        .filter((e) => e.part === 'paw')
-        .map((e, i) => {
-          const dir = norm(pts[e.from], pts[e.to]);
-          const tip = add(add(pts[e.to], dir, 26), perp(dir), (i % 2 ? 1 : -1) * 5 * paddle);
-          const n = perp(dir);
-          return (
-            <g key={`p${i}`}>
-              {[-11, 11].map((o) => {
-                const q = add(tip, n, o);
-                return <ellipse key={o} cx={q.x} cy={q.y} rx={10} ry={12.5} fill="#fffdf9" stroke="#b9ae9f" strokeWidth={2} transform={`rotate(${angle(dir) + 90} ${q.x} ${q.y})`} />;
-              })}
-            </g>
-          );
-        })}
+      {/* paws at the end of each leg, paddling while she dreams */}
+      {legs.map((l, i) => {
+        const c = add(l.foot, l.dir, 4);
+        return (
+          <g key={`p${i}`} transform={`rotate(${angle(l.dir) + 90} ${c.x} ${c.y})`}>
+            <ellipse cx={c.x} cy={c.y} rx={15} ry={11} fill="#fffdf9" stroke="#b9ae9f" strokeWidth={2} />
+            {[-5, 0, 5].map((o) => (
+              <path key={o} d={`M${c.x + o} ${c.y - 10} V${c.y - 4}`} stroke="#b9ae9f" strokeWidth={1.8} strokeLinecap="round" />
+            ))}
+          </g>
+        );
+      })}
       {/* tail */}
       {edges
         .filter((e) => e.part === 'tail')

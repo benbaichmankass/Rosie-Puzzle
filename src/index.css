@@ -344,3 +344,26 @@
 @media (prefers-reduced-motion: reduce) {
   .blink, .marquee-title, .score-pop, .arcade-screen.critical { animation: none; }
 }
+
+/* ---- Retro pixel pass: square corners, glossy shine, stripes, twinkles ---- */
+.pixel-panel {
+  border-radius: 0;
+  background-color: var(--arc-panel);
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.10) 0 38%, rgba(255,255,255,0) 38%), linear-gradient(180deg, #2a1f72, #17123a);
+}
+.arcade-btn {
+  border-radius: 0;
+  background-color: var(--btn);
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.32) 0 42%, rgba(255,255,255,0) 42%);
+}
+.arcade-screen { border-radius: 0; }
+.retro-stripes {
+  height: 12px;
+  background: linear-gradient(180deg,
+    #ff4fd8 0 3px, #ff9b3d 3px 6px, #ffe04a 6px 9px, #3ff3ff 9px 12px);
+  box-shadow: 0 0 10px rgba(255,79,216,0.45);
+}
+.pix-twinkle { animation: pix-twinkle 1.6s steps(3) infinite; }
+@keyframes pix-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.sky-star { position: fixed; width: 4px; height: 4px; background: #fff; box-shadow: 4px 0 #fff, -4px 0 #fff, 0 4px #fff, 0 -4px #fff; animation: pix-twinkle 2.2s steps(2) infinite; pointer-events: none; z-index: 0; }
+@media (prefers-reduced-motion: reduce) { .pix-twinkle, .sky-star { animation: none; } }
