@@ -4,11 +4,11 @@ The web game is wrapped with Capacitor (`android/` folder). The output is an `.a
 file you can send to anyone; they open it on their phone and allow
 "Install unknown apps" once.
 
-## Option A: GitHub builds it (no installs on your Mac)
-Push this repo. The **Build Android APK** workflow runs on every push
-(or run it by hand from the Actions tab). Download `bedtime-puzzle-apk` from the run.
+The automatic APK build on GitHub was removed; the game is shared as a web page
+instead (GitHub Pages, deployed from `main` by `.github/workflows/pages.yml`).
+To build an APK locally:
 
-## Option B: Android Studio
+## Android Studio
     npm install
     npm run build
     npx cap sync android
