@@ -4,127 +4,104 @@
  */
 
 /**
- * Dog growl voice. A rough, low "voiced" source (jittery sawtooth + square)
- * mixed with breath noise, chopped into irregular ~30Hz pulses (the "rrrr"),
- * shaped by throat formants, lightly overdriven, under a swelling envelope.
- * Exported so it can be rendered offline for checking.
+ * Dog growl, built like a voice rather than a synth tone.
+ *
+ * Source: a train of glottal pulses at a low pitch (~70-110Hz) with heavy
+ * jitter, shimmer and period-doubling (every other pulse weaker) - that
+ * irregularity is the "rough" in a growl. Breath noise rides on each pulse.
+ * The source goes through a dog's vocal tract (low throat resonance plus
+ * mouth formants that open up for the snarl), with a slow ~20Hz flutter and
+ * a swelling envelope. Rendered sample-by-sample into a buffer.
  */
-export function scheduleGrowl(
-  ctx: BaseAudioContext,
-  dest: AudioNode,
-  t0: number,
-  opts: { dur: number; level: number; pitch: number; snarl?: boolean }
-) {
-  const { dur, level, pitch, snarl } = opts;
-  const end = t0 + dur;
+export interface GrowlPart {
+  dur: number;
+  f0: number;
+  level: number;
+  snarl?: boolean;
+}
 
-  const voice = ctx.createOscillator();
-  voice.type = 'sawtooth';
-  const voice2 = ctx.createOscillator();
-  voice2.type = 'square';
-  // Pitch contour with jitter: starts low, rises into the snarl, sags at the end.
-  for (let t = t0; t < end; t += 0.025) {
-    const u = (t - t0) / dur;
-    const contour = snarl ? 0.82 + 0.3 * Math.sin(Math.min(1, u * 1.4) * Math.PI * 0.5) - (u > 0.8 ? (u - 0.8) * 0.8 : 0) : 0.95 - 0.1 * u;
-    const f = pitch * contour * (0.9 + Math.random() * 0.2);
-    voice.frequency.setValueAtTime(f, t);
-    voice2.frequency.setValueAtTime(f * 1.01, t);
+export function renderGrowl(ctx: BaseAudioContext, parts: GrowlPart[], gap = 0.03): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const total = parts.reduce((t, p) => t + p.dur + gap, 0.05);
+  const out = new Float32Array(Math.ceil(total * sr));
+  let offset = 0;
+
+  for (const part of parts) {
+    const n = Math.floor(part.dur * sr);
+    const src = new Float32Array(n);
+    // 1) glottal pulse train with jitter, shimmer and period doubling
+    let t = 0;
+    let k = 0;
+    while (t < part.dur) {
+      const u = t / part.dur;
+      const contour = part.snarl ? 0.85 + 0.25 * Math.sin(Math.min(1, u * 1.5) * Math.PI * 0.5) - (u > 0.8 ? (u - 0.8) * 0.6 : 0) : 1 - 0.12 * u;
+      const f0 = part.f0 * contour * (0.85 + Math.random() * 0.3);
+      const amp = (0.55 + Math.random() * 0.45) * (k % 2 ? 0.45 + Math.random() * 0.35 : 1);
+      const start = Math.floor(t * sr);
+      const tau = sr * 0.0006;
+      for (let i = 0; i < tau * 10 && start + i < n; i++) {
+        const e = Math.exp(-i / tau);
+        // sharp closing click + breathy noise riding on the pulse
+        src[start + i] += amp * (e * (i < 3 ? -1.6 : 0.9) + (Math.random() * 2 - 1) * 0.55 * e);
+      }
+      t += 1 / f0;
+      k++;
+    }
+    // continuous breath under the voice
+    for (let i = 0; i < n; i++) src[i] += (Math.random() * 2 - 1) * (part.snarl ? 0.05 : 0.035);
+
+    // 2) vocal tract: parallel two-pole resonators
+    const formants = part.snarl
+      ? [ { f: 160, bw: 90, g: 0.3 }, { f: 450, bw: 170, g: 1.0 }, { f: 1150, bw: 260, g: 1.15 }, { f: 2300, bw: 380, g: 0.55 } ]
+      : [ { f: 150, bw: 80, g: 0.4 }, { f: 380, bw: 150, g: 1.0 }, { f: 950, bw: 240, g: 0.85 }, { f: 2100, bw: 360, g: 0.3 } ];
+    const voiced = new Float32Array(n);
+    for (const fm of formants) {
+      const r = Math.exp((-Math.PI * fm.bw) / sr);
+      const a1 = 2 * r * Math.cos((2 * Math.PI * fm.f) / sr);
+      const a2 = -r * r;
+      const g = fm.g * (1 - r);
+      let y1 = 0;
+      let y2 = 0;
+      for (let i = 0; i < n; i++) {
+        const y = g * src[i] + a1 * y1 + a2 * y2;
+        y2 = y1;
+        y1 = y;
+        voiced[i] += y;
+      }
+    }
+
+    // 3) flutter + envelope + grit
+    let peak = 1e-9;
+    let phase = Math.random() * 6;
+    for (let i = 0; i < n; i++) {
+      const u = i / n;
+      phase += (2 * Math.PI * (17 + Math.random() * 8)) / sr;
+      const flutter = 0.62 + 0.38 * Math.sin(phase);
+      const attack = Math.min(1, u / 0.08);
+      const release = Math.min(1, (1 - u) / 0.18);
+      const swell = part.snarl ? 0.7 + 0.3 * Math.sin(Math.min(1, u / 0.7) * Math.PI * 0.5) : 1;
+      voiced[i] = Math.tanh(voiced[i] * 6 * flutter) * attack * release * swell;
+      peak = Math.max(peak, Math.abs(voiced[i]));
+    }
+    for (let i = 0; i < n && offset + i < out.length; i++) out[offset + i] += (voiced[i] / peak) * part.level;
+    offset += n + Math.floor(gap * sr);
   }
 
-  const noiseBuf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * (dur + 0.05))), ctx.sampleRate);
-  const nd = noiseBuf.getChannelData(0);
-  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = noiseBuf;
+  const buf = ctx.createBuffer(1, out.length, sr);
+  buf.getChannelData(0).set(out);
+  return buf;
+}
 
-  const vGain = ctx.createGain();
-  vGain.gain.value = 0.55;
-  const v2Gain = ctx.createGain();
-  v2Gain.gain.value = 0.25;
-  const nGain = ctx.createGain();
-  nGain.gain.value = snarl ? 0.55 : 0.4;
-
-  // Irregular pulse chopping: the rattle that makes it a growl, not a hum.
-  const rattle = ctx.createGain();
-  rattle.gain.setValueAtTime(0, t0);
-  let t = t0;
-  while (t < end) {
-    const period = 1 / (19 + Math.random() * 12);
-    rattle.gain.setValueAtTime(0.65 + Math.random() * 0.35, t);
-    rattle.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.15, t + period * 0.7);
-    t += period;
-  }
-
-  // Throat / open-mouth formants
-  const mix = ctx.createGain();
-  const formants = [
-    { f: 190, q: 2, g: 0.55 },
-    { f: snarl ? 520 : 420, q: 2.2, g: 1.6 },
-    { f: snarl ? 1100 : 900, q: 3.5, g: snarl ? 0.8 : 0.45 },
-  ].map(({ f, q, g }) => {
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = f;
-    bp.Q.value = q;
-    const fg = ctx.createGain();
-    fg.gain.value = g * 1.2;
-    rattle.connect(bp);
-    bp.connect(fg);
-    fg.connect(mix);
-    return bp;
-  });
-  void formants;
-  // Chesty body: the low rumble straight from the source
-  const body = ctx.createBiquadFilter();
-  body.type = 'lowpass';
-  body.frequency.value = 320;
-  const bodyGain = ctx.createGain();
-  bodyGain.gain.value = 0.3;
-  rattle.connect(body);
-  body.connect(bodyGain);
-  bodyGain.connect(mix);
-
-  // Grit
-  const drive = ctx.createWaveShaper();
-  const curve = new Float32Array(1024);
-  for (let i = 0; i < curve.length; i++) {
-    const x = (i / (curve.length - 1)) * 2 - 1;
-    curve[i] = Math.tanh(x * 3.2);
-  }
-  drive.curve = curve;
-  const low = ctx.createBiquadFilter();
-  low.type = 'lowpass';
-  low.frequency.value = snarl ? 2200 : 1500;
-  // Trim the deepest bass so it still reads on small phone speakers.
-  const trim = ctx.createBiquadFilter();
-  trim.type = 'highpass';
-  trim.frequency.value = 120;
-
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.0001, t0);
-  env.gain.exponentialRampToValueAtTime(level * 0.7, t0 + Math.min(0.12, dur * 0.3));
-  env.gain.linearRampToValueAtTime(level, t0 + dur * 0.65);
-  env.gain.linearRampToValueAtTime(level * 0.6, t0 + dur * 0.88);
-  env.gain.exponentialRampToValueAtTime(0.0001, end);
-
-  voice.connect(vGain);
-  voice2.connect(v2Gain);
-  noise.connect(nGain);
-  vGain.connect(rattle);
-  v2Gain.connect(rattle);
-  nGain.connect(rattle);
-  mix.connect(drive);
-  drive.connect(low);
-  low.connect(trim);
-  trim.connect(env);
-  env.connect(dest);
-
-  voice.start(t0);
-  voice2.start(t0);
-  noise.start(t0);
-  voice.stop(end + 0.02);
-  voice2.stop(end + 0.02);
-  noise.stop(end + 0.02);
+function playBuffer(ctx: AudioContext, buf: AudioBuffer) {
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  // trim rumble below what small speakers can play, keep it clean
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 90;
+  src.connect(hp);
+  hp.connect(ctx.destination);
+  src.start();
 }
 
 class SoundEngine {
@@ -192,7 +169,73 @@ class SoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      scheduleGrowl(ctx, ctx.destination, ctx.currentTime, { dur: 0.6, level: 0.4, pitch: 78 });
+      playBuffer(ctx, renderGrowl(ctx, [{ dur: 0.65, f0: 78, level: 0.45 }]));
+    } catch {}
+  }
+
+  /** Phone on vibrate: two buzzy pulses. */
+  public playPhoneBuzz() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      [0, 0.32].forEach((off) => {
+        const osc = ctx.createOscillator();
+        const am = ctx.createOscillator();
+        const amGain = ctx.createGain();
+        const gain = ctx.createGain();
+        const lp = ctx.createBiquadFilter();
+        osc.type = 'square';
+        osc.frequency.value = 165;
+        am.type = 'square';
+        am.frequency.value = 50;
+        amGain.gain.value = 0.5;
+        lp.type = 'lowpass';
+        lp.frequency.value = 900;
+        gain.gain.setValueAtTime(0.0001, now + off);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + off + 0.02);
+        gain.gain.setValueAtTime(0.22, now + off + 0.22);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + off + 0.26);
+        am.connect(amGain);
+        amGain.connect(gain.gain);
+        osc.connect(lp);
+        lp.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + off);
+        am.start(now + off);
+        osc.stop(now + off + 0.28);
+        am.stop(now + off + 0.28);
+      });
+    } catch {}
+  }
+
+  /** Crinkly tissue box: a flurry of tiny bright noise crackles. */
+  public playCrinkle() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const dur = 0.5;
+      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let i = 0;
+      while (i < d.length) {
+        const len = Math.floor(ctx.sampleRate * (0.002 + Math.random() * 0.01));
+        const amp = Math.random() < 0.6 ? Math.random() : 0;
+        for (let j = 0; j < len && i < d.length; j++, i++) d[i] = (Math.random() * 2 - 1) * amp * (1 - j / len);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 2500;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.linearRampToValueAtTime(0.0001, now + dur);
+      src.connect(hp);
+      hp.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(now);
     } catch {}
   }
 
@@ -262,9 +305,13 @@ class SoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const t = ctx.currentTime;
-      scheduleGrowl(ctx, ctx.destination, t, { dur: 0.42, level: 0.4, pitch: 80 });
-      scheduleGrowl(ctx, ctx.destination, t + 0.38, { dur: 1.05, level: 0.5, pitch: 94, snarl: true });
+      playBuffer(
+        ctx,
+        renderGrowl(ctx, [
+          { dur: 0.4, f0: 84, level: 0.55 },
+          { dur: 1.05, f0: 96, level: 0.8, snarl: true },
+        ])
+      );
     } catch {}
   }
 

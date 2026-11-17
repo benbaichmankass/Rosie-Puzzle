@@ -252,10 +252,36 @@ export default function App() {
       }
       return;
     }
-    if (cells.some((k) => toySet.has(k))) {
-      sound.playSqueak();
+    const hit = level.obstacles.find((o) => cells.includes(key(o.r, o.c)));
+    if (hit) {
+      // Each item makes its own noise when someone lies on it.
       setPenalty((p) => p + 25);
-      showToast('Ouch, there’s a toy there. Try another pose or spot.', 'warn');
+      const who = names[id];
+      if (hit.type === 'phone') {
+        sound.playPhoneBuzz();
+        showToast(`Bzzzt! ${who} rolled onto a phone and it buzzed. ${profiles.dogName} stirs.`, 'warn');
+        const t = window.setTimeout(() => {
+          const g = Math.min(3, grumpRef.current + 1);
+          setGrumpiness(g);
+          if (g >= 3) {
+            sound.playDogChomp();
+            setWarningModal('bite');
+          } else sound.playDogGrumble();
+        }, 650);
+        timers.current.push(t);
+      } else if (hit.type === 'squeaky_dildo') {
+        sound.playSqueak();
+        showToast(`SQUEAK! ${who} lay on the... novelty toy. Awkward. Try somewhere else.`, 'warn');
+      } else if (hit.type === 'tissues') {
+        sound.playCrinkle();
+        showToast(`Crinkle crinkle. ${who} squashed the tissue box.`, 'warn');
+      } else if (hit.type === 'treat_bone' || hit.type === 'treat_bacon') {
+        sound.playCrunch();
+        showToast(`Crunch! ${who} lay on one of ${profiles.dogName}’s treats.`, 'warn');
+      } else {
+        sound.playSqueak();
+        showToast(`Squeak! ${who} lay on one of ${profiles.dogName}’s toys.`, 'warn');
+      }
       return;
     }
     sound.playPop();

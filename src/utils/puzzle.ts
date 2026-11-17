@@ -232,7 +232,10 @@ function mulberry32(seed: number) {
   };
 }
 
-const TOY_TYPES: ObstacleType[] = ['toy_duck', 'toy_ball', 'toy_bone', 'treat_bone', 'treat_bacon'];
+const TOY_TYPES: ObstacleType[] = [
+  'toy_duck', 'toy_ball', 'toy_bone', 'treat_bone', 'treat_bacon',
+  'phone', 'squeaky_dildo', 'tissues', 'phone', 'squeaky_dildo', 'tissues',
+];
 
 interface Difficulty {
   rows: number;
@@ -244,28 +247,29 @@ interface Difficulty {
   maxToys: number;
 }
 
-// Every bed is 4 rows tall (one row shorter than the original 5x5 board).
+// Every bed is 4 rows x 5 columns. Difficulty comes from more poses to choose
+// from and fewer pose pairs that work; leftover squares become Rosie and items.
 const DIFFICULTY: Difficulty[] = [
-  { rows: 4, cols: 3, posesEach: 3, maxSolvablePairs: 2, dogMin: 2, dogMax: 3, maxToys: 2 },
-  { rows: 4, cols: 4, posesEach: 3, maxSolvablePairs: 2, dogMin: 2, dogMax: 5, maxToys: 2 },
-  { rows: 4, cols: 4, posesEach: 4, maxSolvablePairs: 2, dogMin: 2, dogMax: 5, maxToys: 3 },
-  { rows: 4, cols: 4, posesEach: 4, maxSolvablePairs: 1, dogMin: 3, dogMax: 6, maxToys: 3 },
-  { rows: 4, cols: 5, posesEach: 4, maxSolvablePairs: 2, dogMin: 4, dogMax: 8, maxToys: 3 },
-  { rows: 4, cols: 5, posesEach: 5, maxSolvablePairs: 1, dogMin: 4, dogMax: 8, maxToys: 4 },
-  { rows: 4, cols: 5, posesEach: 5, maxSolvablePairs: 2, dogMin: 4, dogMax: 8, maxToys: 4 },
-  { rows: 4, cols: 5, posesEach: 6, maxSolvablePairs: 1, dogMin: 4, dogMax: 8, maxToys: 4 },
-  { rows: 4, cols: 6, posesEach: 6, maxSolvablePairs: 2, dogMin: 6, dogMax: 8, maxToys: 5 },
-  { rows: 4, cols: 6, posesEach: 6, maxSolvablePairs: 1, dogMin: 6, dogMax: 8, maxToys: 5 },
-  { rows: 4, cols: 6, posesEach: 7, maxSolvablePairs: 1, dogMin: 6, dogMax: 8, maxToys: 5 },
-  { rows: 4, cols: 6, posesEach: 7, maxSolvablePairs: 1, dogMin: 6, dogMax: 8, maxToys: 5 },
+  { rows: 4, cols: 5, posesEach: 3, maxSolvablePairs: 2, dogMin: 2, dogMax: 5, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 3, maxSolvablePairs: 2, dogMin: 3, dogMax: 6, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 4, maxSolvablePairs: 2, dogMin: 3, dogMax: 6, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 4, maxSolvablePairs: 1, dogMin: 3, dogMax: 6, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 5, maxSolvablePairs: 2, dogMin: 3, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 5, maxSolvablePairs: 1, dogMin: 3, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 6, maxSolvablePairs: 2, dogMin: 4, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 6, maxSolvablePairs: 1, dogMin: 4, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 7, maxSolvablePairs: 2, dogMin: 4, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 7, maxSolvablePairs: 1, dogMin: 4, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 8, maxSolvablePairs: 1, dogMin: 4, dogMax: 7, maxToys: 6 },
+  { rows: 4, cols: 5, posesEach: 8, maxSolvablePairs: 1, dogMin: 5, dogMax: 7, maxToys: 6 },
 ];
 
 const TITLES: [string, string, string][] = [
-  ['Rosie’s Cozy Ball', 'A narrow bed and a small sleepy dog', 'Rosie is already curled up. Flip through each sleeping pose and tuck both of you in so not one square is left empty.'],
+  ['Rosie’s Cozy Ball', 'A small sleepy dog and a messy bed', 'Rosie is already curled up. Flip through each sleeping pose and tuck both of you in so not one square is left empty.'],
   ['First Night In', 'Two pillows, one dog', 'Only some pose combinations fill the bed exactly. Try a pose, tuck in, and lift someone back out if it doesn’t work.'],
-  ['Squeaky Surprise', 'Toys left on the duvet', 'Nobody wants to lie on a squeaky toy. Find poses that wrap around them.'],
+  ['Squeaky Surprise', 'Toys left on the duvet', 'Nobody wants to lie on anything that squeaks. Find poses that wrap around the clutter.'],
   ['The Croissant', 'Rosie curls a little wider', 'Rosie has taken a bigger slice of the bed. Every square still needs to be covered.'],
-  ['King-Size Dreams', 'The bed gets wider', 'A wider bed means more ways to go wrong. Plan where each head goes on the pillow.'],
+  ['Phone Under the Pillow', 'Things that buzz in the night', 'Someone left their phone in bed again. Lie on it and it buzzes, and Rosie won’t like that.'],
   ['Biscuit Crumbs', 'Treats everywhere', 'Treats and toys pin you in. Only one pair of poses works tonight.'],
   ['Foot of the Bed', 'Rosie guards the bottom', 'Rosie owns the foot of the bed, so your legs have to find a way around her.'],
   ['The Long Haul', 'Tricky fit', 'Only one pair of poses fills this bed. Look at where the toys are before you pick.'],

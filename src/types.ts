@@ -17,6 +17,9 @@ export type ObstacleType =
   | 'toy_ball'
   | 'treat_bone'
   | 'treat_bacon'
+  | 'phone'
+  | 'squeaky_dildo'
+  | 'tissues'
   | 'pee_puddle';
 
 export interface Obstacle {

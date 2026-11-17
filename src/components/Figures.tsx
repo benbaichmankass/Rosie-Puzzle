@@ -6,7 +6,7 @@
  * taken from the real people and Rosie. One animation clock drives every
  * part of a figure, so breathing, head roll, twitches and Zzz stay in sync.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { DogCellT, Pose, PoseCell } from '../utils/puzzle';
 
 export const S = 100;
@@ -84,20 +84,26 @@ export interface Look {
   sock: string;
   ring: string;
   build: number;
+  /** Pajama print: stripes or polka dots in `mark` on the `shirt` colour, trimmed with `piping`. */
+  pattern: 'stripes' | 'dots';
+  mark: string;
+  piping: string;
 }
 
 export const LOOKS: Record<Who, Look> = {
-  // Bentzi: fair skin, light-brown messy hair, full brown beard, sunglasses
-  // pushed up on his head, black tee.
+  // Bentzi: fair skin, short light-brown hair, trimmed brown beard, sunglasses
+  // pushed up on his head; navy striped pajamas.
   boyfriend: {
     skin: '#f3c6a6', skinShade: '#e3a985', hair: '#8a6547', beard: '#7a5537', brow: '#6e4c33',
-    shirt: '#34343c', shirtShade: '#25252b', pants: '#4a6fb0', sock: '#f2c14e', ring: '#4a6fb0', build: 1.12,
+    shirt: '#3b5b92', shirtShade: '#2c4675', pants: '#3b5b92', sock: '#f2c14e', ring: '#4a6fb0', build: 1.12,
+    pattern: 'stripes', mark: '#a9c6ee', piping: '#f6efe2',
   },
-  // Shai: olive skin, dark buzz cut, thick brows, full dark beard, earring,
-  // lavender tee.
+  // Shai: olive skin, dark buzz cut, thick brows, full dark beard, earring;
+  // lavender polka-dot pajamas.
   girlfriend: {
     skin: '#d9a07a', skinShade: '#c3865f', hair: '#2a201b', beard: '#2b211c', brow: '#231a16',
-    shirt: '#a48fd8', shirtShade: '#8a73c6', pants: '#545b6b', sock: '#f08a8a', ring: '#8a73c6', build: 1,
+    shirt: '#a48fd8', shirtShade: '#8a73c6', pants: '#a48fd8', sock: '#f08a8a', ring: '#8a73c6', build: 1,
+    pattern: 'dots', mark: '#ffffff', piping: '#5f48a6',
   },
 };
 /** Back-compat for the pose picker chips. */
@@ -317,13 +323,46 @@ export function PersonFigure({
   // The head lines up with the neck (head -> chest), not the whole body.
   const faceRot = angle(axis0) - 90 + roll;
 
+  const uid = useId().replace(/:/g, '');
+  const pj = `url(#pj-${uid})`;
+  const bodyAngle = angle(axis0) + 90;
+  const chestDir = axis0;
+  const hem = lerp(T, P, 0.58);
+  const lapel = (s: 1 | -1) =>
+    poly([add(Sh, side, 4 * s), add(add(Sh, side, 17 * s), chestDir, -2), add(add(Sh, side, 9 * s), chestDir, 15)]) + ' Z';
+  const pocketC = add(add(lerp(Sh, T, 0.45), side, 15), chestDir, 2);
+
   return (
     <g>
+      <defs>
+        {look.pattern === 'stripes' ? (
+          <pattern id={`pj-${uid}`} width={14} height={14} patternUnits="userSpaceOnUse" patternTransform={`rotate(${bodyAngle})`}>
+            <rect width={14} height={14} fill={look.shirt} />
+            <rect x={0} width={4} height={14} fill={look.mark} opacity={0.9} />
+          </pattern>
+        ) : (
+          <pattern id={`pj-${uid}`} width={16} height={16} patternUnits="userSpaceOnUse" patternTransform={`rotate(${bodyAngle})`}>
+            <rect width={16} height={16} fill={look.shirt} />
+            <circle cx={4} cy={4} r={2.4} fill={look.mark} />
+            <circle cx={12} cy={12} r={2.4} fill={look.mark} />
+          </pattern>
+        )}
+      </defs>
       <path d={poly([H, Sh, T, P])} stroke="rgba(70,40,20,0.10)" strokeWidth={74} strokeLinecap="round" strokeLinejoin="round" fill="none" transform="translate(4 7)" />
 
+      {/* pajama bottoms with piped ankle cuffs */}
       {legs.map((l, i) => (
-        <path key={i} d={poly(l.pts)} stroke={look.pants} strokeWidth={l.w} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path key={i} d={poly(l.pts)} stroke={look.shirtShade} strokeWidth={l.w + 3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
       ))}
+      {legs.map((l, i) => (
+        <path key={`pj${i}`} d={poly(l.pts)} stroke={pj} strokeWidth={l.w} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      ))}
+      {legs.map((l, i) => {
+        const n = l.pts.length;
+        const end = l.pts[n - 1];
+        const prev = l.pts[n - 2];
+        return <path key={`c${i}`} d={poly([lerp(prev, end, 0.8), lerp(prev, end, 0.93)])} stroke={look.piping} strokeWidth={l.w + 1} strokeLinecap="butt" fill="none" />;
+      })}
       {legs.map((l, i) => {
         const end = l.pts[l.pts.length - 1];
         const dir = norm(l.pts[l.pts.length - 2], end);
@@ -336,17 +375,27 @@ export function PersonFigure({
         );
       })}
 
-      {/* torso: tee over pyjama bottoms */}
-      <path d={poly([Sh, T, P])} stroke={look.shirt} strokeWidth={chestW} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <path d={poly([lerp(T, P, 0.6), P])} stroke={look.pants} strokeWidth={chestW - 4} strokeLinecap="round" fill="none" />
-      <path d={poly([add(lerp(T, P, 0.55), side, -26), add(lerp(T, P, 0.55), side, 26)])} stroke={look.shirtShade} strokeWidth={5} strokeLinecap="round" />
-      {/* collar */}
-      <path d={poly([add(Sh, side, -12), add(Sh, axis, 9), add(Sh, side, 12)])} stroke={look.shirtShade} strokeWidth={4} fill="none" strokeLinecap="round" />
+      {/* pajama top: button-up with piped collar, placket, pocket and hem */}
+      <path d={poly([Sh, T, P])} stroke={look.shirtShade} strokeWidth={chestW + 3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d={poly([Sh, T, P])} stroke={pj} strokeWidth={chestW} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d={poly([add(hem, side, -chestW / 2 + 2), add(hem, side, chestW / 2 - 2)])} stroke={look.piping} strokeWidth={4} strokeLinecap="round" />
+      <path d={poly([add(Sh, chestDir, 12), T, hem])} stroke={look.piping} strokeWidth={3} fill="none" strokeLinejoin="round" />
+      {[0.3, 0.6, 0.9].map((u) => {
+        const b = lerp(add(Sh, chestDir, 14), hem, u);
+        return <circle key={u} cx={b.x} cy={b.y} r={3.2} fill="#ffffff" stroke={look.shirtShade} strokeWidth={1} />;
+      })}
+      <rect x={pocketC.x - 7} y={pocketC.y - 6} width={14} height={12} rx={2} fill="none" stroke={look.piping} strokeWidth={2.2} transform={`rotate(${bodyAngle - 90} ${pocketC.x} ${pocketC.y})`} />
+      {/* V-neck and lapels */}
+      <path d={poly([add(Sh, side, -6), add(Sh, chestDir, 12), add(Sh, side, 6)]) + ' Z'} fill={look.skin} />
+      <path d={lapel(-1)} fill={look.piping} />
+      <path d={lapel(1)} fill={look.piping} />
 
+      {/* long pajama sleeves with piped cuffs */}
       {arms.map((a, i) => (
         <g key={i}>
-          <path d={poly([a.sh, a.el, a.hand])} stroke={look.skin} strokeWidth={16} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d={poly([a.sh, lerp(a.sh, a.el, 0.8)])} stroke={look.shirt} strokeWidth={22} strokeLinecap="round" fill="none" />
+          <path d={poly([a.sh, a.el, lerp(a.el, a.hand, 0.84)])} stroke={look.shirtShade} strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d={poly([a.sh, a.el, lerp(a.el, a.hand, 0.84)])} stroke={pj} strokeWidth={19} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d={poly([lerp(a.el, a.hand, 0.66), lerp(a.el, a.hand, 0.82)])} stroke={look.piping} strokeWidth={20} strokeLinecap="butt" fill="none" />
           <circle cx={a.hand.x} cy={a.hand.y} r={10} fill={look.skin} stroke={look.skinShade} strokeWidth={2} />
         </g>
       ))}
