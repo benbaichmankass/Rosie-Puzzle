@@ -36,10 +36,7 @@ export function WinModal({
 }: WinModalProps) {
   useEffect(() => {
     if (isOpen) {
-      sound.playWinFanfare();
-      if (isCuddleBonus) {
-        setTimeout(() => sound.playCuddleChime(), 600);
-      }
+      // Sound is handled by the game: one bedtime bell, then soft snoring.
       // Confetti burst
       try {
         confetti({

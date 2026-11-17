@@ -140,6 +140,8 @@ const CUES: Record<string, Cue> = {
   squeak: { file: 'squeak', start: 0, dur: 0.38, vol: 0.7 },
   win: { file: 'win', start: 0, dur: 3.6, vol: 0.7 },
   snore: { file: 'snore', start: 2.1, dur: 1.3, vol: 0.8 },
+  // one full in-and-out snore, quiet, for the after-bedtime loop
+  snoreLoop: { file: 'snore', start: 0.3, dur: 3.6, vol: 0.32 },
   chime: { file: 'chime', start: 0.6, dur: 2.2, vol: 0.6 },
   fart: { file: 'fart', start: 0.1, dur: 0.4, vol: 0.95, rate: 0.85 },
   phone: { file: 'phone', start: 0, dur: 1.1, vol: 0.75 },
@@ -173,18 +175,18 @@ class SoundEngine {
   }
 
   /** Play a recorded cue; returns false if it isn't loaded (caller falls back to synth). */
-  private clip(name: string, delay = 0): boolean {
+  private clip(name: string, delay = 0, rate?: number, keep?: (n: AudioScheduledSourceNode, g: GainNode) => void): boolean {
     const ctx = this.ctx;
     const cue = CUES[name];
     const s = cue && this.samples[cue.file];
-    if (!ctx || !cue || !s) return false;
+    if (!this.enabled || !ctx || !cue || !s) return false;
     try {
       const src = ctx.createBufferSource();
       src.buffer = s.buf;
-      src.playbackRate.value = cue.rate ?? 1;
+      src.playbackRate.value = rate ?? cue.rate ?? 1;
       const g = ctx.createGain();
       const t = ctx.currentTime + delay;
-      const len = cue.dur / (cue.rate ?? 1);
+      const len = cue.dur / (rate ?? cue.rate ?? 1);
       const level = cue.vol * s.norm;
       g.gain.setValueAtTime(0.0001, t);
       g.gain.linearRampToValueAtTime(level, t + 0.01);
@@ -193,6 +195,7 @@ class SoundEngine {
       src.connect(g);
       g.connect(ctx.destination);
       src.start(t, cue.start, cue.dur);
+      keep?.(src, g);
       return true;
     } catch {
       return false;
@@ -260,6 +263,109 @@ class SoundEngine {
       osc.start();
       osc.stop(ctx.currentTime + 0.08);
     } catch {}
+  }
+
+  /**
+   * Bedtime bell: three soft, music-box-like bell tones stepping down
+   * (G - E - C) with a warm low C underneath and a gentle echo. Calm and
+   * "lights out" rather than a victory fanfare.
+   */
+  public playBedtimeBell() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime + 0.02;
+      const master = ctx.createGain();
+      master.gain.value = 0.16;
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 3800;
+      // soft echo for a dreamy tail
+      const delay = ctx.createDelay(1);
+      delay.delayTime.value = 0.32;
+      const fb = ctx.createGain();
+      fb.gain.value = 0.28;
+      const wet = ctx.createGain();
+      wet.gain.value = 0.35;
+      master.connect(tone);
+      tone.connect(ctx.destination);
+      tone.connect(delay);
+      delay.connect(fb);
+      fb.connect(delay);
+      delay.connect(wet);
+      wet.connect(ctx.destination);
+
+      const bell = (freq: number, at: number, amp: number, decay: number) => {
+        // inharmonic partials give a real bell colour
+        [
+          [1, 1],
+          [2, 0.32],
+          [2.76, 0.22],
+          [5.4, 0.08],
+        ].forEach(([ratio, a]) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = freq * ratio;
+          const d = decay / Math.sqrt(ratio);
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(amp * a, at + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + d);
+          o.connect(g);
+          g.connect(master);
+          o.start(at);
+          o.stop(at + d + 0.05);
+        });
+      };
+      bell(783.99, now, 0.9, 2.6); // G5
+      bell(659.25, now + 0.42, 0.85, 2.8); // E5
+      bell(523.25, now + 0.84, 0.95, 3.6); // C5
+      bell(261.63, now + 0.84, 0.35, 3.8); // warm C4 underneath
+    } catch {}
+  }
+
+  private snoreTimer: number | undefined;
+  private snoreNodes: { n: AudioScheduledSourceNode; g: GainNode }[] = [];
+
+  /** Quiet, slow snoring that keeps going until stopSnoring(). Alternates two sleepers. */
+  public startSnoring(delaySec = 0) {
+    this.stopSnoring();
+    let turn = 0;
+    const once = () => {
+      if (!this.enabled) return;
+      const rate = turn++ % 2 ? 0.86 : 1.0; // second, deeper snorer
+      const ok = this.clip('snoreLoop', 0, rate, (n, g) => {
+        this.snoreNodes.push({ n, g });
+        if (this.snoreNodes.length > 4) this.snoreNodes.shift();
+      });
+      if (!ok) this.playSnore();
+    };
+    const begin = () => {
+      once();
+      this.snoreTimer = window.setInterval(once, 4300);
+    };
+    if (delaySec > 0) this.snoreTimer = window.setTimeout(begin, delaySec * 1000);
+    else begin();
+  }
+
+  public stopSnoring() {
+    if (this.snoreTimer !== undefined) {
+      window.clearTimeout(this.snoreTimer);
+      window.clearInterval(this.snoreTimer);
+      this.snoreTimer = undefined;
+    }
+    const ctx = this.ctx;
+    this.snoreNodes.forEach(({ n, g }) => {
+      try {
+        if (ctx) {
+          g.gain.cancelScheduledValues(ctx.currentTime);
+          g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+          g.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+          n.stop(ctx.currentTime + 0.3);
+        }
+      } catch {}
+    });
+    this.snoreNodes = [];
   }
 
   /** Low, short warning rumble ("hrrr"). */

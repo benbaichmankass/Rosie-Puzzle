@@ -177,6 +177,7 @@ export default function App() {
     setGrowling(false);
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
+    sound.stopSnoring();
   }, []);
 
 
@@ -233,7 +234,9 @@ export default function App() {
       setCuddles(c);
       save(STORAGE_CUDDLE_KEY, c);
     }
-    sound.playWinFanfare();
+    // Calm 'lights out' bell, then the two of them snore until the next night starts.
+    sound.playBedtimeBell();
+    sound.startSnoring(2.6);
     setTimeout(() => setIsWinModalOpen(true), 900);
   };
 
@@ -406,6 +409,7 @@ export default function App() {
         const next = !soundEnabled;
         setSoundEnabled(next);
         sound.enabled = next;
+        if (!next) sound.stopSnoring();
       }}
       onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
       onRestartLevel={() => loadLevel(levelIndex, false)}
