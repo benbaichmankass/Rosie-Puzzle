@@ -426,6 +426,16 @@ export default function App() {
 
   const dragInfo = drag ? dropInfo(drag.x, drag.y, drag.id, drag.grab) : null;
 
+  // Live count of squares nobody is lying on yet.
+  const emptyCount = (() => {
+    const t = new Set<string>([...dogSet, ...toySet]);
+    IDS.forEach((id) => {
+      const p = placed[id];
+      if (p) poseCellsAt(p.pose, p.col).forEach((c) => t.add(key(c.r, c.c)));
+    });
+    return level.rows * level.cols - t.size;
+  })();
+
   const mood = ['Sound asleep', 'Grumbling', 'Snarling', 'AWAKE!'][grumpiness];
 
   return (
@@ -481,7 +491,11 @@ export default function App() {
             ))}
           </div>
           <span className={`font-pixel text-[13px] truncate ${grumpiness ? 'neon-red' : 'neon-green'}`}>{mood}</span>
-          <span className="ml-auto font-arcade text-[7px] text-[#8f86d6] text-right leading-tight">FILL EVERY<br />SQUARE</span>
+          <span className="ml-auto font-arcade text-[7px] text-[#8f86d6] text-right leading-tight whitespace-nowrap">
+            EMPTY
+            <br />
+            <span className={`text-[11px] ${emptyCount === 0 ? 'neon-green' : 'neon-cyan'}`}>{emptyCount}</span>
+          </span>
         </div>
         <div className={`relative arcade-screen ${grumpiness >= 2 ? 'critical' : grumpiness === 1 ? 'danger' : ''}`}>
           <Bed

@@ -367,3 +367,6 @@
 @keyframes pix-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 .sky-star { position: fixed; width: 4px; height: 4px; background: #fff; box-shadow: 4px 0 #fff, -4px 0 #fff, 0 4px #fff, 0 -4px #fff; animation: pix-twinkle 2.2s steps(2) infinite; pointer-events: none; z-index: 0; }
 @media (prefers-reduced-motion: reduce) { .pix-twinkle, .sky-star { animation: none; } }
+.free-pulse { animation: free-pulse 1.4s steps(4) infinite; }
+@keyframes free-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .free-pulse { animation: none; } }
