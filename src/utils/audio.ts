@@ -137,8 +137,8 @@ const CUES: Record<string, Cue> = {
   click: { file: 'click', start: 0, dur: 0.12, vol: 0.35 },
   // Low, half-asleep snarls: real dog growl recordings (OpenGameArt,
   // congusbongus, CC BY 3.0), one picked at random each time.
-  growl: { file: ['snarl-1.m4a', 'snarl-2.m4a', 'snarl-3.m4a'], start: 0, dur: 1.05, vol: 0.75, rate: 0.95 },
-  grumble: { file: ['snarl-1.m4a', 'snarl-2.m4a', 'snarl-3.m4a'], start: 0, dur: 0.55, vol: 0.45, rate: 0.9, lowpass: 1200 },
+  growl: { file: ['snarl-1.mp4', 'snarl-2.mp4', 'snarl-3.mp4'], start: 0, dur: 1.05, vol: 0.75, rate: 0.95 },
+  grumble: { file: ['snarl-1.mp4', 'snarl-2.mp4', 'snarl-3.mp4'], start: 0, dur: 0.55, vol: 0.45, rate: 0.9, lowpass: 1200 },
   // Losing the night: a run of real barks.
   barks: { file: 'bark', start: 0.6, dur: 2.2, vol: 0.85, rate: 0.9 },
   bite: { file: 'bite', start: 0, dur: 0.6, vol: 0.9 },

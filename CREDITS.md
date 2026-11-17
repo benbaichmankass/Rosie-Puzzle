@@ -10,7 +10,7 @@ part (a short slice) and loudness-normalised. Files live in `public/assets/sound
 | pop.mp3 | placing a person | Button Click | Mike Koenig | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | https://soundbible.com/893-Button-Click.html |
 | click.mp3 | switching pose | Click On | Mike Koenig | CC BY 3.0 | https://soundbible.com/1280-Click-On.html |
 | growl.mp3 | (no longer used) | Dog Growling | Mike Koenig | CC BY 3.0 | https://soundbible.com/523-Dog-Growling.html |
-| snarl-1/2/3.m4a | Rosie's sleepy growl and grumble (converted from OGG clips 2, 4, 3) | dog growls | congusbongus | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | https://opengameart.org/content/dog-growls |
+| snarl-1/2/3.mp4 | Rosie's sleepy growl and grumble (converted from OGG clips 2, 4, 3) | dog growls | congusbongus | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | https://opengameart.org/content/dog-growls |
 | bite.mp3 | (no longer used) | Dog Bite | Mike Koenig | CC BY 3.0 | https://soundbible.com/1529-Dog-Bite.html |
 | bark.mp3 | barks when a night is lost | Puppy Barking | Daniel Simon | CC BY 3.0 | https://soundbible.com/2136-Puppy-Barking.html |
 | crunch.mp3 | lying on a treat | Biting Apple | Mike Koenig | CC BY 3.0 | https://soundbible.com/407-Biting-Apple.html |
