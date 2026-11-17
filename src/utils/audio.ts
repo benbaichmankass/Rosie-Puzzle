@@ -3,6 +3,130 @@
  * Safe for all mobile and desktop browsers without external audio assets.
  */
 
+/**
+ * Dog growl voice. A rough, low "voiced" source (jittery sawtooth + square)
+ * mixed with breath noise, chopped into irregular ~30Hz pulses (the "rrrr"),
+ * shaped by throat formants, lightly overdriven, under a swelling envelope.
+ * Exported so it can be rendered offline for checking.
+ */
+export function scheduleGrowl(
+  ctx: BaseAudioContext,
+  dest: AudioNode,
+  t0: number,
+  opts: { dur: number; level: number; pitch: number; snarl?: boolean }
+) {
+  const { dur, level, pitch, snarl } = opts;
+  const end = t0 + dur;
+
+  const voice = ctx.createOscillator();
+  voice.type = 'sawtooth';
+  const voice2 = ctx.createOscillator();
+  voice2.type = 'square';
+  // Pitch contour with jitter: starts low, rises into the snarl, sags at the end.
+  for (let t = t0; t < end; t += 0.025) {
+    const u = (t - t0) / dur;
+    const contour = snarl ? 0.82 + 0.3 * Math.sin(Math.min(1, u * 1.4) * Math.PI * 0.5) - (u > 0.8 ? (u - 0.8) * 0.8 : 0) : 0.95 - 0.1 * u;
+    const f = pitch * contour * (0.9 + Math.random() * 0.2);
+    voice.frequency.setValueAtTime(f, t);
+    voice2.frequency.setValueAtTime(f * 1.01, t);
+  }
+
+  const noiseBuf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * (dur + 0.05))), ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+
+  const vGain = ctx.createGain();
+  vGain.gain.value = 0.55;
+  const v2Gain = ctx.createGain();
+  v2Gain.gain.value = 0.25;
+  const nGain = ctx.createGain();
+  nGain.gain.value = snarl ? 0.55 : 0.4;
+
+  // Irregular pulse chopping: the rattle that makes it a growl, not a hum.
+  const rattle = ctx.createGain();
+  rattle.gain.setValueAtTime(0, t0);
+  let t = t0;
+  while (t < end) {
+    const period = 1 / (19 + Math.random() * 12);
+    rattle.gain.setValueAtTime(0.65 + Math.random() * 0.35, t);
+    rattle.gain.linearRampToValueAtTime(0.08 + Math.random() * 0.15, t + period * 0.7);
+    t += period;
+  }
+
+  // Throat / open-mouth formants
+  const mix = ctx.createGain();
+  const formants = [
+    { f: 190, q: 2, g: 0.55 },
+    { f: snarl ? 520 : 420, q: 2.2, g: 1.6 },
+    { f: snarl ? 1100 : 900, q: 3.5, g: snarl ? 0.8 : 0.45 },
+  ].map(({ f, q, g }) => {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = q;
+    const fg = ctx.createGain();
+    fg.gain.value = g * 1.2;
+    rattle.connect(bp);
+    bp.connect(fg);
+    fg.connect(mix);
+    return bp;
+  });
+  void formants;
+  // Chesty body: the low rumble straight from the source
+  const body = ctx.createBiquadFilter();
+  body.type = 'lowpass';
+  body.frequency.value = 320;
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = 0.3;
+  rattle.connect(body);
+  body.connect(bodyGain);
+  bodyGain.connect(mix);
+
+  // Grit
+  const drive = ctx.createWaveShaper();
+  const curve = new Float32Array(1024);
+  for (let i = 0; i < curve.length; i++) {
+    const x = (i / (curve.length - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * 3.2);
+  }
+  drive.curve = curve;
+  const low = ctx.createBiquadFilter();
+  low.type = 'lowpass';
+  low.frequency.value = snarl ? 2200 : 1500;
+  // Trim the deepest bass so it still reads on small phone speakers.
+  const trim = ctx.createBiquadFilter();
+  trim.type = 'highpass';
+  trim.frequency.value = 120;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, t0);
+  env.gain.exponentialRampToValueAtTime(level * 0.7, t0 + Math.min(0.12, dur * 0.3));
+  env.gain.linearRampToValueAtTime(level, t0 + dur * 0.65);
+  env.gain.linearRampToValueAtTime(level * 0.6, t0 + dur * 0.88);
+  env.gain.exponentialRampToValueAtTime(0.0001, end);
+
+  voice.connect(vGain);
+  voice2.connect(v2Gain);
+  noise.connect(nGain);
+  vGain.connect(rattle);
+  v2Gain.connect(rattle);
+  nGain.connect(rattle);
+  mix.connect(drive);
+  drive.connect(low);
+  low.connect(trim);
+  trim.connect(env);
+  env.connect(dest);
+
+  voice.start(t0);
+  voice2.start(t0);
+  noise.start(t0);
+  voice.stop(end + 0.02);
+  voice2.stop(end + 0.02);
+  noise.stop(end + 0.02);
+}
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
@@ -63,23 +187,12 @@ class SoundEngine {
     } catch {}
   }
 
+  /** Low, short warning rumble ("hrrr"). */
   public playDogGrumble() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(95, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.25);
-
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.28);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
+      scheduleGrowl(ctx, ctx.destination, ctx.currentTime, { dur: 0.6, level: 0.4, pitch: 78 });
     } catch {}
   }
 
@@ -144,37 +257,14 @@ class SoundEngine {
     } catch {}
   }
 
+  /** An annoyed dog: a rough "grrr" that swells into a snarl ("grr-RRRR"). */
   public playDogGrowl() {
     const ctx = this.getContext();
     if (!ctx) return;
     try {
-      // Modulated growl
-      const osc = ctx.createOscillator();
-      const mod = ctx.createOscillator();
-      const modGain = ctx.createGain();
-      const gain = ctx.createGain();
-
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(110, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(90, ctx.currentTime + 0.45);
-
-      mod.type = 'sine';
-      mod.frequency.setValueAtTime(28, ctx.currentTime); // growl rumble
-      modGain.gain.setValueAtTime(25, ctx.currentTime);
-
-      mod.connect(osc.frequency);
-
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.2);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      mod.start();
-      osc.start();
-      mod.stop(ctx.currentTime + 0.52);
-      osc.stop(ctx.currentTime + 0.52);
+      const t = ctx.currentTime;
+      scheduleGrowl(ctx, ctx.destination, t, { dur: 0.42, level: 0.4, pitch: 80 });
+      scheduleGrowl(ctx, ctx.destination, t + 0.38, { dur: 1.05, level: 0.5, pitch: 94, snarl: true });
     } catch {}
   }
 
