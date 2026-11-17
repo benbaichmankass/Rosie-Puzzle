@@ -10,6 +10,8 @@ import {
   Sun,
   Moon,
   Info,
+  Maximize,
+  Minimize,
 } from 'lucide-react';
 import { AvatarProfiles } from '../types';
 import { AvatarDisplay } from './AvatarDisplay';
@@ -29,6 +31,8 @@ interface MobileFrameProps {
   onOpenCustomizer?: () => void;
   onOpenLevelSelect: () => void;
   onRestartLevel: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   onPrevLevel: () => void;
   onNextLevel: () => void;
 }
@@ -47,6 +51,8 @@ export function MobileFrame({
   onOpenCustomizer,
   onOpenLevelSelect,
   onRestartLevel,
+  isFullscreen = false,
+  onToggleFullscreen,
   onPrevLevel,
   onNextLevel,
 }: MobileFrameProps) {
@@ -149,6 +155,22 @@ export function MobileFrame({
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
             </button>
+
+            {/* Full screen */}
+            {onToggleFullscreen && (
+              <button
+                onClick={onToggleFullscreen}
+                className="p-1.5 rounded-xl bg-amber-200/60 dark:bg-stone-800 hover:bg-amber-200 dark:hover:bg-stone-700 shadow-2xs active:scale-95 transition-all"
+                title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+                aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
+                ) : (
+                  <Maximize className="w-3.5 h-3.5 text-amber-700 dark:text-stone-300" />
+                )}
+              </button>
+            )}
 
             {/* Trio Photo Avatar Button with Customizer */}
             <button

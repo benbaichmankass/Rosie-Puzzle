@@ -104,7 +104,101 @@ function playBuffer(ctx: AudioContext, buf: AudioBuffer) {
   src.start();
 }
 
+
+/**
+ * Recorded sound effects (assets/sounds). All from SoundBible.com:
+ *   pop     Button Click          Mike Koenig      CC BY 3.0
+ *   click   Click On              Mike Koenig      CC BY 3.0
+ *   growl   Dog Growling          Mike Koenig      CC BY 3.0
+ *   bite    Dog Bite              Mike Koenig      CC BY 3.0
+ *   bark    Puppy Barking         Daniel Simon     CC BY 3.0
+ *   crunch  Biting Apple          Mike Koenig      CC BY 3.0
+ *   squeak  Dog Toy Squeaks       Mike Koenig      CC BY 3.0
+ *   win     Winning Triumphal Fanfare  John Stracke  CC BY 3.0
+ *   snore   Snoring               Popup Pixels     CC BY 3.0
+ *   chime   Daydreaming           Lisa Redfern     Public Domain
+ *   fart    Quick Fart            Mike Koenig      CC BY 3.0
+ *   phone   Phone Vibrating       Sound Explorer   CC BY 3.0
+ *   crinkle Rockslide Small (crumpled paper)  Sound Explorer  CC BY 3.0
+ * Each cue plays just the useful slice of its file, loudness-normalised.
+ */
+interface Cue {
+  file: string;
+  start: number;
+  dur: number;
+  vol: number;
+  rate?: number;
+}
+const CUES: Record<string, Cue> = {
+  pop: { file: 'pop', start: 0.25, dur: 0.16, vol: 0.45 },
+  click: { file: 'click', start: 0, dur: 0.12, vol: 0.35 },
+  growl: { file: 'growl', start: 0, dur: 2.5, vol: 0.9 },
+  grumble: { file: 'growl', start: 0, dur: 0.75, vol: 0.55, rate: 0.92 },
+  bite: { file: 'bite', start: 0, dur: 0.6, vol: 0.9 },
+  bark: { file: 'bark', start: 1.0, dur: 0.35, vol: 0.8 },
+  crunch: { file: 'crunch', start: 1.05, dur: 0.6, vol: 0.8 },
+  squeak: { file: 'squeak', start: 0, dur: 0.38, vol: 0.7 },
+  win: { file: 'win', start: 0, dur: 3.6, vol: 0.7 },
+  snore: { file: 'snore', start: 2.1, dur: 1.3, vol: 0.8 },
+  chime: { file: 'chime', start: 0.6, dur: 2.2, vol: 0.6 },
+  fart: { file: 'fart', start: 0.1, dur: 0.4, vol: 0.95, rate: 0.85 },
+  phone: { file: 'phone', start: 0, dur: 1.1, vol: 0.75 },
+  crinkle: { file: 'crinkle', start: 0.3, dur: 0.9, vol: 0.7 },
+};
+const FILES = Array.from(new Set(Object.values(CUES).map((c) => c.file)));
+
 class SoundEngine {
+  private samples: Record<string, { buf: AudioBuffer; norm: number }> = {};
+  private loading = false;
+
+  /** Start fetching and decoding the recordings (call after a user gesture). */
+  public preload() {
+    const ctx = this.getContext();
+    if (!ctx || this.loading) return;
+    this.loading = true;
+    FILES.forEach(async (f) => {
+      try {
+        const res = await fetch(`assets/sounds/${f}.mp3`);
+        const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+        let peak = 1e-6;
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+          const d = buf.getChannelData(c);
+          for (let i = 0; i < d.length; i += 4) peak = Math.max(peak, Math.abs(d[i]));
+        }
+        this.samples[f] = { buf, norm: Math.min(14, 0.95 / peak) };
+      } catch {
+        /* keep the synth fallback */
+      }
+    });
+  }
+
+  /** Play a recorded cue; returns false if it isn't loaded (caller falls back to synth). */
+  private clip(name: string, delay = 0): boolean {
+    const ctx = this.ctx;
+    const cue = CUES[name];
+    const s = cue && this.samples[cue.file];
+    if (!ctx || !cue || !s) return false;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = s.buf;
+      src.playbackRate.value = cue.rate ?? 1;
+      const g = ctx.createGain();
+      const t = ctx.currentTime + delay;
+      const len = cue.dur / (cue.rate ?? 1);
+      const level = cue.vol * s.norm;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(level, t + 0.01);
+      g.gain.setValueAtTime(level, t + len * 0.75);
+      g.gain.linearRampToValueAtTime(0.0001, t + len);
+      src.connect(g);
+      g.connect(ctx.destination);
+      src.start(t, cue.start, cue.dur);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
 
@@ -125,6 +219,8 @@ class SoundEngine {
   public playPop() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('pop')) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -147,6 +243,8 @@ class SoundEngine {
   public playRotate() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('click')) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -168,6 +266,8 @@ class SoundEngine {
   public playDogGrumble() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('grumble')) return;
     try {
       playBuffer(ctx, renderGrowl(ctx, [{ dur: 0.65, f0: 78, level: 0.45 }]));
     } catch {}
@@ -177,6 +277,8 @@ class SoundEngine {
   public playPhoneBuzz() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('phone')) return;
     try {
       const now = ctx.currentTime;
       [0, 0.32].forEach((off) => {
@@ -213,6 +315,8 @@ class SoundEngine {
   public playCrinkle() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('crinkle')) return;
     try {
       const now = ctx.currentTime;
       const dur = 0.5;
@@ -243,6 +347,8 @@ class SoundEngine {
   public playFart() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('fart')) return;
     try {
       const now = ctx.currentTime;
       const dur = 0.75;
@@ -304,6 +410,8 @@ class SoundEngine {
   public playDogGrowl() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('growl')) return;
     try {
       playBuffer(
         ctx,
@@ -318,6 +426,8 @@ class SoundEngine {
   public playDogChomp() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if ((this.clip('bite') && (this.clip('bark', 0.25), true))) return;
     try {
       // Quick snap + squeak
       const snap = ctx.createOscillator();
@@ -354,6 +464,8 @@ class SoundEngine {
   public playDogBark() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('bark')) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -375,6 +487,8 @@ class SoundEngine {
   public playTreatCrunch() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('crunch')) return;
     try {
       [0, 0.07, 0.14].forEach((t, i) => {
         const osc = ctx.createOscillator();
@@ -397,6 +511,8 @@ class SoundEngine {
   public playSqueak() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('squeak')) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -418,6 +534,8 @@ class SoundEngine {
   public playWinFanfare() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('win')) return;
     try {
       const notes = [392.0, 523.25, 659.25, 783.99, 1046.5]; // G4, C5, E5, G5, C6
       notes.forEach((freq, idx) => {
@@ -445,6 +563,8 @@ class SoundEngine {
   public playSnore() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('snore')) return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -463,6 +583,8 @@ class SoundEngine {
   public playCuddleChime() {
     const ctx = this.getContext();
     if (!ctx) return;
+    this.preload();
+    if (this.clip('chime')) return;
     try {
       const notes = [587.33, 659.25, 880.0, 1174.66]; // D5, E5, A5, D6
       notes.forEach((freq, idx) => {

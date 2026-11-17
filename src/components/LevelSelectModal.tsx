@@ -103,6 +103,10 @@ export function LevelSelectModal({
             );
           })}
         </div>
+        <p className="mt-3 text-[10px] leading-snug text-amber-900/60 text-center">
+          Sounds from SoundBible.com by Mike Koenig, John Stracke, Popup Pixels, Sound Explorer and Daniel Simon
+          (CC BY 3.0), and Lisa Redfern (public domain).
+        </p>
       </div>
     </div>
   );

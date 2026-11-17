@@ -86,6 +86,45 @@ export default function App() {
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [isNightLamp, setIsNightLamp] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Load the recorded sounds on the first tap (browsers only allow audio after a gesture).
+  useEffect(() => {
+    const first = () => sound.preload();
+    window.addEventListener('pointerdown', first, { once: true });
+    const onFs = () => setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return () => {
+      window.removeEventListener('pointerdown', first);
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const doc = document as any;
+    const el = document.documentElement as any;
+    try {
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        await (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc);
+        return;
+      }
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) throw new Error('unsupported');
+      // Some embedded views neither enter full screen nor reject: give it 1.5s.
+      await Promise.race([
+        Promise.resolve(req.call(el, { navigationUI: 'hide' })),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+      ]);
+      if (!(doc.fullscreenElement || doc.webkitFullscreenElement)) throw new Error('not entered');
+      try {
+        await (screen.orientation as any)?.lock?.('portrait');
+      } catch {}
+    } catch {
+      showToast('This browser won’t go full screen here. Use the browser menu and choose “Add to Home screen” to play full screen.', 'info');
+    }
+  };
 
   const poses: Record<PersonId, Pose[]> = { boyfriend: level.boyfriendPoses, girlfriend: level.girlfriendPoses };
   const currentPose = (id: PersonId) => poses[id][poseIdx[id]];
@@ -370,6 +409,8 @@ export default function App() {
       }}
       onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
       onRestartLevel={() => loadLevel(levelIndex, false)}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={toggleFullscreen}
       onOpenCustomizer={() => setIsCustomizerOpen(true)}
       onPrevLevel={() => levelIndex > 0 && loadLevel(levelIndex - 1)}
       onNextLevel={() => levelIndex < PUZZLE_LEVELS.length - 1 && loadLevel(levelIndex + 1)}
