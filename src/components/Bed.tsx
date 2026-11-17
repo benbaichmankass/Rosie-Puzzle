@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { PuzzleLevel, Pose, poseCellsAt } from '../utils/puzzle';
 import { ObstacleIcon } from './ObstacleIcon';
-import { DogFigure, PALETTES, PersonFigure, S } from './Figures';
+import { DogFigure, PersonFigure, S } from './Figures';
 
 export type PersonId = 'boyfriend' | 'girlfriend';
 
@@ -11,32 +11,25 @@ export interface PlacedPerson {
   col: number;
 }
 
-export interface Ghost {
-  id: PersonId;
-  pose: Pose;
-  col: number;
-  conflicts: Set<string>;
-}
-
 interface BedProps {
   level: PuzzleLevel;
   placed: Partial<Record<PersonId, PlacedPerson>>;
-  ghost: Ghost | null;
-  photos: Record<PersonId | 'dog', string>;
   grumpiness: number;
-  onCellTap: (r: number, c: number) => void;
   onPersonTap: (id: PersonId) => void;
   shakeKey: number;
+  /** Rect covering the grid, used to work out where a dragged person lands. */
+  gridRef: React.Ref<SVGRectElement>;
+  dropCol: { id: PersonId; col: number; width: number } | null;
 }
 
 const FRAME = 22; // side posts
-const HEAD = 92; // headboard above the pillows
-const FOOT = 46; // footboard
+const HEAD = 66; // headboard above the pillows
+const FOOT = 38; // footboard
 
 // Patchwork quilt colours, alternating like a checker.
 const QUILT = ['#f4c7a1', '#f9e2c8', '#cfe0c3', '#f9e2c8'];
 
-export function Bed({ level, placed, ghost, photos, grumpiness, onCellTap, onPersonTap, shakeKey }: BedProps) {
+export function Bed({ level, placed, grumpiness, onPersonTap, shakeKey, gridRef, dropCol }: BedProps) {
   const { rows, cols } = level;
   const innerW = cols * S;
   const innerH = rows * S;
@@ -46,7 +39,7 @@ export function Bed({ level, placed, ghost, photos, grumpiness, onCellTap, onPer
   const pillowW = innerW / pillowCount;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none" style={{ maxHeight: '58vh', touchAction: 'manipulation' }} role="img" aria-label="The bed">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none" style={{ maxHeight: 'min(44vh, 430px)', margin: '0 auto', touchAction: 'manipulation' }} role="img" aria-label="The bed">
       <defs>
         <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#9a6845" />
@@ -72,7 +65,7 @@ export function Bed({ level, placed, ghost, photos, grumpiness, onCellTap, onPer
         fill="url(#woodLight)"
       />
       {Array.from({ length: cols * 2 - 1 }).map((_, i) => (
-        <circle key={i} cx={FRAME + ((i + 1) * innerW) / (cols * 2)} cy={52} r={4} fill="#7a4b2d" opacity={0.6} />
+        <circle key={i} cx={FRAME + ((i + 1) * innerW) / (cols * 2)} cy={38} r={4} fill="#7a4b2d" opacity={0.6} />
       ))}
 
       {/* Side posts */}
@@ -123,7 +116,7 @@ export function Bed({ level, placed, ghost, photos, grumpiness, onCellTap, onPer
 
         {/* Rosie */}
         <motion.g key={shakeKey} animate={shakeKey ? { x: [0, -6, 6, -4, 4, 0] } : undefined} transition={{ duration: 0.4 }}>
-          <DogFigure cells={level.dogCells} photo={photos.dog} grumpy={grumpiness} />
+          <DogFigure cells={level.dogCells} grumpy={grumpiness} />
         </motion.g>
 
         {/* People in bed */}
@@ -139,43 +132,17 @@ export function Bed({ level, placed, ghost, photos, grumpiness, onCellTap, onPer
               onClick={() => onPersonTap(id)}
               style={{ cursor: 'pointer' }}
             >
-              <PersonFigure pose={p.pose} col={p.col} photo={photos[id]} palette={PALETTES[id]} delay={k * 1.3} />
+              <PersonFigure pose={p.pose} col={p.col} who={id} phase={k * 0.37} />
             </motion.g>
           );
         })}
 
-        {/* Ghost preview of where the selected person would go */}
-        {ghost && (
-          <g style={{ pointerEvents: 'none' }}>
-            {poseCellsAt(ghost.pose, ghost.col).map((cell, i) => {
-              const bad = ghost.conflicts.has(`${cell.r},${cell.c}`);
-              return (
-                <rect
-                  key={i}
-                  x={cell.c * S + 5}
-                  y={cell.r * S + 5}
-                  width={S - 10}
-                  height={S - 10}
-                  rx={12}
-                  fill={bad ? 'rgba(225,60,60,0.28)' : 'rgba(80,170,120,0.18)'}
-                  stroke={bad ? '#d64545' : '#3f9a6c'}
-                  strokeWidth={3}
-                  strokeDasharray="8 6"
-                />
-              );
-            })}
-            <g opacity={0.5}>
-              <PersonFigure pose={ghost.pose} col={ghost.col} photo={photos[ghost.id]} palette={PALETTES[ghost.id]} sleeping={false} />
-            </g>
-          </g>
+        {/* While dragging: only mark which pillow the head is over */}
+        {dropCol && (
+          <rect x={dropCol.col * S + 4} y={4} width={dropCol.width * S - 8} height={S * 0.8} rx={18} fill="rgba(255,255,255,0.35)" stroke="#8a6a4a" strokeWidth={3} strokeDasharray="10 8" style={{ pointerEvents: 'none' }} />
         )}
 
-        {/* Tap targets for empty squares */}
-        {Array.from({ length: rows }).map((_, r) =>
-          Array.from({ length: cols }).map((__, c) => (
-            <rect key={`t${r}-${c}`} x={c * S} y={r * S} width={S} height={S} fill="transparent" onClick={() => onCellTap(r, c)} style={{ cursor: 'pointer' }} />
-          ))
-        )}
+        <rect ref={gridRef} x={0} y={0} width={innerW} height={innerH} fill="transparent" style={{ pointerEvents: 'none' }} />
         {/* Placed people stay tappable above the tap grid */}
         {(['boyfriend', 'girlfriend'] as PersonId[]).map((id) => {
           const p = placed[id];

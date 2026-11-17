@@ -3,7 +3,8 @@ import { AvatarProfiles, LevelScore } from './types';
 import { PUZZLE_LEVELS, Pose, key, poseCellsAt } from './utils/puzzle';
 import { areAdjacent } from './utils/gridUtils';
 import { MobileFrame } from './components/MobileFrame';
-import { Bed, Ghost, PersonId, PlacedPerson } from './components/Bed';
+import { Bed, PersonId, PlacedPerson } from './components/Bed';
+import { PersonFigure, S } from './components/Figures';
 import { PoseControls } from './components/PoseControls';
 import { ZenTimer } from './components/ZenTimer';
 import { DogWarningModal } from './components/DogWarningModal';
@@ -61,7 +62,8 @@ export default function App() {
   const [shakeKey, setShakeKey] = useState(0);
 
   const [poseIdx, setPoseIdx] = useState<Record<PersonId, number>>({ boyfriend: 0, girlfriend: 0 });
-  const [cols, setCols] = useState<Record<PersonId, number>>({ boyfriend: 0, girlfriend: 0 });
+  const [drag, setDrag] = useState<{ id: PersonId; grab: { r: number; c: number }; x: number; y: number } | null>(null);
+  const gridRef = useRef<SVGRectElement>(null);
   const [placedCol, setPlacedCol] = useState<Partial<Record<PersonId, number>>>({});
   const [selected, setSelected] = useState<PersonId | null>('boyfriend');
 
@@ -117,7 +119,7 @@ export default function App() {
     setPenalty(0);
     setGrumpiness(0);
     setPoseIdx({ boyfriend: 0, girlfriend: 0 });
-    setCols({ boyfriend: 0, girlfriend: Math.max(0, lvl.cols - lvl.girlfriendPoses[0].width) });
+    setDrag(null);
     setPlacedCol({});
     setSelected('boyfriend');
     setIsWinModalOpen(false);
@@ -140,20 +142,6 @@ export default function App() {
     return new Set(p ? poseCellsAt(p.pose, p.col).map((c) => key(c.r, c.c)) : []);
   };
 
-  const ghost: Ghost | null = useMemo(() => {
-    if (!selected || placed[selected]) return null;
-    const pose = currentPose(selected);
-    const col = cols[selected];
-    const others = otherSet(selected);
-    const conflicts = new Set(
-      poseCellsAt(pose, col)
-        .map((c) => key(c.r, c.c))
-        .filter((k) => dogSet.has(k) || toySet.has(k) || others.has(k))
-    );
-    return { id: selected, pose, col, conflicts };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, poseIdx, cols, placedCol, level]);
-
   const clampCol = (pose: Pose, c: number) => Math.max(0, Math.min(level.cols - pose.width, c));
 
   const cyclePose = (id: PersonId, dir: 1 | -1) => {
@@ -162,14 +150,7 @@ export default function App() {
     const n = poses[id].length;
     const next = (poseIdx[id] + dir + n) % n;
     setPoseIdx((p) => ({ ...p, [id]: next }));
-    setCols((c) => ({ ...c, [id]: clampCol(poses[id][next], c[id]) }));
     setSelected(id);
-  };
-
-  const move = (id: PersonId, dir: 1 | -1) => {
-    if (placed[id]) return;
-    sound.playPop();
-    setCols((c) => ({ ...c, [id]: clampCol(currentPose(id), c[id] + dir) }));
   };
 
   const finishNight = (newPlaced: Partial<Record<PersonId, number>>) => {
@@ -209,10 +190,9 @@ export default function App() {
     setTimeout(() => setIsWinModalOpen(true), 900);
   };
 
-  const tuckIn = (id: PersonId) => {
+  const tuckIn = (id: PersonId, col: number) => {
     if (placed[id]) return;
     const pose = currentPose(id);
-    const col = cols[id];
     const cells = poseCellsAt(pose, col).map((c) => key(c.r, c.c));
     const others = otherSet(id);
     if (cells.some((k) => dogSet.has(k))) {
@@ -265,19 +245,54 @@ export default function App() {
     setSelected(id);
   };
 
-  const onCellTap = (r: number, c: number) => {
-    const id = selected && !placed[selected] ? selected : IDS.find((x) => !placed[x]);
-    if (!id) return;
-    if (id !== selected) setSelected(id);
+  // ---- Dragging a pose from the tray onto the bed ----
+  const dropInfo = (x: number, y: number, id: PersonId, grab: { r: number; c: number }) => {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const cellPx = rect.width / level.cols;
     const pose = currentPose(id);
-    const col = clampCol(pose, c - pose.headCol);
-    if (col === cols[id] && id === selected) {
-      tuckIn(id);
-    } else {
-      sound.playPop();
-      setCols((x) => ({ ...x, [id]: col }));
-    }
+    // Where the top-left of the pose would be under the finger
+    const left = x - (grab.c + 0.5) * cellPx;
+    const top = y - (grab.r + 0.5) * cellPx;
+    const overBed =
+      left + pose.width * cellPx > rect.left - cellPx * 0.5 &&
+      left < rect.right + cellPx * 0.5 - cellPx &&
+      top < rect.bottom - cellPx * 0.5 &&
+      top + pose.height * cellPx > rect.top - cellPx * 0.2;
+    const col = clampCol(pose, Math.round((left - rect.left) / cellPx));
+    return { cellPx, left, top, overBed, col };
   };
+
+  // Latest handlers, so window listeners added mid-gesture never go stale.
+  const latest = useRef({ dropInfo, tuckIn });
+  latest.current = { dropInfo, tuckIn };
+
+  const startDrag = (id: PersonId, grab: { r: number; c: number }, e: React.PointerEvent) => {
+    sound.playRotate();
+    setSelected(id);
+    setDrag({ id, grab, x: e.clientX, y: e.clientY });
+    const onMove = (ev: PointerEvent) => setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d));
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+    const onUp = (ev: PointerEvent) => {
+      cleanup();
+      const info = latest.current.dropInfo(ev.clientX, ev.clientY, id, grab);
+      setDrag(null);
+      if (info?.overBed) latest.current.tuckIn(id, info.col);
+    };
+    const onCancel = () => {
+      cleanup();
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  };
+
+  const dragInfo = drag ? dropInfo(drag.x, drag.y, drag.id, drag.grab) : null;
 
   const mood = ['Sound asleep', 'Grumbling', 'Growling', 'Snapping!'][grumpiness];
 
@@ -326,12 +341,11 @@ export default function App() {
           <Bed
             level={level}
             placed={placed}
-            ghost={ghost}
-            photos={photos}
             grumpiness={grumpiness}
-            onCellTap={onCellTap}
             onPersonTap={getOut}
             shakeKey={shakeKey}
+            gridRef={gridRef}
+            dropCol={drag && dragInfo?.overBed ? { id: drag.id, col: dragInfo.col, width: currentPose(drag.id).width } : null}
           />
           {toast && (
             <div
@@ -353,13 +367,32 @@ export default function App() {
         poses={poses}
         poseIdx={poseIdx}
         isPlaced={{ boyfriend: !!placed.boyfriend, girlfriend: !!placed.girlfriend }}
-        canTuck={!!ghost && ghost.conflicts.size === 0}
+        isDragging={!!drag}
         onSelect={(id) => setSelected(id)}
         onCyclePose={cyclePose}
-        onMove={move}
-        onTuckIn={tuckIn}
+        onStartDrag={startDrag}
         onGetOut={getOut}
       />
+
+      {/* The person being dragged follows the finger, at bed scale */}
+      {drag && dragInfo && (
+        <svg
+          viewBox={`0 0 ${currentPose(drag.id).width * S} ${currentPose(drag.id).height * S}`}
+          style={{
+            position: 'fixed',
+            left: dragInfo.left,
+            top: dragInfo.top - 12,
+            width: currentPose(drag.id).width * dragInfo.cellPx,
+            height: currentPose(drag.id).height * dragInfo.cellPx,
+            pointerEvents: 'none',
+            zIndex: 60,
+            overflow: 'visible',
+            filter: 'drop-shadow(0 10px 12px rgba(60,30,10,0.35))',
+          }}
+        >
+          <PersonFigure pose={currentPose(drag.id)} who={drag.id} sleeping={false} />
+        </svg>
+      )}
 
       <DogWarningModal
         isOpen={warningModal !== null}
