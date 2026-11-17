@@ -1,0 +1,6 @@
+{
+  "name": "Bedtime Puzzle",
+  "description": "A cozy mobile puzzle game to fit boyfriend and girlfriend in bed around the dog, avoid toy obstacles, and carefully nudge the dog without getting nipped.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
