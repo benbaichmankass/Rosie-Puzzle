@@ -83,6 +83,7 @@ export interface Look {
   pants: string;
   sock: string;
   ring: string;
+  build: number;
 }
 
 export const LOOKS: Record<Who, Look> = {
@@ -90,13 +91,13 @@ export const LOOKS: Record<Who, Look> = {
   // pushed up on his head, black tee.
   boyfriend: {
     skin: '#f3c6a6', skinShade: '#e3a985', hair: '#8a6547', beard: '#7a5537', brow: '#6e4c33',
-    shirt: '#34343c', shirtShade: '#25252b', pants: '#4a6fb0', sock: '#f2c14e', ring: '#4a6fb0',
+    shirt: '#34343c', shirtShade: '#25252b', pants: '#4a6fb0', sock: '#f2c14e', ring: '#4a6fb0', build: 1.12,
   },
   // Shai: olive skin, dark buzz cut, thick brows, full dark beard, earring,
   // lavender tee.
   girlfriend: {
     skin: '#d9a07a', skinShade: '#c3865f', hair: '#2a201b', beard: '#2b211c', brow: '#231a16',
-    shirt: '#a48fd8', shirtShade: '#8a73c6', pants: '#545b6b', sock: '#f08a8a', ring: '#8a73c6',
+    shirt: '#a48fd8', shirtShade: '#8a73c6', pants: '#545b6b', sock: '#f08a8a', ring: '#8a73c6', build: 1,
   },
 };
 /** Back-compat for the pose picker chips. */
@@ -114,7 +115,7 @@ function BentziFace({ look, snore }: { look: Look; snore: number }) {
       <circle cx={31} cy={3} r={4} fill={look.skinShade} />
       <ellipse cx={0} cy={0} rx={30} ry={33} fill={look.skin} />
       {/* messy hair */}
-      <path d="M-30 -6 Q-34 -30 -14 -36 Q-6 -42 4 -37 Q16 -42 24 -33 Q35 -26 30 -6 Q26 -20 16 -22 Q6 -16 -4 -22 Q-16 -18 -24 -22 Q-28 -16 -30 -6 Z" fill={look.hair} />
+      <path d="M-30 -6 Q-32 -31 -12 -35 Q0 -38 12 -35 Q32 -31 30 -6 Q27 -20 18 -25 Q10 -21 0 -24 Q-10 -21 -18 -25 Q-27 -20 -30 -6 Z" fill={look.hair} />
       {/* sunglasses pushed up */}
       <g transform="translate(0 -28)">
         <path d="M-27 2 L27 2" stroke="#1d1d22" strokeWidth={3} />
@@ -132,7 +133,7 @@ function BentziFace({ look, snore }: { look: Look; snore: number }) {
       <circle cx={19} cy={7} r={5} fill="#f08f7a" opacity={0.35} />
       <path d="M-4 5 Q0 9 4 5" stroke={look.skinShade} strokeWidth={2.5} strokeLinecap="round" fill="none" />
       {/* full beard with grey flecks */}
-      <path d="M-30 0 Q-31 30 0 38 Q31 30 30 0 Q24 12 14 13 Q6 10 0 12 Q-6 10 -14 13 Q-24 12 -30 0 Z" fill={look.beard} />
+      <path d="M-29 2 Q-29 28 0 35 Q29 28 29 2 Q24 12 14 13 Q6 10 0 12 Q-6 10 -14 13 Q-24 12 -29 2 Z" fill={look.beard} />
       <path d="M-12 14 Q0 9 12 14 Q6 17 0 15 Q-6 17 -12 14 Z" fill={look.beard} />
       {[[-18, 22], [-8, 30], [10, 28], [20, 19], [2, 34]].map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r={1.6} fill="#c9b8a6" opacity={0.7} />
@@ -260,7 +261,7 @@ export function PersonFigure({
   const P = lerp(T, hipsC, 0.85);
   const axis = norm(Sh, P);
   const side = perp(axis);
-  const chestW = 58 + 3 * breath;
+  const chestW = 58 * look.build + 3 * breath;
 
   const hands = cells.map((c, i) => (c.part === 'hand' ? i : -1)).filter((i) => i >= 0);
   const chains = legChains(cells, hipsIdx);
@@ -298,7 +299,7 @@ export function PersonFigure({
   const sideOf = (p: Pt) => ((p.x - Sh.x) * side.x + (p.y - Sh.y) * side.y >= 0 ? 1 : -1);
   const arms: Arm[] = hands.map((h, k) => {
     const s = sideOf(pt(h));
-    const sh = add(Sh, side, 24 * s);
+    const sh = add(Sh, side, 24 * look.build * s);
     let hand = lerp(sh, pt(h), 0.95);
     if (k === 0 && handTwitch) hand = rot(hand, sh, 6 * handTwitch * s);
     const el = add(lerp(sh, hand, 0.5), perp(norm(sh, hand)), 9 * s);
@@ -307,7 +308,7 @@ export function PersonFigure({
   const used: number[] = hands.map((h) => sideOf(pt(h)));
   for (const s of [-1, 1]) {
     if (arms.length >= 2 || used.includes(s)) continue;
-    const sh = add(Sh, side, 26 * s);
+    const sh = add(Sh, side, 26 * look.build * s);
     const hand = add(lerp(Sh, P, 0.78), side, 31 * s);
     const el = add(lerp(sh, hand, 0.5), side, 8 * s);
     arms.push({ sh, el, hand });
