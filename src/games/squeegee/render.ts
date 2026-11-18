@@ -373,16 +373,16 @@ function drawBentzi(c: Ctx, fx: number, fy: number, bladeX: number, bladeY: numb
 
   // squeegee: hands on the handle, blade on the floor uphill
   const sw = p.swing;
-  const hx = -14 - sw * 12, hy = -44 + sw * 6; // upper hand
+  const hx = -12 - sw * 10, hy = -46 + sw * 8; // upper hand
   const lbx = (bladeX - fx) / SC, lby = (bladeY - fy) / SC;
   // handle
-  inkLine(c, [[hx + 6, hy - 8], [lbx + 2, lby - 4]], 430, 0.3, 4, '#c0502f');
-  inkLine(c, [[hx + 6, hy - 8], [lbx + 2, lby - 4]], 431, 0.4, 0.9);
+  inkLine(c, [[hx + 7, hy - 9], [lbx + 1, lby - 5]], 430, 0.3, 4, '#c0502f');
+  inkLine(c, [[hx + 7, hy - 9], [lbx + 1, lby - 5]], 431, 0.4, 0.9);
   // blade holder and rubber
-  const bl: Pt[] = [[lbx - 4, lby - 9], [lbx + 6, lby - 9], [lbx + 6, lby - 1.5], [lbx - 4, lby - 1.5]];
-  wash(c, bl, '#d9d4c7', 432, 0.9, 0.2, 1);
+  const bl: Pt[] = [[lbx - 2, lby - 12], [lbx + 4, lby - 12], [lbx + 4, lby - 2], [lbx - 2, lby - 2]];
+  wash(c, bl, '#c0502f', 432, 0.95, 0.2, 2);
   inkLine(c, bl, 433, 0.2, 1, INK, true);
-  inkLine(c, [[lbx - 4, lby], [lbx + 6, lby]], 434, 0.1, 3, '#222');
+  inkLine(c, [[lbx - 3, lby - 1], [lbx - 3, lby - 12]], 434, 0.1, 2.6, '#222');
   // arms
   const midX = hx + (lbx - hx) * 0.22, midY = hy + (lby - hy) * 0.22;
   for (const [ax, ay, sx, sy, seed] of [[hx, hy, -6, -53, 440], [midX, midY, 6, -52, 450]] as number[][]) {
@@ -499,7 +499,7 @@ export function draw(
   const fx = X(s.px);
   const fy = Y(bedAt(s.bed, s.px));
   const swingP = s.swingT < 0.3 ? Math.sin((s.swingT / 0.3) * Math.PI) : 0;
-  const bladeCell = s.px - 1.6 - swingP * 3.2;
+  const bladeCell = s.px - 3.4 - swingP * 3.6;
   const bx = X(bladeCell), by = Y(bedAt(s.bed, bladeCell));
   const lean = s.flooded[0] ? Math.max(-0.25, Math.min(0.25, s.pv * 0.02)) + Math.sin(t * 5) * 0.03 : s.pv * 0.006;
   const zapT = v.zapT;
@@ -692,6 +692,19 @@ function updateParticles(c: Ctx, s: S.State, v: View, dt: number): void {
     c.lineWidth = 0.7; c.stroke();
     c.fillStyle = `rgba(255,255,255,${0.8 * a})`;
     c.beginPath(); c.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2); c.fill();
+  }
+  // wave crests: a curling ink stroke at the front of each flung wave
+  for (const g of s.slugs) {
+    const x = X(g.x), y = Y(S.surfaceAt(s, g.x)) - g.vol * 6.6;
+    const sz = 5 + g.vol * 3;
+    c.save();
+    c.strokeStyle = INK; c.lineWidth = 1.2; c.fillStyle = 'rgba(92,150,190,0.55)';
+    c.beginPath();
+    c.moveTo(x + sz * 1.8, y + sz);
+    c.quadraticCurveTo(x + sz * 0.6, y - sz * 0.9, x - sz * 0.6, y - sz * 0.2);
+    c.quadraticCurveTo(x - sz * 0.9, y + sz * 0.3, x - sz * 0.2, y + sz * 0.3);
+    c.stroke();
+    c.restore();
   }
   // slug spray: droplets at the front of moving waves
   for (const g of s.slugs) {
