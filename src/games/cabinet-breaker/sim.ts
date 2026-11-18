@@ -102,7 +102,17 @@ export function mulberry32(seed: number) {
 
 /** Ball speed (units/s) at the start of a level; later levels and later loops are faster. */
 export function baseSpeed(level: number) {
-  return Math.min(300 + level * 15, 480);
+  return Math.min(300 + level * 13, 500);
+}
+
+/** The cutting board gets a little narrower from level 4 on. */
+export function paddleWidth(level: number) {
+  return Math.max(60, PADDLE_W - Math.max(0, level - 2) * 1.5);
+}
+
+/** Critters scurry faster on later levels. */
+export function critterSpeed(kind: CritterKind, level: number) {
+  return CRITTERS[kind].speed * (1 + Math.min(0.6, level * 0.04));
 }
 
 export function paddleY(H: number) {
@@ -134,6 +144,8 @@ export function createSim(H: number, rng: () => number = Math.random): Sim {
 export function startLevel(sim: Sim, level: number) {
   sim.level = level;
   sim.bricks = buildBricks(level);
+  sim.paddle.w = paddleWidth(level);
+  sim.paddle.x = clampPaddleX(sim.paddle.x, sim.paddle.w);
   sim.cleared = false;
   sim.critter = null;
   sim.critterTimer = 7 + sim.rng() * 6;
@@ -251,7 +263,7 @@ function updateCritter(sim: Sim, dt: number, events: SimEvent[]) {
     return;
   }
   c.t += dt;
-  const d = CRITTERS[c.kind];
+  const speed = critterSpeed(c.kind, sim.level);
   if (c.kind === 'roach') {
     c.phase -= dt;
     if (c.phase <= 0) {
@@ -259,7 +271,7 @@ function updateCritter(sim: Sim, dt: number, events: SimEvent[]) {
       c.phase = c.moving ? 0.5 + sim.rng() * 0.9 : 0.15 + sim.rng() * 0.35;
     }
   }
-  if (c.moving) c.x += c.dir * d.speed * dt;
+  if (c.moving) c.x += c.dir * speed * dt;
   if ((c.dir === 1 && c.x - c.w / 2 > WALL_R) || (c.dir === -1 && c.x + c.w / 2 < WALL_L)) {
     sim.critter = null;
     sim.critterTimer = 10 + sim.rng() * 8;

@@ -13,7 +13,7 @@ import {
   type Sim,
   type SimEvent,
 } from './sim';
-import { counterTop, drawBackground, drawBall, drawCritter, drawItem, drawPaddle, drawSlime, itemColors, PAL, SLOT_H, SLOT_W } from './art';
+import { counterTop, drawBackground, drawBall, drawCritter, drawItem, drawPaddle, drawSplat, drawSlime, itemColors, PAL, SLOT_H, SLOT_W } from './art';
 import { Sfx } from './audio';
 
 export interface Hud {
@@ -73,6 +73,7 @@ export class Engine {
   private sprites = new Map<string, HTMLCanvasElement>();
   private particles: Particle[] = [];
   private popups: Popup[] = [];
+  private splats: { x: number; y: number; roach: boolean; life: number }[] = [];
   private shake = 0;
   private hitStop = 0;
   private bumps = new Map<number, number>();
@@ -159,6 +160,7 @@ export class Engine {
     this.popups = [];
     this.trail = [];
     this.slimeStart = null;
+    this.splats = [];
     this.levelBanner();
     this.target = this.sim.paddle.x;
     this.pushHud();
@@ -169,6 +171,7 @@ export class Engine {
     startLevel(this.sim, this.sim.level + 1);
     this.particles = this.particles.filter((p) => p.shape !== 'item');
     this.slimeStart = null;
+    this.splats = [];
     this.trail = [];
     this.levelBanner();
     this.pushHud();
@@ -295,6 +298,7 @@ export class Engine {
       p.rot += p.vr * dt;
       return p.life > 0 && p.y < floor;
     });
+    this.splats = this.splats.filter((q) => (q.life -= dt) > 0);
     this.popups = this.popups.filter((p) => {
       p.life -= dt;
       p.y -= dt * (p.big ? 30 : 40);
@@ -357,6 +361,7 @@ export class Engine {
           });
         }
         this.popup(c.x, c.y - 6, `${roach ? 'ROACH' : 'SLUG'} +${e.points}`, roach ? '#ffcf3a' : '#b8f070', true);
+        this.splats.push({ x: c.x, y: c.y + c.h, roach, life: 2.5 });
         this.slimeStart = null;
         break;
       }
@@ -532,6 +537,7 @@ export class Engine {
       } else c.drawImage(spr, b.x - PAD, b.y - PAD, SLOT_W + PAD * 2, SLOT_H + PAD * 2);
     }
 
+    for (const q of this.splats) drawSplat(c, q.x, q.y, q.roach, Math.min(1, q.life / 0.8));
     if (cr) drawCritter(c, cr);
 
     // Paddle + ball.

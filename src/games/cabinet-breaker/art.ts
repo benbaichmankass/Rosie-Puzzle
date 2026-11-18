@@ -807,6 +807,43 @@ export function drawCritter(c: C, k: Critter) {
   c.restore();
 }
 
+/** What is left of a squished critter, flat on the shelf. */
+export function drawSplat(c: C, x: number, y: number, roach: boolean, alpha: number) {
+  c.save();
+  c.globalAlpha = alpha;
+  c.translate(x, y);
+  c.fillStyle = roach ? 'rgba(201,163,90,0.85)' : 'rgba(184,216,106,0.8)';
+  c.beginPath();
+  c.ellipse(0, -1, 11, 2.6, 0, 0, Math.PI * 2);
+  c.fill();
+  for (const [dx, r] of [
+    [-12, 1.6],
+    [10, 1.3],
+    [14, 1],
+  ]) {
+    c.beginPath();
+    c.arc(dx, -1.2, r, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.fillStyle = roach ? '#5c2f12' : '#8a7a3a';
+  c.beginPath();
+  c.ellipse(0, -1.4, roach ? 7 : 9, 1.6, 0, 0, Math.PI * 2);
+  c.fill();
+  if (roach) {
+    c.strokeStyle = '#3a1d0c';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    for (const lx of [-4, 0, 4]) {
+      c.moveTo(lx, -1.4);
+      c.lineTo(lx - 3, -4);
+      c.moveTo(lx, -1.4);
+      c.lineTo(lx + 3, -4);
+    }
+    c.stroke();
+  }
+  c.restore();
+}
+
 /** Glossy slime trail the slug leaves on its shelf. */
 export function drawSlime(c: C, y: number, x0: number, x1: number) {
   const a = Math.min(x0, x1);
