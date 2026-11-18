@@ -30,7 +30,7 @@ export const TUNING = {
   heightCap: 1.06,
 
   /** Seconds for aggression to go from 0 to 1. It keeps rising after that. */
-  ramp: 165,
+  ramp: 150,
   /** Bunny travel speed (bed widths per second) at aggression 0, and how much it grows per unit aggression. */
   hopSpeed0: 0.2,
   hopSpeedK: 0.5,

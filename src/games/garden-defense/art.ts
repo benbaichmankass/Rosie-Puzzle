@@ -463,7 +463,7 @@ function paintNeighbour(ctx: CanvasRenderingContext2D, cx: number, sill: number,
   const shirts = ['190,70,60', '70,110,150', '230,200,90', '120,150,100', '200,200,196'];
   const hairs = ['50,36,28', '30,24,22', '150,110,70', '200,196,190'];
   const x = cx + (rng() - 0.5) * ww * 0.3;
-  const headR = Math.min(ww * 0.17, wh * 0.2);
+  const headR = Math.min(ww * 0.2, wh * 0.24);
   const hy = sill - wh * 0.45;
   wash(ctx, blob(x, sill - wh * 0.08, ww * 0.34, wh * 0.26, rng, 14, 0.06), shirts[Math.floor(rng() * shirts.length)], 0.9, rng, 0.4, 2, 0.4);
   wash(ctx, blob(x, hy, headR, headR * 1.1, rng, 14, 0.05), skins[Math.floor(rng() * skins.length)], 0.95, rng, 0.3, 2, 0.4);
