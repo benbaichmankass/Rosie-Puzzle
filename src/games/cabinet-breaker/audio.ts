@@ -92,10 +92,26 @@ export class Sfx {
         this.burst(0.09, 0.55, 'highpass', 4000 * r(), 0.7);
         this.tinkles(9, 3800, 8000, 0.08, 0.3);
         break;
-      case 'cardboard':
-        this.burst(0.14, 0.9, 'lowpass', 700 * r(), 1.2);
-        this.tone(110, 0.1, 0.25, 'triangle', 0, 70);
-        if (final) this.burst(0.25, 0.25, 'bandpass', 3000, 0.6, 0.05); // spilled cereal rattle
+      case 'paper':
+        // Soft papery whump.
+        this.burst(0.16, 0.8, 'lowpass', 900 * r(), 0.8);
+        this.burst(0.1, 0.25, 'bandpass', 3200, 0.8, 0.02);
+        break;
+      case 'plastic':
+        // Hollow plastic pock + clatter.
+        this.tone(520 * r(), 0.07, 0.22, 'square', 0, 300);
+        this.burst(0.08, 0.6, 'bandpass', 1300 * r(), 3);
+        if (final) this.burst(0.12, 0.3, 'bandpass', 2400, 2, 0.06);
+        break;
+      case 'wood':
+        this.tone(final ? 170 : 210, 0.12, 0.3, 'triangle', 0, 120);
+        this.burst(0.07, 0.6, 'bandpass', 900 * r(), 2.5);
+        if (final) this.tinkles(3, 900, 1500, 0.05, 0.15); // spoons clattering
+        break;
+      case 'clay':
+        this.burst(final ? 0.2 : 0.1, 0.8, 'bandpass', 1400 * r(), 0.9);
+        this.tone(final ? 140 : 190, 0.12, 0.3, 'triangle', 0, 90);
+        if (final) this.tinkles(4, 1600, 3200, 0.07, 0.2);
         break;
       case 'tin':
         this.metal(final ? 620 : 760, final ? 0.35 : 0.22, 0.18);

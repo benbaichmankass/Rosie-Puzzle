@@ -1,6 +1,8 @@
 /**
  * Cabinet Breaker art, all drawn with canvas paths (no images). Coordinates are board units.
- * Look: warm flat cartoon kitchen: teal painted cabinets, honey-wood shelves, cream tiles.
+ * Look: Ben and Shai's real kitchen in a flat cartoon style: white flat-panel cabinets with brass
+ * bow handles, glossy black marble backsplash, black speckled granite counter, and their own things
+ * on the shelves (pink French press, clay pot, kettle, air fryer, Spark soap, green colander…).
  */
 import {
   BOARD_W,
@@ -20,21 +22,26 @@ import { paddleY, type Critter } from './sim';
 type C = CanvasRenderingContext2D;
 
 export const PAL = {
-  teal: '#2c7c78',
-  tealDark: '#1d5956',
-  tealLight: '#3f9d97',
-  cream: '#f7ead0',
-  creamDark: '#e9d5b0',
-  wood: '#d79a55',
-  woodDark: '#a8692f',
-  woodLight: '#efbd7c',
-  tile: '#fbf6ec',
-  grout: '#dfd4c0',
-  ink: '#2b1d14',
+  white: '#f8f7f3',
+  whiteShade: '#e4e1da',
+  whiteDeep: '#cfcac0',
+  brass: '#b8924a',
+  brassLight: '#ecd08a',
+  marble: '#17171a',
+  granite: '#262629',
+  wood: '#d6ae74',
+  woodDark: '#a97c43',
+  woodLight: '#ecd09c',
+  bamboo: '#ecd29a',
+  bambooDark: '#b99558',
+  steelDark: '#7b858c',
+  steelLight: '#f2f5f7',
+  ink: '#241a14',
 };
 
+/** The counter top: the cutting board rests on it. */
 export function counterTop(H: number) {
-  return H - 46;
+  return paddleY(H) + 14;
 }
 
 function rr(c: C, x: number, y: number, w: number, h: number, r: number) {
@@ -42,423 +49,601 @@ function rr(c: C, x: number, y: number, w: number, h: number, r: number) {
   c.roundRect(x, y, w, h, r);
 }
 
+/** Small deterministic random so the marble veins and granite specks don't change per frame. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a * 1664525 + 1013904223) >>> 0;
+    return a / 4294967296;
+  };
+}
+
+function steel(c: C, x: number, w: number) {
+  const g = c.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, PAL.steelDark);
+  g.addColorStop(0.3, PAL.steelLight);
+  g.addColorStop(0.55, '#c6cdd2');
+  g.addColorStop(1, '#6d777e');
+  return g;
+}
+
+/** Curved antique-brass bow handle. Vertical when `vertical`, otherwise horizontal. */
+function bowHandle(c: C, x: number, y: number, len: number, vertical: boolean, bulge = 3) {
+  c.save();
+  c.lineCap = 'round';
+  c.strokeStyle = '#6e5320';
+  c.lineWidth = 2.6;
+  c.beginPath();
+  if (vertical) {
+    c.moveTo(x, y);
+    c.quadraticCurveTo(x - bulge * 2, y + len / 2, x, y + len);
+  } else {
+    c.moveTo(x, y);
+    c.quadraticCurveTo(x + len / 2, y + bulge * 2, x + len, y);
+  }
+  c.stroke();
+  c.strokeStyle = PAL.brass;
+  c.lineWidth = 1.8;
+  c.stroke();
+  c.strokeStyle = PAL.brassLight;
+  c.lineWidth = 0.7;
+  c.stroke();
+  c.fillStyle = '#7d5f26';
+  for (const [px, py] of vertical
+    ? [
+        [x, y],
+        [x, y + len],
+      ]
+    : [
+        [x, y],
+        [x + len, y],
+      ]) {
+    c.beginPath();
+    c.arc(px, py, 1.4, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+
 /* ------------------------------------------------------------------ background */
+
+/** Glossy black marble tiles with thin white veins, filling a rectangle. */
+function marble(c: C, x0: number, y0: number, x1: number, y1: number) {
+  c.save();
+  c.beginPath();
+  c.rect(x0, y0, x1 - x0, y1 - y0);
+  c.clip();
+  c.fillStyle = '#2c2c31';
+  c.fillRect(x0, y0, x1 - x0, y1 - y0);
+  const tw = 60;
+  const th = 40;
+  const rnd = seeded(7);
+  for (let ty = y0, r = 0; ty < y1; ty += th, r++) {
+    for (let tx = x0 - (r % 2) * 30; tx < x1; tx += tw) {
+      const g = c.createLinearGradient(tx, ty, tx + tw, ty + th);
+      g.addColorStop(0, '#1d1d21');
+      g.addColorStop(0.5, PAL.marble);
+      g.addColorStop(1, '#202024');
+      c.fillStyle = g;
+      c.fillRect(tx + 0.6, ty + 0.6, tw - 1.2, th - 1.2);
+      // Veins.
+      const n = 1 + Math.floor(rnd() * 3);
+      for (let i = 0; i < n; i++) {
+        c.strokeStyle = `rgba(235,235,240,${0.18 + rnd() * 0.32})`;
+        c.lineWidth = 0.4 + rnd() * 0.6;
+        c.beginPath();
+        const sx = tx + rnd() * tw;
+        const sy = ty + rnd() * 6;
+        c.moveTo(sx, sy);
+        c.bezierCurveTo(
+          sx + (rnd() - 0.5) * 40,
+          ty + th * 0.35,
+          sx + (rnd() - 0.5) * 40,
+          ty + th * 0.7,
+          sx + (rnd() - 0.5) * 50,
+          ty + th,
+        );
+        c.stroke();
+        if (rnd() < 0.5) {
+          // A little branch.
+          c.beginPath();
+          c.moveTo(sx + (rnd() - 0.5) * 10, ty + th * 0.5);
+          c.lineTo(sx + (rnd() - 0.5) * 30, ty + th * (0.6 + rnd() * 0.3));
+          c.stroke();
+        }
+      }
+      // Gloss streak.
+      c.fillStyle = 'rgba(255,255,255,0.05)';
+      c.beginPath();
+      c.moveTo(tx + tw * 0.15, ty + 1);
+      c.lineTo(tx + tw * 0.4, ty + 1);
+      c.lineTo(tx + tw * 0.2, ty + th - 1);
+      c.lineTo(tx + 1, ty + th - 1);
+      c.closePath();
+      c.fill();
+    }
+  }
+  c.restore();
+}
 
 export function drawBackground(c: C, H: number) {
   const ct = counterTop(H);
-  // Backsplash tiles (full board first).
-  c.fillStyle = PAL.grout;
-  c.fillRect(0, 0, BOARD_W, H);
-  const tw = 30;
-  const th = 15;
-  for (let y = CABINET_BOTTOM, r = 0; y < ct; y += th, r++) {
-    for (let x = -(r % 2) * (tw / 2); x < BOARD_W; x += tw) {
-      const g = c.createLinearGradient(0, y, 0, y + th);
-      g.addColorStop(0, '#fffdf7');
-      g.addColorStop(1, PAL.tile);
-      c.fillStyle = g;
-      rr(c, x + 1, y + 1, tw - 2, th - 2, 2.5);
-      c.fill();
-    }
-  }
-  // Warm under-cabinet light spill.
-  const glow = c.createLinearGradient(0, CABINET_BOTTOM, 0, CABINET_BOTTOM + 140);
-  glow.addColorStop(0, 'rgba(255,214,140,0.45)');
-  glow.addColorStop(1, 'rgba(255,214,140,0)');
+
+  // Black marble everywhere behind (wall above the cabinets and the backsplash).
+  marble(c, 0, 0, BOARD_W, ct);
+
+  // Warm under-cabinet light on the marble.
+  const glow = c.createLinearGradient(0, CABINET_BOTTOM, 0, CABINET_BOTTOM + 160);
+  glow.addColorStop(0, 'rgba(255,220,160,0.22)');
+  glow.addColorStop(1, 'rgba(255,220,160,0)');
   c.fillStyle = glow;
-  c.fillRect(0, CABINET_BOTTOM, BOARD_W, 140);
+  c.fillRect(0, CABINET_BOTTOM, BOARD_W, 160);
 
-  // Hanging utensil rail under the cabinet.
-  drawWindow(c, H);
-  drawUtensils(c);
+  drawCounterDecor(c, ct);
 
-  // Cabinet interior back panel.
+  // Cabinet interior.
   const back = c.createLinearGradient(0, WALL_T, 0, CABINET_BOTTOM);
-  back.addColorStop(0, '#e8d3ad');
-  back.addColorStop(1, PAL.cream);
+  back.addColorStop(0, '#c9c4ba');
+  back.addColorStop(0.2, '#dad6cd');
+  back.addColorStop(1, '#e2ded5');
   c.fillStyle = back;
   c.fillRect(WALL_L, WALL_T, WALL_R - WALL_L, CABINET_BOTTOM - WALL_T);
-  // Beadboard lines.
-  c.strokeStyle = 'rgba(160,120,70,0.13)';
-  c.lineWidth = 1;
-  for (let x = WALL_L + 12; x < WALL_R; x += 12) {
-    c.beginPath();
-    c.moveTo(x, WALL_T);
-    c.lineTo(x, CABINET_BOTTOM);
-    c.stroke();
-  }
-  // Inner shadow from the crown.
-  const sh = c.createLinearGradient(0, WALL_T, 0, WALL_T + 22);
-  sh.addColorStop(0, 'rgba(60,30,10,0.35)');
-  sh.addColorStop(1, 'rgba(60,30,10,0)');
+  const sh = c.createLinearGradient(0, WALL_T, 0, WALL_T + 20);
+  sh.addColorStop(0, 'rgba(40,30,20,0.28)');
+  sh.addColorStop(1, 'rgba(40,30,20,0)');
   c.fillStyle = sh;
-  c.fillRect(WALL_L, WALL_T, WALL_R - WALL_L, 22);
+  c.fillRect(WALL_L, WALL_T, WALL_R - WALL_L, 20);
 
-  // Centre stile between the two open cupboards (decor only).
-  const mid = BOARD_W / 2;
-  c.fillStyle = 'rgba(60,30,10,0.12)';
-  c.fillRect(mid - 1, WALL_T, 4, CABINET_BOTTOM - WALL_T);
-
-  // Shelves.
+  // White shelves.
   for (let r = 0; r < MAX_ROWS; r++) {
     const y = plankY(r);
-    // Shadow on the back panel under the plank.
-    const s = c.createLinearGradient(0, y + PLANK_H, 0, y + PLANK_H + 10);
-    s.addColorStop(0, 'rgba(70,35,10,0.28)');
-    s.addColorStop(1, 'rgba(70,35,10,0)');
+    const s = c.createLinearGradient(0, y + PLANK_H, 0, y + PLANK_H + 9);
+    s.addColorStop(0, 'rgba(50,40,30,0.22)');
+    s.addColorStop(1, 'rgba(50,40,30,0)');
     c.fillStyle = s;
-    c.fillRect(WALL_L, y + PLANK_H, WALL_R - WALL_L, 10);
-    c.fillStyle = PAL.woodLight;
+    c.fillRect(WALL_L, y + PLANK_H, WALL_R - WALL_L, 9);
+    c.fillStyle = '#fdfcf9';
     c.fillRect(WALL_L, y, WALL_R - WALL_L, 2.5);
-    c.fillStyle = PAL.wood;
+    c.fillStyle = PAL.whiteShade;
     c.fillRect(WALL_L, y + 2.5, WALL_R - WALL_L, PLANK_H - 2.5);
-    c.fillStyle = PAL.woodDark;
-    c.fillRect(WALL_L, y + PLANK_H - 1.2, WALL_R - WALL_L, 1.2);
-    // Grain dashes.
-    c.strokeStyle = 'rgba(140,80,30,0.35)';
-    c.lineWidth = 0.7;
-    for (let i = 0; i < 9; i++) {
-      const gx = WALL_L + ((i * 53 + r * 31) % (WALL_R - WALL_L - 30)) + 5;
-      c.beginPath();
-      c.moveTo(gx, y + 4.2);
-      c.lineTo(gx + 14 + ((i * 7) % 10), y + 4.2);
-      c.stroke();
-    }
+    c.fillStyle = PAL.whiteDeep;
+    c.fillRect(WALL_L, y + PLANK_H - 1, WALL_R - WALL_L, 1);
+  }
+
+  // Partitions between the cabinets of the run (decor only: the ball passes in front).
+  for (let k = 1; k < 4; k++) {
+    const x = WALL_L + k * 2 * COL_W;
+    c.fillStyle = 'rgba(40,30,20,0.12)';
+    c.fillRect(x + 2, WALL_T, 3, CABINET_BOTTOM - WALL_T);
+    c.fillStyle = PAL.white;
+    c.fillRect(x - 2, WALL_T, 4, CABINET_BOTTOM - WALL_T);
+    c.fillStyle = PAL.whiteShade;
+    c.fillRect(x + 1, WALL_T, 1, CABINET_BOTTOM - WALL_T);
   }
 
   // Cabinet bottom rail.
-  c.fillStyle = PAL.tealDark;
-  c.fillRect(0, CABINET_BOTTOM - 4, BOARD_W, 12);
-  c.fillStyle = PAL.teal;
-  c.fillRect(0, CABINET_BOTTOM - 4, BOARD_W, 8);
-  c.fillStyle = PAL.tealLight;
-  c.fillRect(0, CABINET_BOTTOM - 4, BOARD_W, 2);
+  c.fillStyle = PAL.white;
+  c.fillRect(0, CABINET_BOTTOM - 4, BOARD_W, 10);
+  c.fillStyle = PAL.whiteShade;
+  c.fillRect(0, CABINET_BOTTOM + 4, BOARD_W, 2);
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  c.fillRect(0, CABINET_BOTTOM + 6, BOARD_W, 2);
 
-  // Side frames: cabinet sides on top, tile trim below.
-  for (const [x0, x1] of [
-    [0, WALL_L],
-    [WALL_R, BOARD_W],
-  ]) {
+  // Side frames: the open doors, swung out towards us, brass bow handles on show.
+  for (const left of [true, false]) {
+    const x0 = left ? 0 : WALL_R;
+    const x1 = left ? WALL_L : BOARD_W;
     const g = c.createLinearGradient(x0, 0, x1, 0);
-    g.addColorStop(0, x0 === 0 ? PAL.tealDark : PAL.teal);
-    g.addColorStop(1, x0 === 0 ? PAL.teal : PAL.tealDark);
+    g.addColorStop(0, left ? '#d9d5cd' : '#ffffff');
+    g.addColorStop(1, left ? '#ffffff' : '#d9d5cd');
     c.fillStyle = g;
-    c.fillRect(x0, 0, x1 - x0, CABINET_BOTTOM + 8);
-    // Hinges.
-    for (const hy of [WALL_T + 26, CABINET_BOTTOM - 34]) {
-      c.fillStyle = '#c9b27a';
-      rr(c, x0 === 0 ? x1 - 5 : x0 + 1, hy, 4, 14, 1.5);
-      c.fill();
-    }
-    // Below the cabinet: a band of darker trim tiles.
-    for (let y = CABINET_BOTTOM + 8; y < ct; y += 15) {
-      c.fillStyle = '#4c9a92';
-      rr(c, x0 + 1, y + 1, x1 - x0 - 2, 13, 2);
-      c.fill();
-      c.fillStyle = 'rgba(255,255,255,0.18)';
-      c.fillRect(x0 + 2, y + 2, x1 - x0 - 4, 2);
-    }
+    c.fillRect(x0, WALL_T - 3, x1 - x0, CABINET_BOTTOM - WALL_T + 9);
+    // Door edge line.
+    c.fillStyle = PAL.whiteDeep;
+    c.fillRect(left ? x1 - 1.2 : x0, WALL_T - 3, 1.2, CABINET_BOTTOM - WALL_T + 9);
+    // Panel inset.
+    c.strokeStyle = 'rgba(120,110,95,0.25)';
+    c.lineWidth = 0.8;
+    c.strokeRect(x0 + 3, WALL_T, x1 - x0 - 6, CABINET_BOTTOM - WALL_T - 14);
+    // Handles near the bottom of each upper door (and a second pair halfway up).
+    const hx = left ? 5 : BOARD_W - 5;
+    bowHandle(c, hx, CABINET_BOTTOM - 46, 22, true, left ? 1.6 : -1.6);
+    bowHandle(c, hx, WALL_T + 70, 22, true, left ? 1.6 : -1.6);
   }
 
-  // Crown moulding (the HUD sits on it).
-  const crown = c.createLinearGradient(0, 0, 0, WALL_T);
-  crown.addColorStop(0, PAL.tealDark);
-  crown.addColorStop(0.55, PAL.teal);
-  crown.addColorStop(1, PAL.tealDark);
-  c.fillStyle = crown;
-  c.fillRect(0, 0, BOARD_W, WALL_T);
-  c.fillStyle = PAL.tealLight;
-  c.fillRect(0, WALL_T - 9, BOARD_W, 2);
+  // Below the cabinets: thin black side trim so the play walls read.
+  c.fillStyle = 'rgba(255,255,255,0.08)';
+  c.fillRect(WALL_L - 1, CABINET_BOTTOM + 8, 1, ct - CABINET_BOTTOM - 8);
+  c.fillRect(WALL_R, CABINET_BOTTOM + 8, 1, ct - CABINET_BOTTOM - 8);
+
+  drawTopLedge(c);
+  drawCounter(c, H, ct);
+}
+
+/** The light wood ledge on top of the cabinets: boards, the copper-handled pan and the fern. */
+function drawTopLedge(c: C) {
+  const ly = WALL_T - 9;
+  // Cabinet top rail.
+  c.fillStyle = PAL.white;
+  c.fillRect(0, ly + 6, BOARD_W, WALL_T - ly - 6);
   c.fillStyle = 'rgba(0,0,0,0.25)';
-  c.fillRect(0, WALL_T - 3, BOARD_W, 3);
+  c.fillRect(0, WALL_T - 2.5, BOARD_W, 2.5);
 
-  // Countertop + lower cabinets.
-  const top = c.createLinearGradient(0, ct, 0, ct + 10);
-  top.addColorStop(0, PAL.woodLight);
-  top.addColorStop(1, PAL.wood);
-  c.fillStyle = top;
-  c.fillRect(0, ct, BOARD_W, 10);
-  c.fillStyle = PAL.woodDark;
-  c.fillRect(0, ct + 10, BOARD_W, 3);
-  c.fillStyle = PAL.teal;
-  c.fillRect(0, ct + 13, BOARD_W, H - ct - 13);
-  c.strokeStyle = PAL.tealDark;
-  c.lineWidth = 2;
-  for (let x = 6; x < BOARD_W; x += 87) {
-    rr(c, x, ct + 18, 81, H - ct - 14, 4);
-    c.stroke();
-    c.fillStyle = '#d8c48c';
-    rr(c, x + 34, ct + 21, 14, 3, 1.5);
-    c.fill();
-  }
-  // Counter edge shadow onto the tiles.
-  c.fillStyle = 'rgba(60,30,10,0.18)';
-  c.fillRect(WALL_L, ct - 3, WALL_R - WALL_L, 3);
-}
-
-/** A small kitchen window on the backsplash (only when the screen is tall enough). */
-function drawWindow(c: C, H: number) {
-  const top = CABINET_BOTTOM + 96;
-  const avail = paddleY(H) - 40 - top;
-  if (avail < 90) return;
-  const h = Math.min(150, avail);
-  const w = 132;
-  const x = BOARD_W / 2 - w / 2;
-  // Frame.
-  c.fillStyle = '#fffaf0';
-  rr(c, x - 7, top - 7, w + 14, h + 14, 6);
-  c.fill();
-  c.strokeStyle = 'rgba(80,50,20,0.35)';
-  c.lineWidth = 1.5;
-  c.stroke();
-  // Evening sky.
+  // Boards leaning on the wall.
   c.save();
-  rr(c, x, top, w, h, 3);
-  c.clip();
-  const sky = c.createLinearGradient(0, top, 0, top + h);
-  sky.addColorStop(0, '#7fb4d8');
-  sky.addColorStop(0.55, '#f6c79a');
-  sky.addColorStop(1, '#f39a6b');
-  c.fillStyle = sky;
-  c.fillRect(x, top, w, h);
-  c.fillStyle = 'rgba(255,240,200,0.9)';
-  c.beginPath();
-  c.arc(x + w * 0.68, top + h * 0.72, 11, 0, Math.PI * 2);
-  c.fill();
-  // Low rooftops.
-  c.fillStyle = '#c99a86';
-  c.fillRect(x, top + h * 0.78, w * 0.4, h);
-  c.fillRect(x + w * 0.55, top + h * 0.82, w * 0.45, h);
-  c.fillStyle = '#b58673';
-  c.fillRect(x + w * 0.32, top + h * 0.72, w * 0.3, h);
-  // Palm silhouettes.
-  const palm = (px: number, py: number, s: number) => {
-    c.strokeStyle = '#3f4a3a';
-    c.lineWidth = 2.2 * s;
-    c.beginPath();
-    c.moveTo(px, top + h);
-    c.quadraticCurveTo(px - 4 * s, (py + top + h) / 2, px, py);
-    c.stroke();
-    c.fillStyle = '#3f4a3a';
-    for (let i = 0; i < 7; i++) {
-      const a = -Math.PI / 2 + (i - 3) * 0.48;
-      c.save();
-      c.translate(px, py);
-      c.rotate(a);
-      c.beginPath();
-      c.ellipse(9 * s, 2 * s, 10 * s, 2.4 * s, 0.35, 0, Math.PI * 2);
-      c.fill();
-      c.restore();
-    }
-  };
-  palm(x + w * 0.22, top + h * 0.38, 1);
-  palm(x + w * 0.86, top + h * 0.5, 0.75);
-  c.restore();
-  // Mullions + sill.
-  c.fillStyle = '#fffaf0';
-  c.fillRect(x + w / 2 - 2.5, top, 5, h);
-  c.fillRect(x, top + h * 0.45 - 2.5, w, 5);
-  c.fillStyle = PAL.wood;
-  rr(c, x - 12, top + h + 5, w + 24, 7, 2);
-  c.fill();
+  c.translate(76, ly + 2);
+  c.rotate(-0.08);
   c.fillStyle = PAL.woodDark;
-  c.fillRect(x - 10, top + h + 11, w + 20, 2);
-  // Herb pot on the sill.
-  const hx = x + w - 18;
-  const hy = top + h + 5;
-  c.fillStyle = '#c4623d';
-  c.beginPath();
-  c.moveTo(hx - 8, hy - 12);
-  c.lineTo(hx + 8, hy - 12);
-  c.lineTo(hx + 6, hy);
-  c.lineTo(hx - 6, hy);
-  c.closePath();
+  rr(c, 0, -34, 22, 34, 4);
   c.fill();
-  c.fillStyle = '#4c9a3a';
-  for (const [dx, dy, r] of [
-    [-4, -16, 4],
-    [2, -19, 4.5],
-    [5, -14, 3.5],
-    [-1, -13, 3.5],
-  ]) {
+  c.fillStyle = '#c9965a';
+  rr(c, 1, -34, 20, 33, 4);
+  c.fill();
+  c.restore();
+  c.save();
+  c.translate(92, ly + 2);
+  c.rotate(0.06);
+  c.fillStyle = PAL.bambooDark;
+  rr(c, 0, -30, 26, 30, 5);
+  c.fill();
+  c.fillStyle = PAL.bamboo;
+  rr(c, 1, -30, 24, 29, 5);
+  c.fill();
+  c.fillStyle = PAL.bambooDark;
+  c.beginPath();
+  c.arc(13, -25, 2, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = 'rgba(160,120,60,0.4)';
+  c.lineWidth = 0.6;
+  for (const sx of [6, 11, 16, 21]) {
     c.beginPath();
-    c.arc(hx + dx, hy + dy, r, 0, Math.PI * 2);
-    c.fill();
+    c.moveTo(sx, -20);
+    c.lineTo(sx, -2);
+    c.stroke();
   }
-}
+  c.restore();
 
-function drawUtensils(c: C) {
-  const y = CABINET_BOTTOM + 22;
-  c.strokeStyle = '#9aa3a8';
-  c.lineWidth = 2.5;
+  // Copper-handled pan.
+  const px = 246;
+  c.strokeStyle = '#7a3f1c';
+  c.lineWidth = 3.4;
   c.lineCap = 'round';
   c.beginPath();
-  c.moveTo(40, y);
-  c.lineTo(BOARD_W - 40, y);
+  c.moveTo(px - 13, ly - 4);
+  c.lineTo(px - 30, ly - 14);
   c.stroke();
-  c.lineWidth = 1.5;
-  const items: [number, 'ladle' | 'whisk' | 'spatula' | 'spoon'][] = [
-    [70, 'ladle'],
-    [120, 'whisk'],
-    [240, 'spatula'],
-    [290, 'spoon'],
-  ];
-  c.globalAlpha = 0.55;
-  for (const [x, kind] of items) {
-    c.strokeStyle = '#8b949a';
-    c.beginPath();
-    c.arc(x, y + 3, 3, Math.PI, 0);
-    c.stroke();
-    c.strokeStyle = kind === 'spatula' || kind === 'spoon' ? PAL.woodDark : '#8b949a';
-    c.lineWidth = 2.5;
-    c.beginPath();
-    c.moveTo(x, y + 6);
-    c.lineTo(x, y + 38);
-    c.stroke();
-    c.lineWidth = 1.5;
-    c.fillStyle = kind === 'spatula' || kind === 'spoon' ? PAL.wood : '#aab3b8';
-    if (kind === 'ladle') {
+  c.strokeStyle = '#d07a42';
+  c.lineWidth = 2;
+  c.stroke();
+  c.fillStyle = '#2f2c2a';
+  c.beginPath();
+  c.moveTo(px - 16, ly - 8);
+  c.lineTo(px + 16, ly - 8);
+  c.lineTo(px + 13, ly);
+  c.lineTo(px - 13, ly);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#4a4542';
+  c.beginPath();
+  c.ellipse(px, ly - 8, 16, 2.4, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // The ledge itself.
+  c.fillStyle = PAL.woodLight;
+  c.fillRect(0, ly, BOARD_W, 2.5);
+  c.fillStyle = PAL.wood;
+  c.fillRect(0, ly + 2.5, BOARD_W, 4);
+  c.fillStyle = PAL.woodDark;
+  c.fillRect(0, ly + 6, BOARD_W, 1);
+
+  drawFern(c, ly);
+}
+
+function drawFern(c: C, ly: number) {
+  // Pot on the ledge at the top-right corner.
+  const px = 330;
+  c.fillStyle = '#f1efe9';
+  c.beginPath();
+  c.moveTo(px - 11, ly - 14);
+  c.lineTo(px + 11, ly - 14);
+  c.lineTo(px + 8, ly);
+  c.lineTo(px - 8, ly);
+  c.closePath();
+  c.fill();
+  c.fillStyle = PAL.whiteShade;
+  c.fillRect(px - 11, ly - 14, 22, 3);
+  // Trailing fronds.
+  const frond = (x: number, y: number, len: number, ang: number, droop: number, col: string) => {
+    c.save();
+    c.translate(x, y);
+    c.strokeStyle = col;
+    c.fillStyle = col;
+    c.lineWidth = 0.9;
+    const steps = Math.floor(len / 4);
+    let fx = 0;
+    let fy = 0;
+    let a = ang;
+    for (let i = 0; i < steps; i++) {
+      const nx = fx + Math.cos(a) * 4;
+      const ny = fy + Math.sin(a) * 4;
       c.beginPath();
-      c.arc(x, y + 44, 7, 0, Math.PI);
-      c.fill();
-    } else if (kind === 'whisk') {
-      c.strokeStyle = '#9aa3a8';
-      for (const k of [-5, -2, 2, 5]) {
+      c.moveTo(fx, fy);
+      c.lineTo(nx, ny);
+      c.stroke();
+      const leaf = 3.4 * (1 - i / steps) + 1;
+      for (const side of [-1, 1]) {
+        c.save();
+        c.translate(nx, ny);
+        c.rotate(a + side * 1.1);
         c.beginPath();
-        c.moveTo(x, y + 36);
-        c.quadraticCurveTo(x + k * 1.6, y + 48, x, y + 56);
-        c.stroke();
+        c.ellipse(leaf * 0.6, 0, leaf, leaf * 0.38, 0, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
       }
-    } else if (kind === 'spatula') {
-      rr(c, x - 6, y + 36, 12, 16, 3);
-      c.fill();
-    } else {
-      c.beginPath();
-      c.ellipse(x, y + 44, 5, 8, 0, 0, Math.PI * 2);
-      c.fill();
+      fx = nx;
+      fy = ny;
+      a += droop;
     }
+    c.restore();
+  };
+  const greens = ['#2f7a35', '#3f9440', '#55a94a'];
+  frond(px, ly - 14, 34, -2.2, 0.02, greens[0]);
+  frond(px, ly - 14, 30, -1.2, 0.05, greens[2]);
+  frond(px - 4, ly - 12, 70, 2.4, -0.03, greens[1]);
+  frond(px + 4, ly - 12, 110, 1.75, 0.0, greens[0]);
+  frond(px + 6, ly - 12, 140, 1.5, 0.012, greens[2]);
+  frond(px + 8, ly - 13, 60, 0.6, 0.05, greens[1]);
+}
+
+/** Things standing on the counter behind the paddle: tea towels, foil ball, the gooseneck tap. */
+function drawCounterDecor(c: C, ct: number) {
+  // Stacked tea towels.
+  const tx = 22;
+  const cols = ['#e9e4d8', '#c7d9e6', '#e9e4d8'];
+  for (let i = 0; i < 3; i++) {
+    const y = ct - 6 - i * 5;
+    c.fillStyle = cols[i];
+    rr(c, tx - (i % 2), y, 30, 5, 1.5);
+    c.fill();
+    c.fillStyle = i === 1 ? '#5b88b0' : '#c25a4e';
+    c.fillRect(tx + 6 - (i % 2), y + 1, 2, 3);
+    c.fillRect(tx + 22 - (i % 2), y + 1, 2, 3);
   }
-  c.globalAlpha = 1;
+  // Scrunched foil ball.
+  const g = c.createRadialGradient(64, ct - 6, 1, 66, ct - 4, 5);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(1, '#9aa3a9');
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(66, ct - 4.5, 4.5, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = 'rgba(80,90,95,0.5)';
+  c.lineWidth = 0.5;
+  c.beginPath();
+  c.moveTo(63, ct - 6);
+  c.lineTo(67, ct - 4);
+  c.lineTo(65, ct - 2);
+  c.stroke();
+
+  // Chrome gooseneck mixer tap over the sink.
+  const sx = 182;
+  c.lineCap = 'round';
+  c.strokeStyle = '#59636a';
+  c.lineWidth = 4.5;
+  c.beginPath();
+  c.moveTo(sx, ct - 2);
+  c.lineTo(sx, ct - 40);
+  c.arc(sx + 9, ct - 40, 9, Math.PI, 0);
+  c.lineTo(sx + 18, ct - 32);
+  c.stroke();
+  c.strokeStyle = '#dfe5e9';
+  c.lineWidth = 2.2;
+  c.stroke();
+  c.fillStyle = '#9aa4ab';
+  rr(c, sx - 4, ct - 8, 8, 8, 2);
+  c.fill();
+  c.strokeStyle = '#c9d0d5';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(sx - 1, ct - 22);
+  c.lineTo(sx - 9, ct - 26);
+  c.stroke();
+}
+
+/** Black speckled granite counter, white base cabinets with a drawer stack and the white stove. */
+function drawCounter(c: C, H: number, ct: number) {
+  const stoveX = 262;
+  const rnd = seeded(3);
+  // Granite top surface + front edge.
+  c.fillStyle = PAL.granite;
+  c.fillRect(0, ct, stoveX, 9);
+  c.fillStyle = '#1a1a1d';
+  c.fillRect(0, ct + 9, stoveX, 6);
+  for (let i = 0; i < 260; i++) {
+    const x = rnd() * stoveX;
+    const y = ct + rnd() * 15;
+    const v = rnd();
+    c.fillStyle = v < 0.5 ? 'rgba(255,255,255,0.35)' : v < 0.8 ? 'rgba(160,160,170,0.5)' : 'rgba(120,100,80,0.6)';
+    c.fillRect(x, y, 0.8, 0.8);
+  }
+  c.fillStyle = 'rgba(255,255,255,0.16)';
+  c.fillRect(0, ct, stoveX, 1);
+  c.fillRect(0, ct + 9, stoveX, 0.8);
+
+  // White base cabinets.
+  const by = ct + 15;
+  const bh = H - by;
+  c.fillStyle = PAL.white;
+  c.fillRect(0, by, stoveX, bh);
+  c.fillStyle = 'rgba(0,0,0,0.12)';
+  c.fillRect(0, by, stoveX, 2.5);
+  c.strokeStyle = PAL.whiteDeep;
+  c.lineWidth = 1;
+  // Stack of 4 drawers.
+  const dw = 96;
+  const dh = bh / 4;
+  for (let i = 0; i < 4; i++) {
+    c.strokeRect(4.5, by + 2 + i * dh, dw, dh - 2);
+    bowHandle(c, 4.5 + dw / 2 - 9, by + 5 + i * dh, 18, false, 1.6);
+  }
+  // Two doors.
+  for (let i = 0; i < 2; i++) {
+    const x = 104 + i * 79;
+    c.strokeRect(x + 0.5, by + 2, 76, bh);
+    bowHandle(c, i === 0 ? x + 70 : x + 6, by + 6, 16, true, i === 0 ? 1.4 : -1.4);
+  }
+
+  // Freestanding white stove at the end of the run.
+  const sw = BOARD_W - stoveX;
+  c.fillStyle = '#fbfbf9';
+  c.fillRect(stoveX, ct - 1, sw, H - ct + 1);
+  c.fillStyle = '#e8e6e1';
+  c.fillRect(stoveX, ct - 1, 2, H - ct + 1);
+  // Hob grate.
+  c.fillStyle = '#2b2b2e';
+  c.fillRect(stoveX + 6, ct - 3, sw - 12, 3);
+  // Knob strip with round white knobs.
+  c.fillStyle = '#efede8';
+  c.fillRect(stoveX + 2, ct + 2, sw - 2, 11);
+  for (let i = 0; i < 4; i++) {
+    const kx = stoveX + 16 + i * 21;
+    c.fillStyle = '#ffffff';
+    c.strokeStyle = '#bdb8ae';
+    c.beginPath();
+    c.arc(kx, ct + 7.5, 4, 0, Math.PI * 2);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#8c877e';
+    c.fillRect(kx - 0.6, ct + 4, 1.2, 3);
+  }
+  // Oven door with window.
+  c.strokeStyle = '#c9c4ba';
+  c.strokeRect(stoveX + 5.5, ct + 16.5, sw - 11, H - ct - 16);
+  c.fillStyle = '#2a2a2e';
+  rr(c, stoveX + 14, ct + 26, sw - 28, Math.max(10, H - ct - 34), 3);
+  c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.12)';
+  c.fillRect(stoveX + 18, ct + 28, 8, Math.max(6, H - ct - 40));
+  c.fillStyle = '#d6d2ca';
+  rr(c, stoveX + 14, ct + 19, sw - 28, 3, 1.5);
+  c.fill();
 }
 
 /* ------------------------------------------------------------------ items */
 
-const BANDS = ['#3c6fb4', '#2f8f6a', '#c0463a'];
-const BOWLS = [
-  ['#d46a43', '#f0a07a'],
-  ['#3e8fa0', '#82c6d0'],
-  ['#e2b23a', '#f5d98a'],
-];
-const BOXES = [
-  ['#e2453c', '#ffd23f'],
-  ['#2f6fd0', '#ffffff'],
-  ['#f2a516', '#7a3b12'],
-];
-const CANS = ['#c8352e', '#3d8a3f', '#e6a520'];
+const RIMS = ['#4d7fbf', '#3c9a76', '#c4574a'];
 
-/** Main colours of an item, for shard particles. */
+/** Main colours of an item, for debris particles. */
 export function itemColors(kind: ItemKind, variant: number): string[] {
   switch (kind) {
-    case 'plates':
-      return ['#fbf7ee', '#fbf7ee', BANDS[variant % 3]];
-    case 'bowls':
-      return BOWLS[variant % 3];
+    case 'rackPlates':
+      return ['#fbf8f1', '#fbf8f1', RIMS[variant % 3]];
     case 'glasses':
       return ['rgba(190,230,245,0.9)', '#ffffff', '#a9d8ea'];
-    case 'box':
-      return [...BOXES[variant % 3], '#f0c060'];
-    case 'cans':
-      return [CANS[variant % 3], '#c9cfd3'];
+    case 'steelBowls':
+    case 'kettle':
     case 'pot':
-      return ['#c9cfd3', '#8e979d'];
+      return ['#c9cfd3', '#8e979d', '#eef2f4'];
+    case 'colander':
+      return ['#6fd13a', '#4fae22'];
+    case 'soap':
+      return ['#c8e03a', '#f3d6dc', '#ffffff'];
+    case 'frenchPress':
+      return ['#ef94b2', 'rgba(220,240,250,0.9)', '#ffffff'];
+    case 'paperTowels':
+      return ['#ffffff', '#efece4'];
+    case 'filterJug':
+      return ['#ffffff', '#bfe3f2'];
+    case 'pickles':
+      return ['rgba(200,235,210,0.9)', '#6f9a35', '#d7b347'];
+    case 'tomatoes':
+      return ['#d23b2c', '#c9cfd3', '#f0e0c0'];
+    case 'crock':
+      return ['#b98450', '#8d5d32', '#e2b979'];
+    case 'sodaStream':
+      return ['#a9d4ec', '#7f8b93', '#ffffff'];
+    case 'clayPot':
+      return ['#b0603a', '#7d3f22', '#e0a070'];
+    case 'airFryer':
+      return ['#45474b', '#2c2d30', '#77797d'];
     case 'pan':
       return ['#3a3634', '#55504c'];
   }
 }
 
+function cracks(c: C, x: number, y: number, w: number, h: number, damage: number, color: string) {
+  c.strokeStyle = color;
+  c.lineWidth = 0.9;
+  c.beginPath();
+  c.moveTo(x + w * 0.3, y + h * 0.15);
+  c.lineTo(x + w * 0.42, y + h * 0.45);
+  c.lineTo(x + w * 0.34, y + h * 0.7);
+  if (damage > 1) {
+    c.moveTo(x + w * 0.72, y + h * 0.3);
+    c.lineTo(x + w * 0.6, y + h * 0.55);
+    c.lineTo(x + w * 0.7, y + h * 0.85);
+    c.moveTo(x + w * 0.42, y + h * 0.45);
+    c.lineTo(x + w * 0.55, y + h * 0.5);
+  }
+  c.stroke();
+}
+
+function dent(c: C, x: number, y: number) {
+  c.strokeStyle = 'rgba(40,40,40,0.55)';
+  c.lineWidth = 1;
+  c.beginPath();
+  c.arc(x, y, 3.5, 0.6, 2.6);
+  c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,0.75)';
+  c.beginPath();
+  c.arc(x, y - 1, 3.5, 3.6, 5.6);
+  c.stroke();
+}
+
 /**
  * Draw an item in its slot. `damage` 0 = pristine, rising with each hit taken.
- * The item rests on the bottom edge of the slot (the plank).
+ * The item rests on the bottom edge of the slot (the shelf).
  */
 export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, h: number, variant: number, damage: number) {
-  const bottom = y + h;
+  const b = y + h;
+  const cx = x + w / 2;
   c.save();
   c.lineJoin = 'round';
   c.lineCap = 'round';
+  c.lineWidth = 1;
+  c.strokeStyle = PAL.ink;
   switch (kind) {
-    case 'plates': {
-      const n = 5;
-      const pw = w - 3;
-      const px = x + 1.5;
-      for (let i = 0; i < n; i++) {
-        const py = bottom - 4.6 - i * 4.4;
-        c.fillStyle = '#fbf7ee';
-        c.strokeStyle = '#b8ab95';
+    case 'rackPlates': {
+      // Plates standing upright in a wire dish rack.
+      for (let i = 0; i < 4; i++) {
+        const px = x + 7 + i * 7.6;
+        c.fillStyle = i % 2 ? '#f4f0e6' : '#fdfbf6';
+        c.strokeStyle = '#a99d88';
         c.lineWidth = 0.8;
-        rr(c, px + (i % 2) * 0.6, py, pw, 4.4, 2.2);
+        c.beginPath();
+        c.ellipse(px, b - 12, 6, 11.5, 0, 0, Math.PI * 2);
         c.fill();
         c.stroke();
-        c.strokeStyle = BANDS[variant % 3];
+        c.strokeStyle = RIMS[(variant + i) % 3];
         c.lineWidth = 1;
         c.beginPath();
-        c.moveTo(px + 3, py + 2.2);
-        c.lineTo(px + pw - 3, py + 2.2);
+        c.ellipse(px, b - 12, 4.6, 9.6, 0, 0, Math.PI * 2);
         c.stroke();
       }
-      const ty = bottom - 4.6 - (n - 1) * 4.4;
-      c.fillStyle = '#fffdf8';
-      c.strokeStyle = '#b8ab95';
-      c.lineWidth = 0.8;
+      // Wire rack.
+      c.strokeStyle = '#8c959b';
+      c.lineWidth = 1.1;
       c.beginPath();
-      c.ellipse(x + w / 2, ty, pw / 2, 3.4, 0, 0, Math.PI * 2);
-      c.fill();
-      c.stroke();
-      c.strokeStyle = BANDS[variant % 3];
-      c.beginPath();
-      c.ellipse(x + w / 2, ty, pw / 2 - 3.5, 2, 0, 0, Math.PI * 2);
-      c.stroke();
-      break;
-    }
-    case 'bowls': {
-      const [col, light] = BOWLS[variant % 3];
-      // Three nested bowls: draw the bottom (biggest) body, then rims.
-      const bw = w - 2;
-      const bx = x + 1;
-      const top = bottom - 19;
-      c.fillStyle = col;
-      c.strokeStyle = PAL.ink;
-      c.lineWidth = 1;
-      c.beginPath();
-      c.moveTo(bx, top);
-      c.bezierCurveTo(bx, top + 15, bx + bw * 0.2, bottom - 2, bx + bw * 0.3, bottom - 2);
-      c.lineTo(bx + bw * 0.7, bottom - 2);
-      c.bezierCurveTo(bx + bw * 0.8, bottom - 2, bx + bw, top + 15, bx + bw, top);
-      c.closePath();
-      c.fill();
-      c.stroke();
-      c.fillStyle = PAL.ink;
-      c.fillRect(bx + bw * 0.32, bottom - 2, bw * 0.36, 2);
-      // Rims of the stacked bowls peeking above.
-      for (let i = 2; i >= 0; i--) {
-        const ry = top - i * 3.2;
-        const inset = i * 1.5;
-        c.fillStyle = i === 0 ? light : col;
-        c.beginPath();
-        c.ellipse(x + w / 2, ry, bw / 2 - inset, 3, 0, 0, Math.PI * 2);
-        c.fill();
-        c.stroke();
+      c.moveTo(x + 1, b - 1);
+      c.lineTo(x + w - 1, b - 1);
+      c.moveTo(x + 1, b - 7);
+      c.lineTo(x + w - 1, b - 7);
+      for (let i = 0; i <= 6; i++) {
+        const tx = x + 2 + i * ((w - 4) / 6);
+        c.moveTo(tx, b - 1);
+        c.lineTo(tx, b - 10);
       }
-      c.fillStyle = 'rgba(0,0,0,0.18)';
-      c.beginPath();
-      c.ellipse(x + w / 2, top - 6.4, bw / 2 - 6, 1.6, 0, 0, Math.PI * 2);
-      c.fill();
-      // Dots pattern.
-      c.fillStyle = 'rgba(255,255,255,0.55)';
-      for (let i = 0; i < 4; i++) {
-        c.beginPath();
-        c.arc(bx + bw * (0.22 + i * 0.19), top + 6 + (i % 2) * 3, 1.3, 0, Math.PI * 2);
-        c.fill();
-      }
+      c.stroke();
       break;
     }
     case 'glasses': {
@@ -466,20 +651,19 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
       for (let i = 0; i < 3; i++) {
         const gx = x + 2 + i * gw;
         const gh = i === 1 ? h - 1 : h - 5;
-        const gt = bottom - gh;
+        const gt = b - gh;
         c.beginPath();
         c.moveTo(gx + 0.5, gt);
         c.lineTo(gx + gw - 0.5, gt);
-        c.lineTo(gx + gw - 1.8, bottom);
-        c.lineTo(gx + 1.8, bottom);
+        c.lineTo(gx + gw - 1.8, b);
+        c.lineTo(gx + 1.8, b);
         c.closePath();
-        c.fillStyle = 'rgba(200,236,248,0.55)';
+        c.fillStyle = 'rgba(210,238,248,0.5)';
         c.fill();
-        if ((variant + i) % 3 === 0) {
-          // Juice!
-          c.fillStyle = 'rgba(255,160,40,0.75)';
-          c.fillRect(gx + 1.6, gt + gh * 0.45, gw - 3.2, gh * 0.55 - 1);
-        }
+        c.fillStyle = 'rgba(120,195,230,0.45)';
+        c.fillRect(gx + 1.5, gt + gh * 0.35, gw - 3, gh * 0.65 - 1);
+        c.fillStyle = 'rgba(255,255,255,0.6)';
+        c.fillRect(gx + 1.5, gt + gh * 0.35, gw - 3, 0.8);
         c.strokeStyle = 'rgba(70,120,150,0.9)';
         c.lineWidth = 0.9;
         c.stroke();
@@ -487,109 +671,489 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
         c.lineWidth = 1.2;
         c.beginPath();
         c.moveTo(gx + 2.4, gt + 2.5);
-        c.lineTo(gx + 2.9, bottom - 4);
+        c.lineTo(gx + 2.9, b - 4);
         c.stroke();
-        c.fillStyle = 'rgba(70,120,150,0.35)';
-        c.fillRect(gx + 1.8, bottom - 2, gw - 3.6, 2);
       }
       break;
     }
-    case 'box': {
-      const [main, acc] = BOXES[variant % 3];
-      // Tall cereal box.
-      const bw = w * 0.58;
-      c.fillStyle = main;
-      c.strokeStyle = PAL.ink;
-      c.lineWidth = 1;
-      rr(c, x + 1, y, bw, h, 1.5);
+    case 'steelBowls': {
+      const bw = w - 2;
+      const bx = x + 1;
+      const top = b - 17;
+      c.fillStyle = steel(c, bx, bw);
+      c.beginPath();
+      c.moveTo(bx, top);
+      c.bezierCurveTo(bx, top + 14, bx + bw * 0.22, b, bx + bw * 0.34, b);
+      c.lineTo(bx + bw * 0.66, b);
+      c.bezierCurveTo(bx + bw * 0.78, b, bx + bw, top + 14, bx + bw, top);
+      c.closePath();
       c.fill();
       c.stroke();
-      c.fillStyle = 'rgba(0,0,0,0.15)';
-      c.fillRect(x + 1 + bw - 4, y + 0.5, 3.5, h - 1);
-      c.fillStyle = acc;
-      rr(c, x + 3.5, y + 3, bw - 8, 6, 1.5);
-      c.fill();
-      // Bowl of O's logo.
-      c.fillStyle = '#fff';
+      for (let i = 2; i >= 0; i--) {
+        c.fillStyle = i === 0 ? '#dfe4e7' : '#b9c1c6';
+        c.beginPath();
+        c.ellipse(cx, top - i * 3, bw / 2 - i * 1.4, 2.8, 0, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+      }
+      c.fillStyle = 'rgba(255,255,255,0.7)';
       c.beginPath();
-      c.arc(x + 1 + bw / 2 - 1.5, y + 16, 6, 0, Math.PI);
+      c.ellipse(bx + bw * 0.3, top + 6, 2, 4, 0.4, 0, Math.PI * 2);
       c.fill();
-      c.strokeStyle = acc === '#ffffff' ? '#ffd23f' : acc;
-      c.lineWidth = 1.2;
-      for (const [ox, oy] of [
-        [-3.5, 14.5],
-        [0, 13],
-        [3.2, 14.6],
+      if (damage > 0) dent(c, bx + bw * 0.65, top + 7);
+      break;
+    }
+    case 'colander': {
+      // Bright green colander sitting on a little wire rack.
+      const bw = w - 4;
+      const bx = x + 2;
+      const top = b - 18;
+      c.strokeStyle = '#8c959b';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(x + 2, b - 0.5);
+      c.lineTo(x + w - 2, b - 0.5);
+      c.stroke();
+      c.fillStyle = '#5cc22e';
+      c.strokeStyle = '#2c6a12';
+      c.beginPath();
+      c.moveTo(bx, top);
+      c.bezierCurveTo(bx + 1, top + 14, bx + bw * 0.25, b - 2, bx + bw * 0.38, b - 2);
+      c.lineTo(bx + bw * 0.62, b - 2);
+      c.bezierCurveTo(bx + bw * 0.75, b - 2, bx + bw - 1, top + 14, bx + bw, top);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      // Handles.
+      c.fillStyle = '#4fae22';
+      rr(c, bx - 2, top - 1, 5, 3, 1.5);
+      c.fill();
+      rr(c, bx + bw - 3, top - 1, 5, 3, 1.5);
+      c.fill();
+      c.fillStyle = '#86e05a';
+      c.beginPath();
+      c.ellipse(cx, top, bw / 2, 3, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      // Holes.
+      c.fillStyle = '#1f5a0c';
+      for (let r = 0; r < 2; r++) {
+        for (let i = 0; i < 6 - r; i++) {
+          c.beginPath();
+          c.arc(bx + bw * (0.16 + r * 0.07 + i * 0.135), top + 6 + r * 5, 0.9, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+      break;
+    }
+    case 'soap': {
+      // Yellow-green "Spark" dish soap bottle and a hand-soap pump.
+      const sx = x + 3;
+      c.fillStyle = '#c8e03a';
+      c.strokeStyle = '#4f5d10';
+      rr(c, sx, b - 22, 13, 22, 3);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#f3f7d0';
+      c.fillRect(sx + 2, b - 15, 9, 7);
+      c.fillStyle = '#d0372e';
+      c.fillRect(sx + 3, b - 13.5, 7, 1.6);
+      c.fillStyle = '#3c78c0';
+      c.fillRect(sx + 3, b - 11, 5, 1.2);
+      c.fillStyle = '#2e5fa8';
+      rr(c, sx + 3.5, b - 26, 6, 4.5, 1.5);
+      c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.45)';
+      c.fillRect(sx + 1.5, b - 20, 1.5, 16);
+      // Pump bottle.
+      const px = x + 19;
+      c.fillStyle = '#f3d6dc';
+      c.strokeStyle = '#6e4b52';
+      rr(c, px, b - 15, 14, 15, 4);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#ffffff';
+      c.fillRect(px + 3, b - 10, 8, 5);
+      c.fillStyle = '#f2f2f0';
+      c.fillRect(px + 5, b - 20, 4, 5);
+      c.strokeRect(px + 5, b - 20, 4, 5);
+      c.fillRect(px + 3, b - 23, 10, 3);
+      c.strokeRect(px + 3, b - 23, 10, 3);
+      break;
+    }
+    case 'frenchPress': {
+      const fx = x + 8;
+      const fw = 18;
+      const top = b - 20;
+      // Pink frame & handle.
+      c.strokeStyle = '#c95f84';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(fx + fw + 1, top + 4);
+      c.quadraticCurveTo(fx + fw + 8, top + 4, fx + fw + 7, top + 11);
+      c.quadraticCurveTo(fx + fw + 6, b - 4, fx + fw + 1, b - 4);
+      c.stroke();
+      c.lineWidth = 1;
+      // Glass carafe with coffee.
+      c.fillStyle = 'rgba(220,240,250,0.5)';
+      c.fillRect(fx, top, fw, 20);
+      c.fillStyle = '#5a3420';
+      c.fillRect(fx + 1, top + 7, fw - 2, 12);
+      c.fillStyle = '#c9a07a';
+      c.fillRect(fx + 1, top + 7, fw - 2, 1.5);
+      c.strokeStyle = 'rgba(70,90,110,0.8)';
+      c.strokeRect(fx, top, fw, 20);
+      c.fillStyle = 'rgba(255,255,255,0.6)';
+      c.fillRect(fx + 2, top + 1, 1.5, 17);
+      // Frame bands, lid and plunger.
+      c.fillStyle = '#ef94b2';
+      c.fillRect(fx - 1, b - 3, fw + 2, 3);
+      c.fillRect(fx - 1, top - 3, fw + 2, 3.5);
+      c.fillStyle = '#ef94b2';
+      rr(c, fx + 2, top - 6, fw - 4, 3, 1.5);
+      c.fill();
+      c.fillStyle = '#d9dfe3';
+      c.fillRect(cx - 0.8, top - 10, 1.6, 4);
+      c.fillStyle = '#c95f84';
+      c.beginPath();
+      c.arc(cx, top - 10.5, 2.2, 0, Math.PI * 2);
+      c.fill();
+      break;
+    }
+    case 'paperTowels': {
+      const px = x + 9;
+      const pw = 19;
+      const top = b - 21;
+      // Steel holder: base and the rod poking out of the top.
+      c.fillStyle = '#9aa4ab';
+      rr(c, px - 3, b - 2.2, pw + 6, 2.2, 1);
+      c.fill();
+      c.fillStyle = '#c6cdd2';
+      c.fillRect(cx - 1, top - 5, 2, 5);
+      c.beginPath();
+      c.arc(cx, top - 5.5, 1.8, 0, Math.PI * 2);
+      c.fill();
+      // Roll.
+      const g = c.createLinearGradient(px, 0, px + pw, 0);
+      g.addColorStop(0, '#d9d4c8');
+      g.addColorStop(0.35, '#ffffff');
+      g.addColorStop(1, '#cfc9bc');
+      c.fillStyle = g;
+      c.strokeStyle = '#6f6656';
+      c.beginPath();
+      c.moveTo(px, top);
+      c.lineTo(px, b - 2.5);
+      c.ellipse(cx, b - 2.5, pw / 2, 2.2, 0, Math.PI, 0, true);
+      c.lineTo(px + pw, top);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#ffffff';
+      c.beginPath();
+      c.ellipse(cx, top, pw / 2, 2.6, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#b98a55';
+      c.beginPath();
+      c.ellipse(cx, top, 3, 1.2, 0, 0, Math.PI * 2);
+      c.fill();
+      // Perforations + quilting.
+      c.strokeStyle = 'rgba(120,110,90,0.45)';
+      c.lineWidth = 0.6;
+      c.setLineDash([1.2, 1.2]);
+      for (const ly of [top + 7, top + 13]) {
+        c.beginPath();
+        c.moveTo(px + 1, ly);
+        c.quadraticCurveTo(cx, ly + 1.6, px + pw - 1, ly);
+        c.stroke();
+      }
+      c.setLineDash([]);
+      // Loose sheet hanging off the front.
+      c.fillStyle = '#fbfaf6';
+      c.strokeStyle = '#6f6656';
+      c.beginPath();
+      c.moveTo(px + pw - 3, top + 4);
+      c.lineTo(px + pw + 3, top + 7);
+      c.lineTo(px + pw + 2, b - 6);
+      c.lineTo(px + pw - 3, b - 7);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      break;
+    }
+    case 'filterJug': {
+      const jx = x + 8;
+      const jw = 18;
+      const top = b - 23;
+      c.strokeStyle = '#4c5a62';
+      // Handle.
+      c.fillStyle = '#ffffff';
+      rr(c, jx + jw - 1, top + 5, 7, 13, 3);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#f3f2ef';
+      rr(c, jx + jw + 1, top + 8, 3, 7, 1.5);
+      c.fill();
+      // Body: clear with water, white filter top.
+      c.fillStyle = 'rgba(205,235,248,0.65)';
+      c.beginPath();
+      c.moveTo(jx, top + 3);
+      c.lineTo(jx + jw, top + 3);
+      c.lineTo(jx + jw - 1, b);
+      c.lineTo(jx + 1, b);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = 'rgba(110,190,230,0.45)';
+      c.fillRect(jx + 1.3, top + 12, jw - 2.6, b - top - 12.5);
+      c.fillStyle = '#ffffff';
+      c.beginPath();
+      c.moveTo(jx - 3, top + 3);
+      c.lineTo(jx + jw, top);
+      c.lineTo(jx + jw, top + 8);
+      c.lineTo(jx, top + 8);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#5aa7cf';
+      c.beginPath();
+      c.arc(jx + jw - 4, top + 4.5, 1.2, 0, Math.PI * 2);
+      c.fill();
+      break;
+    }
+    case 'pickles': {
+      const jx = x + 9;
+      const jw = 19;
+      const top = b - 21;
+      c.fillStyle = 'rgba(215,240,220,0.6)';
+      rr(c, jx, top + 3, jw, 18, 3);
+      c.fill();
+      c.fillStyle = 'rgba(190,210,120,0.55)';
+      c.fillRect(jx + 1, top + 7, jw - 2, 13);
+      c.fillStyle = '#6f9a35';
+      c.strokeStyle = '#3f5c18';
+      c.lineWidth = 0.7;
+      for (const [px, py, a] of [
+        [jx + 5, top + 13, 0.3],
+        [jx + 10, top + 12, -0.2],
+        [jx + 14.5, top + 14, 0.25],
+        [jx + 7.5, top + 17.5, -0.4],
+        [jx + 13, top + 18, 0.5],
       ]) {
         c.beginPath();
-        c.arc(x + 1 + bw / 2 - 1.5 + ox, y + oy, 1.6, 0, Math.PI * 2);
+        c.ellipse(px, py, 2.2, 4.6, a, 0, Math.PI * 2);
+        c.fill();
         c.stroke();
       }
-      // Small pasta box beside it.
-      const sx = x + bw + 2;
-      const sw = w - bw - 3;
-      const sh2 = h * 0.62;
-      c.fillStyle = variant % 2 ? '#f5f0e6' : '#ffd23f';
-      c.strokeStyle = PAL.ink;
-      c.lineWidth = 1;
-      rr(c, sx, bottom - sh2, sw, sh2, 1.5);
-      c.fill();
+      c.fillStyle = '#e8d06a';
+      c.fillRect(jx + 3, top + 9, jw - 6, 4);
+      c.strokeStyle = 'rgba(60,90,70,0.8)';
+      c.lineWidth = 0.9;
+      rr(c, jx, top + 3, jw, 18, 3);
       c.stroke();
-      c.fillStyle = variant % 2 ? '#2f6fd0' : '#c8352e';
-      c.fillRect(sx + 1.5, bottom - sh2 + 4, sw - 3, 5);
-      // Little pasta window.
-      c.fillStyle = '#f2c46b';
-      c.fillRect(sx + 2.5, bottom - 6, sw - 5, 3);
+      c.fillStyle = '#d7b347';
+      rr(c, jx + 1, top, jw - 2, 4, 1);
+      c.fill();
+      c.strokeStyle = '#7e6416';
+      c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.6)';
+      c.fillRect(jx + 2, top + 5, 1.4, 13);
       break;
     }
-    case 'cans': {
+    case 'kettle': {
+      const kw = 24;
+      const kx = cx - kw / 2 - 2;
+      const top = b - 17;
+      // Spout.
+      c.fillStyle = '#c3cacf';
+      c.beginPath();
+      c.moveTo(kx + 2, top + 8);
+      c.lineTo(kx - 4, top + 2);
+      c.lineTo(kx - 3, top + 1);
+      c.lineTo(kx + 4, top + 5);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      // Dome body.
+      c.fillStyle = steel(c, kx, kw);
+      c.beginPath();
+      c.moveTo(kx, b - 2);
+      c.bezierCurveTo(kx - 1, top + 2, kx + kw + 1, top + 2, kx + kw, b - 2);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#2b2b2e';
+      c.fillRect(kx - 1, b - 2.5, kw + 2, 2.5);
+      // Handle on top.
+      c.strokeStyle = '#222';
+      c.lineWidth = 2.4;
+      c.beginPath();
+      c.moveTo(kx + 5, top + 4);
+      c.quadraticCurveTo(kx + kw / 2, top - 9, kx + kw - 5, top + 4);
+      c.stroke();
+      c.fillStyle = '#222';
+      c.beginPath();
+      c.arc(kx + kw / 2, top + 1.5, 1.8, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.75)';
+      c.beginPath();
+      c.ellipse(kx + 7, top + 9, 1.6, 3.4, 0.3, 0, Math.PI * 2);
+      c.fill();
+      if (damage > 0) dent(c, kx + kw * 0.68, top + 10);
+      break;
+    }
+    case 'tomatoes': {
       const cw = (w - 4) / 2;
       for (let i = 0; i < 2; i++) {
-        const cx = x + 1.5 + i * (cw + 1);
+        const tx = x + 1.5 + i * (cw + 1);
         const ch = h - 3;
-        const top = bottom - ch;
-        const g = c.createLinearGradient(cx, 0, cx + cw, 0);
-        g.addColorStop(0, '#9aa3a8');
-        g.addColorStop(0.35, '#eef2f4');
-        g.addColorStop(1, '#8a9398');
-        c.fillStyle = g;
-        rr(c, cx, top, cw, ch, 2);
+        const top = b - ch;
+        c.fillStyle = steel(c, tx, cw);
+        rr(c, tx, top, cw, ch, 2);
         c.fill();
-        c.fillStyle = CANS[(variant + i) % 3];
-        c.fillRect(cx, top + 4, cw, ch - 8);
-        c.fillStyle = 'rgba(255,255,255,0.85)';
+        c.fillStyle = '#d23b2c';
+        c.fillRect(tx, top + 3.5, cw, ch - 7);
+        // Tomato on the label.
+        c.fillStyle = '#ff5a3c';
         c.beginPath();
-        c.ellipse(cx + cw / 2, top + ch / 2, cw / 2 - 3, 3.2, 0, 0, Math.PI * 2);
+        c.arc(tx + cw / 2, top + ch / 2 + 0.5, 4, 0, Math.PI * 2);
         c.fill();
-        c.fillStyle = CANS[(variant + i) % 3];
+        c.fillStyle = '#3d8a3f';
         c.beginPath();
-        c.arc(cx + cw / 2, top + ch / 2, 1.6, 0, Math.PI * 2);
+        c.ellipse(tx + cw / 2, top + ch / 2 - 3.2, 2.4, 1, 0, 0, Math.PI * 2);
         c.fill();
-        c.fillStyle = 'rgba(255,255,255,0.35)';
-        c.fillRect(cx + 2.5, top + 4, 2, ch - 8);
+        c.fillStyle = '#f0e0c0';
+        c.fillRect(tx + 1, top + ch - 6.5, cw - 2, 1.6);
         c.strokeStyle = PAL.ink;
         c.lineWidth = 0.9;
-        rr(c, cx, top, cw, ch, 2);
+        rr(c, tx, top, cw, ch, 2);
         c.stroke();
-        c.beginPath();
-        c.ellipse(cx + cw / 2, top + 0.5, cw / 2 - 0.5, 1.6, 0, 0, Math.PI * 2);
         c.fillStyle = '#d8dee1';
+        c.beginPath();
+        c.ellipse(tx + cw / 2, top + 0.5, cw / 2 - 0.5, 1.5, 0, 0, Math.PI * 2);
         c.fill();
         c.stroke();
       }
+      if (damage > 0) {
+        c.strokeStyle = 'rgba(30,30,30,0.6)';
+        c.lineWidth = 1.2;
+        c.beginPath();
+        c.moveTo(x + 5, y + 8);
+        c.quadraticCurveTo(x + 9, y + 11, x + 6, y + 15);
+        c.moveTo(x + w - 9, y + 12);
+        c.quadraticCurveTo(x + w - 5, y + 15, x + w - 8, y + 19);
+        c.stroke();
+      }
+      break;
+    }
+    case 'crock': {
+      // Wooden utensil crock with spatulas and slotted spoons.
+      const ux = x + 9;
+      const uw = 19;
+      const top = b - 15;
+      c.lineWidth = 1.8;
+      c.strokeStyle = '#8d5d32';
+      for (const [dx, a] of [
+        [5, -0.25],
+        [10, 0.05],
+        [14, 0.3],
+      ]) {
+        c.beginPath();
+        c.moveTo(ux + dx, top + 4);
+        c.lineTo(ux + dx + Math.sin(a) * 14, top - 10);
+        c.stroke();
+      }
+      c.fillStyle = '#c99a62';
+      c.strokeStyle = '#6b4320';
+      c.lineWidth = 0.8;
+      // Spatula head.
+      c.save();
+      c.translate(ux + 5 - 3.5, top - 11);
+      c.rotate(-0.25);
+      rr(c, -3, -4, 6, 7, 1.5);
+      c.fill();
+      c.stroke();
+      c.restore();
+      // Slotted spoon (steel).
+      c.fillStyle = '#c6cdd2';
+      c.beginPath();
+      c.ellipse(ux + 14 + 4.2, top - 12, 3, 4, 0.3, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.strokeStyle = '#59636a';
+      c.beginPath();
+      c.moveTo(ux + 17.5, top - 14);
+      c.lineTo(ux + 18.6, top - 10.5);
+      c.stroke();
+      // Crock.
+      const g = c.createLinearGradient(ux, 0, ux + uw, 0);
+      g.addColorStop(0, '#8d5d32');
+      g.addColorStop(0.35, '#d4a46c');
+      g.addColorStop(1, '#7d4f28');
+      c.fillStyle = g;
+      c.strokeStyle = PAL.ink;
+      c.lineWidth = 1;
+      rr(c, ux, top, uw, 15, 2);
+      c.fill();
+      c.stroke();
+      c.strokeStyle = 'rgba(90,55,25,0.5)';
+      c.lineWidth = 0.6;
+      for (const ly of [top + 4, top + 9]) {
+        c.beginPath();
+        c.moveTo(ux + 1, ly);
+        c.quadraticCurveTo(ux + uw / 2, ly + 1.5, ux + uw - 1, ly);
+        c.stroke();
+      }
+      if (damage > 0) cracks(c, ux, top, uw, 15, damage, 'rgba(60,30,10,0.8)');
+      break;
+    }
+    case 'sodaStream': {
+      const sx = x + 10;
+      const sw = 15;
+      // Clear bottle on top.
+      c.fillStyle = 'rgba(215,238,248,0.7)';
+      c.strokeStyle = 'rgba(70,110,140,0.8)';
+      rr(c, sx + 3, b - h - 1, sw - 6, 10, 2);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#7f8b93';
+      c.fillRect(sx + 4.5, b - h - 3, sw - 9, 2.5);
+      // Light-blue body.
+      c.fillStyle = '#a9d4ec';
+      c.strokeStyle = '#3b6177';
+      rr(c, sx, b - 18, sw, 18, 3);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#7f8b93';
+      rr(c, sx - 1, b - 19, sw + 2, 4, 1.5);
+      c.fill();
+      c.fillStyle = '#ffffff';
+      c.fillRect(sx + 3, b - 12, sw - 6, 2);
+      c.fillStyle = 'rgba(255,255,255,0.5)';
+      c.fillRect(sx + 1.6, b - 14, 1.4, 12);
+      // Glass of fizzy water next to it.
+      c.fillStyle = 'rgba(200,236,248,0.6)';
+      c.fillRect(x + 1, b - 10, 7, 10);
+      c.strokeStyle = 'rgba(70,120,150,0.8)';
+      c.strokeRect(x + 1, b - 10, 7, 10);
+      c.fillStyle = '#ffffff';
+      for (const [bx2, by2] of [
+        [3, 3],
+        [5.5, 6],
+        [3.5, 8],
+      ]) {
+        c.beginPath();
+        c.arc(x + bx2, b - by2, 0.7, 0, Math.PI * 2);
+        c.fill();
+      }
+      if (damage > 0) cracks(c, sx, b - 18, sw, 18, damage, 'rgba(30,60,80,0.7)');
       break;
     }
     case 'pot': {
       const pw = w - 10;
       const px = x + 5;
       const ph = h - 9;
-      const top = bottom - ph;
-      const g = c.createLinearGradient(px, 0, px + pw, 0);
-      g.addColorStop(0, '#7f888e');
-      g.addColorStop(0.3, '#f1f4f6');
-      g.addColorStop(0.6, '#c3cace');
-      g.addColorStop(1, '#6f787e');
-      // Handles.
+      const top = b - ph;
       c.strokeStyle = '#3b3f42';
       c.lineWidth = 2.6;
       c.beginPath();
@@ -598,18 +1162,15 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
       c.moveTo(px + pw + 0.5, top + 4);
       c.lineTo(px + pw + 4, top + 4);
       c.stroke();
-      c.fillStyle = g;
+      c.fillStyle = steel(c, px, pw);
       c.strokeStyle = PAL.ink;
       c.lineWidth = 1;
       rr(c, px, top, pw, ph, 3);
       c.fill();
       c.stroke();
-      c.fillStyle = 'rgba(0,0,0,0.12)';
-      c.fillRect(px + 1, bottom - 4, pw - 2, 3);
-      // Lid.
       const tilt = damage > 0 ? -0.18 : 0;
       c.save();
-      c.translate(x + w / 2, top);
+      c.translate(cx, top);
       c.rotate(tilt);
       c.fillStyle = '#d6dcdf';
       c.beginPath();
@@ -621,86 +1182,122 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
       rr(c, -3.5, -7, 7, 3.5, 1.5);
       c.fill();
       c.restore();
-      if (damage > 0) {
-        c.strokeStyle = 'rgba(40,40,40,0.55)';
-        c.lineWidth = 1;
+      if (damage > 0) dent(c, px + pw * 0.62, top + ph * 0.5);
+      break;
+    }
+    case 'clayPot': {
+      // Round terracotta lidded clay pot on a colourful bead trivet.
+      const beads = ['#e8433a', '#f2b632', '#3c9a76', '#4d7fbf', '#d45aa0'];
+      for (let i = 0; i < 9; i++) {
+        c.fillStyle = beads[i % beads.length];
         c.beginPath();
-        c.arc(px + pw * 0.62, top + ph * 0.5, 4, 0.6, 2.6);
-        c.stroke();
-        c.strokeStyle = 'rgba(255,255,255,0.7)';
-        c.beginPath();
-        c.arc(px + pw * 0.62, top + ph * 0.5 - 1, 4, 3.6, 5.6);
-        c.stroke();
+        c.arc(x + 3 + i * ((w - 6) / 8), b - 1.6, 1.6, 0, Math.PI * 2);
+        c.fill();
       }
+      const top = b - 20;
+      const g = c.createRadialGradient(cx - 5, top + 6, 2, cx, top + 10, 18);
+      g.addColorStop(0, '#d98a5c');
+      g.addColorStop(0.6, '#b0603a');
+      g.addColorStop(1, '#7d3f22');
+      c.fillStyle = g;
+      c.beginPath();
+      c.ellipse(cx, b - 10.5, w / 2 - 2, 8, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      // Lid + knob.
+      c.fillStyle = '#9c5232';
+      c.beginPath();
+      c.ellipse(cx, top + 2.5, w / 2 - 7, 3.2, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#7d3f22';
+      c.beginPath();
+      c.ellipse(cx, top - 0.5, 3, 2, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      // Little handles.
+      c.fillStyle = '#9c5232';
+      c.beginPath();
+      c.ellipse(x + 2.5, b - 12, 2, 1.4, 0, 0, Math.PI * 2);
+      c.ellipse(x + w - 2.5, b - 12, 2, 1.4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = 'rgba(255,220,180,0.45)';
+      c.lineWidth = 0.8;
+      c.beginPath();
+      c.ellipse(cx, b - 9, w / 2 - 5, 3, 0, 0.2, Math.PI - 0.2);
+      c.stroke();
+      if (damage > 0) cracks(c, x + 4, b - 18, w - 8, 15, damage, 'rgba(60,25,10,0.85)');
+      break;
+    }
+    case 'airFryer': {
+      const ax = x + 2;
+      const aw = w - 4;
+      const top = b - h + 1;
+      const g = c.createLinearGradient(ax, 0, ax + aw, 0);
+      g.addColorStop(0, '#36383c');
+      g.addColorStop(0.35, '#55575c');
+      g.addColorStop(1, '#2a2b2e');
+      c.fillStyle = g;
+      rr(c, ax, top, aw, h - 1, 6);
+      c.fill();
+      c.stroke();
+      // Display panel.
+      c.fillStyle = '#1c1d20';
+      rr(c, ax + 6, top + 3, aw - 12, 5, 2);
+      c.fill();
+      c.fillStyle = '#ff8a3c';
+      c.fillRect(ax + 10, top + 4.6, 5, 1.8);
+      c.fillStyle = '#9fd0ff';
+      c.fillRect(ax + aw - 14, top + 4.6, 3, 1.8);
+      // Basket drawer + handle.
+      c.strokeStyle = '#1c1d20';
+      c.lineWidth = 0.9;
+      rr(c, ax + 2.5, top + 10, aw - 5, h - 13, 3);
+      c.stroke();
+      c.fillStyle = '#1c1d20';
+      rr(c, cx - 5, top + 13, 10, 4, 2);
+      c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.18)';
+      c.fillRect(ax + 3, top + 2, 2, h - 6);
+      if (damage > 0) cracks(c, ax + 2, top + 9, aw - 4, h - 11, damage, 'rgba(230,230,235,0.7)');
       break;
     }
     case 'pan': {
-      // Two cast-iron skillets stacked, handles sticking out.
       for (let i = 0; i < 2; i++) {
-        const cy = bottom - 6 - i * 8;
+        const py = b - 6 - i * 8;
         const rx = (w - 11) / 2;
-        const cx = x + 1 + rx + (i ? 2 : 0);
-        c.strokeStyle = '#211e1c';
+        const pcx = x + 1 + rx + (i ? 2 : 0);
+        // Copper handle like theirs.
+        c.strokeStyle = '#7a3f1c';
         c.lineWidth = 3.4;
         c.beginPath();
-        c.moveTo(cx + rx - 1, cy);
-        c.lineTo(cx + rx + 9, cy - 2.5);
+        c.moveTo(pcx + rx - 1, py);
+        c.lineTo(pcx + rx + 9, py - 2.5);
+        c.stroke();
+        c.strokeStyle = '#d07a42';
+        c.lineWidth = 1.8;
         c.stroke();
         c.fillStyle = '#2d2a28';
         c.beginPath();
-        c.ellipse(cx, cy + 1.5, rx, 4.6, 0, 0, Math.PI * 2);
+        c.ellipse(pcx, py + 1.5, rx, 4.6, 0, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#4a4542';
         c.beginPath();
-        c.ellipse(cx, cy, rx, 4.2, 0, 0, Math.PI * 2);
+        c.ellipse(pcx, py, rx, 4.2, 0, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#25221f';
         c.beginPath();
-        c.ellipse(cx, cy + 0.4, rx - 2.4, 2.8, 0, 0, Math.PI * 2);
+        c.ellipse(pcx, py + 0.4, rx - 2.4, 2.8, 0, 0, Math.PI * 2);
         c.fill();
         c.strokeStyle = 'rgba(255,255,255,0.22)';
         c.lineWidth = 1;
         c.beginPath();
-        c.ellipse(cx, cy, rx - 0.6, 3.6, 0, Math.PI * 1.05, Math.PI * 1.6);
+        c.ellipse(pcx, py, rx - 0.6, 3.6, 0, Math.PI * 1.05, Math.PI * 1.6);
         c.stroke();
       }
-      // A wooden spoon resting on top for character.
-      c.strokeStyle = PAL.woodDark;
-      c.lineWidth = 1.8;
-      c.beginPath();
-      c.moveTo(x + 6, y + 6);
-      c.lineTo(x + w - 10, y + 2);
-      c.stroke();
-      c.fillStyle = PAL.wood;
-      c.beginPath();
-      c.ellipse(x + 5, y + 6.3, 3.2, 2, -0.2, 0, Math.PI * 2);
-      c.fill();
-      if (damage > 0) {
-        c.strokeStyle = 'rgba(255,190,120,0.85)';
-        c.lineWidth = 1;
-        c.beginPath();
-        c.moveTo(x + w * 0.35, bottom - 8);
-        c.lineTo(x + w * 0.45, bottom - 4);
-        c.lineTo(x + w * 0.4, bottom - 1);
-        if (damage > 1) {
-          c.moveTo(x + w * 0.6, bottom - 16);
-          c.lineTo(x + w * 0.52, bottom - 12);
-          c.lineTo(x + w * 0.6, bottom - 9);
-        }
-        c.stroke();
-      }
+      if (damage > 0) cracks(c, x + 4, b - 16, w - 14, 14, damage, 'rgba(255,190,120,0.85)');
       break;
     }
-  }
-  if (damage > 0 && kind === 'cans') {
-    c.strokeStyle = 'rgba(30,30,30,0.6)';
-    c.lineWidth = 1.2;
-    c.beginPath();
-    c.moveTo(x + 5, y + 8);
-    c.quadraticCurveTo(x + 9, y + 11, x + 6, y + 15);
-    c.moveTo(x + w - 9, y + 12);
-    c.quadraticCurveTo(x + w - 5, y + 15, x + w - 8, y + 19);
-    c.stroke();
   }
   c.restore();
 }
@@ -753,47 +1350,54 @@ export function drawBall(c: C, x: number, y: number, r: number, spin: number, sq
   c.restore();
 }
 
-/** The paddle is a wooden cutting board. `squash` 0..1 after a hit. */
+/** The paddle is their bamboo cutting board. `squash` 0..1 after a hit. */
 export function drawPaddle(c: C, x: number, y: number, w: number, h: number, squash: number, tilt: number) {
   c.save();
   c.translate(x, y + h / 2);
   c.rotate(tilt);
   const sw = w * (1 + squash * 0.08);
   const sh = h * (1 - squash * 0.25);
-  c.fillStyle = 'rgba(60,30,10,0.25)';
-  rr(c, -sw / 2 + 2, -sh / 2 + 4, sw, sh, sh / 2);
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  rr(c, -sw / 2 + 2, -sh / 2 + 4, sw, sh, 4);
   c.fill();
   // Board edge (thickness).
-  c.fillStyle = PAL.woodDark;
-  rr(c, -sw / 2, -sh / 2 + 2.5, sw, sh, sh / 2);
+  c.fillStyle = PAL.bambooDark;
+  rr(c, -sw / 2, -sh / 2 + 2.5, sw, sh, 4);
   c.fill();
   const g = c.createLinearGradient(0, -sh / 2, 0, sh / 2);
-  g.addColorStop(0, '#f2c48a');
-  g.addColorStop(1, PAL.wood);
+  g.addColorStop(0, '#f6e2b4');
+  g.addColorStop(1, PAL.bamboo);
   c.fillStyle = g;
-  rr(c, -sw / 2, -sh / 2, sw, sh - 1.5, sh / 2);
+  rr(c, -sw / 2, -sh / 2, sw, sh - 1.5, 4);
   c.fill();
-  // Grain.
-  c.strokeStyle = 'rgba(150,90,40,0.4)';
-  c.lineWidth = 0.8;
-  for (const [a, b, yy] of [
-    [-0.36, 0.1, -2.2],
-    [-0.05, 0.32, 0.8],
-    [-0.3, -0.12, 2.6],
-  ]) {
+  // Laminated bamboo strips with little nodes.
+  c.strokeStyle = 'rgba(170,130,70,0.45)';
+  c.lineWidth = 0.6;
+  for (let i = 1; i < 4; i++) {
+    const yy = -sh / 2 + (i * (sh - 1.5)) / 4;
     c.beginPath();
-    c.moveTo(sw * a, yy);
-    c.lineTo(sw * b, yy);
+    c.moveTo(-sw / 2 + 3, yy);
+    c.lineTo(sw / 2 - 3, yy);
     c.stroke();
   }
+  c.fillStyle = 'rgba(150,110,55,0.5)';
+  for (const [nx, row] of [
+    [-0.32, 1],
+    [-0.05, 2],
+    [0.18, 0],
+    [0.36, 3],
+    [-0.2, 3],
+  ]) {
+    c.fillRect(sw * nx, -sh / 2 + row * ((sh - 1.5) / 4) + 0.6, 1.2, (sh - 1.5) / 4 - 1.2);
+  }
   // Hanging hole at the right end.
-  c.fillStyle = PAL.woodDark;
+  c.fillStyle = PAL.bambooDark;
   c.beginPath();
   c.ellipse(sw / 2 - 7, -0.5, 2.6, 2, 0, 0, Math.PI * 2);
   c.fill();
   c.strokeStyle = PAL.ink;
   c.lineWidth = 1;
-  rr(c, -sw / 2, -sh / 2, sw, sh + 1, sh / 2);
+  rr(c, -sw / 2, -sh / 2, sw, sh + 1, 4);
   c.stroke();
   c.restore();
 }

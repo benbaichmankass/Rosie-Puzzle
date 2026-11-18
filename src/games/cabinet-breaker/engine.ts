@@ -335,8 +335,10 @@ export class Engine {
         this.shake = Math.max(this.shake, 1.2);
         const cx = b.x + b.w / 2;
         const cy = b.y + b.h / 2;
-        if (b.def.material === 'cardboard' || b.def.material === 'ceramic') this.dust(cx, cy, 4, '#fff');
-        else for (let i = 0; i < 8; i++) this.spark(cx, cy, this.rand(-220, 220), this.rand(-260, 40), '#ffe27a');
+        const mm = b.def.material;
+        if (mm === 'metal' || mm === 'tin' || mm === 'iron') for (let i = 0; i < 8; i++) this.spark(cx, cy, this.rand(-220, 220), this.rand(-260, 40), '#ffe27a');
+        else if (mm === 'clay' || mm === 'wood') this.chips(cx, cy, 6, itemColors(b.def.kind, variantOf(b)));
+        else this.dust(cx, cy, 4, '#fff');
         this.popup(cx, b.y, '+10', '#fff', false);
         break;
       }
@@ -419,14 +421,14 @@ export class Engine {
     this.sfx.smash(m, true);
     this.sfx.pitch = 1;
     if (this.combo >= 3) this.popup(cx, b.y - 16, `COMBO x${this.combo}`, '#ffb347', false);
-    const heavy = m === 'metal' || m === 'iron' || m === 'tin';
-    this.shake = Math.max(this.shake, heavy ? 3.5 : 2.2);
-    if (m === 'iron' || m === 'metal') this.hitStop = 0.045;
+    const heavy = m === 'metal' || m === 'iron' || m === 'tin' || m === 'clay' || b.def.hits >= 3;
+    this.shake = Math.max(this.shake, b.def.hits >= 3 ? 4.5 : heavy ? 3.5 : 2.2);
+    if (b.def.hits >= 2 && (m === 'iron' || m === 'metal' || m === 'clay' || b.def.hits >= 3)) this.hitStop = 0.05;
     const ball = this.sim.ball;
     const push = Math.sign(ball.vx || 1) * 40;
     const cols = itemColors(b.def.kind, variant);
-    if (m === 'ceramic' || m === 'glass') {
-      const n = m === 'glass' ? 18 : 16;
+    if (m === 'ceramic' || m === 'glass' || m === 'clay') {
+      const n = m === 'glass' ? 18 : m === 'clay' ? 22 : 16;
       for (let i = 0; i < n; i++) {
         this.particles.push({
           x: cx + this.rand(-b.w / 2, b.w / 2),
@@ -442,6 +444,8 @@ export class Engine {
           shape: 'shard',
         });
       }
+      if (b.def.kind === 'pickles') this.chips(cx, cy, 6, ['#6f9a35', '#8bb84a']);
+      if (b.def.kind === 'frenchPress') this.chips(cx, cy, 8, ['#5a3420', '#ef94b2']);
       if (m === 'glass') for (let i = 0; i < 6; i++) this.spark(cx, cy, this.rand(-200, 200), this.rand(-240, 0), '#ffffff');
       this.dust(cx, cy + 6, 5, 'rgba(255,255,255,0.9)');
     } else {
@@ -462,29 +466,66 @@ export class Engine {
         variant,
         damage: b.def.hits - 1,
       });
-      if (m === 'cardboard') {
-        // Spilled cereal / pasta.
+      if (b.def.kind === 'soap' || b.def.kind === 'colander' || b.def.kind === 'filterJug' || b.def.kind === 'sodaStream') {
+        // Soap bubbles / splashes of water.
+        const bubble = b.def.kind === 'soap' ? ['#ffffff', '#e9f7c0', '#f8d8e0'] : ['#bfe6f7', '#ffffff', '#8fd0ee'];
         for (let i = 0; i < 14; i++) {
           this.particles.push({
             x: cx + this.rand(-8, 8),
             y: cy - 6,
-            vx: this.rand(-120, 120) + push,
-            vy: this.rand(-260, -60),
+            vx: this.rand(-110, 110) + push,
+            vy: this.rand(-240, -60),
             rot: 0,
             vr: 0,
-            life: this.rand(0.9, 1.5),
-            max: 1.5,
-            size: this.rand(1.6, 2.4),
-            color: ['#f2c46b', '#e8a33a', '#f7dc8c'][i % 3],
+            life: this.rand(0.8, 1.4),
+            max: 1.4,
+            size: this.rand(1.4, 3),
+            color: bubble[i % 3],
             shape: 'ring',
           });
         }
+      } else if (m === 'paper') {
+        for (let i = 0; i < 8; i++) {
+          this.particles.push({
+            x: cx + this.rand(-6, 6),
+            y: cy,
+            vx: this.rand(-90, 90) + push,
+            vy: this.rand(-200, -60),
+            rot: this.rand(0, 6),
+            vr: this.rand(-8, 8),
+            life: 1.4,
+            max: 1.4,
+            size: this.rand(3, 4.5),
+            color: '#fbfaf6',
+            shape: 'shard',
+          });
+        }
+      } else if (m === 'wood') {
+        this.chips(cx, cy, 8, itemColors(b.def.kind, variant));
       } else {
         for (let i = 0; i < 12; i++) this.spark(cx, cy, this.rand(-260, 260), this.rand(-300, 30), i % 2 ? '#ffe27a' : '#ffffff');
       }
       this.dust(cx, cy + 8, 4, 'rgba(255,240,220,0.9)');
     }
     this.popup(cx, b.y - 2, `+${points}`, heavy ? '#ffe27a' : '#ffffff', false);
+  }
+
+  private chips(x: number, y: number, n: number, colors: string[]) {
+    for (let i = 0; i < n; i++) {
+      this.particles.push({
+        x: x + this.rand(-8, 8),
+        y: y + this.rand(-5, 5),
+        vx: this.rand(-150, 150),
+        vy: this.rand(-240, -40),
+        rot: this.rand(0, 6),
+        vr: this.rand(-15, 15),
+        life: this.rand(0.6, 1.1),
+        max: 1.1,
+        size: this.rand(1.6, 3),
+        color: colors[i % colors.length],
+        shape: 'shard',
+      });
+    }
   }
 
   private spark(x: number, y: number, vx: number, vy: number, color: string) {
