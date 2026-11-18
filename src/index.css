@@ -372,8 +372,8 @@
 @media (prefers-reduced-motion: reduce) { .free-pulse { animation: none; } }
 
 /* ---------- Rosie's Game House shell (Game Boy palette) ---------- */
-.gb-screen { background: #9bbc0f; color: #0f380f; }
-.gb-bezel { background: #306230; border: 4px solid #0f380f; box-shadow: 0 4px 0 #0f380f; }
-.gb-panel { background: #8bac0f; border: 4px solid #0f380f; }
-.gb-btn { background: #9bbc0f; color: #0f380f; border: 3px solid #0f380f; box-shadow: 0 3px 0 #0f380f; }
-.gb-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #0f380f; }
+.gb-screen { background: #4c3c8c; color: #faf6e6; }
+.gb-bezel { background: #24203c; border: 4px solid #1c1a30; border-radius: 6px 6px 22px 6px; box-shadow: 0 4px 0 #2e2462; }
+.gb-panel { background: #faf6e6; color: #1c1a30; border: 4px solid #1c1a30; border-radius: 4px; box-shadow: 0 3px 0 #2e2462; }
+.gb-btn { background: #faf6e6; color: #1c1a30; border: 3px solid #1c1a30; box-shadow: 0 3px 0 #2a3570; }
+.gb-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a3570; }

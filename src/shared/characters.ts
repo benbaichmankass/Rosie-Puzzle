@@ -33,3 +33,20 @@ export const CHARACTERS = {
 
 /** The 4-shade Game Boy palette used by the map and shell. */
 export const GB = { darkest: '#0f380f', dark: '#306230', light: '#8bac0f', lightest: '#9bbc0f' } as const;
+
+/**
+ * Game Boy Color style palette for the house map and the shell (Ben's call: GBC colours, not green).
+ * The map draws its tiles with its own small per-tile palettes (src/map/art.ts); these are the UI colours.
+ */
+export const GBC = {
+  ink: '#1c1a30', // outlines and text
+  navy: '#2a3570', // dialog borders, selected buttons
+  shell: '#4c3c8c', // console body (page background)
+  shellDark: '#2e2462', // console shadows, D-pad well
+  screen: '#24203c', // screen bezel
+  paper: '#faf6e6', // dialog boxes and panels
+  paperShade: '#e2d8b8',
+  pad: '#2a2a34', // D-pad
+  button: '#c0386a', // A/B buttons
+  accent: '#f0c040', // highlight / cursor
+} as const;

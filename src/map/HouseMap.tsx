@@ -7,7 +7,7 @@ import {
   type Dir, type Pt,
 } from './layout';
 import {
-  Painter, renderStatic, drawCanopy, drawPool, drawBunnies, drawArrow, bentziSprite, rosieSprite, shadow,
+  Painter, PAL, renderStatic, drawCanopy, drawPool, drawBunnies, drawArrow, bentziSprite, rosieSprite, shadow,
 } from './art';
 import { DPad, ABButton } from './Controls';
 
@@ -212,6 +212,7 @@ export function HouseMap({ room, onSelectRoom, onPlay }: Props) {
     drawBunnies(p, cx, cy, now);
     // tap target marker
     if (s.target) {
+      p.use(PAL.red);
       const x = s.target.x * TILE - cx, y = s.target.y * TILE - cy;
       const k = Math.floor(now / 200) % 2;
       p.rect(x + 2 + k, y + 2 + k, 3, 1, 0); p.rect(x + 2 + k, y + 2 + k, 1, 3, 0);
@@ -353,11 +354,11 @@ export function HouseMap({ room, onSelectRoom, onPlay }: Props) {
     <div className="gb-screen h-[100dvh] w-full flex justify-center overflow-hidden select-none" style={{ touchAction: 'manipulation' }}>
       <div className="w-full max-w-[460px] h-full flex flex-col px-3 pt-2 pb-3 gap-2">
         <header className="text-center shrink-0">
-          <h1 className="font-arcade text-[13px] leading-relaxed tracking-wide">ROSIE'S GAME HOUSE</h1>
+          <h1 className="font-arcade text-[13px] leading-relaxed tracking-wide">ROSIE'S <span className="text-[#f0c040]">GAME</span> HOUSE</h1>
         </header>
 
         <div className="gb-bezel p-1.5 flex-1 min-h-[220px] flex flex-col">
-          <div ref={wrapRef} className="relative flex-1 overflow-hidden bg-[#0f380f]">
+          <div ref={wrapRef} className="relative flex-1 overflow-hidden bg-[#183818]">
             <canvas
               ref={canvasRef}
               width={view.w}
@@ -385,7 +386,8 @@ export function HouseMap({ room, onSelectRoom, onPlay }: Props) {
         </div>
       </div>
       <style>{`
-        .gb-dialog { background: #9bbc0f; color: #0f380f; border: 3px double #0f380f; box-shadow: 0 0 0 2px #9bbc0f, 0 0 0 4px #0f380f; }
+        .gb-dialog { background: #faf6e6; color: #1c1a30; border: 3px solid #2a3570; border-radius: 4px; box-shadow: inset 0 0 0 2px #faf6e6, inset 0 0 0 4px #7a96d8, 0 3px 0 rgba(0,0,0,0.35); }
+        .gb-dialog .gb-cursor { color: #c0386a; }
       `}</style>
     </div>
   );
@@ -406,7 +408,7 @@ function DialogBox({ d, onPick }: { d: Dialog; onPick: (i: number) => void }) {
       onClick={() => onPick(i)}
       className="font-arcade text-[10px] px-1 py-2 flex items-center gap-1"
     >
-      <span className="w-[10px] inline-block">{d.sel === i ? '▶' : ''}</span>
+      <span className="gb-cursor w-[10px] inline-block">{d.sel === i ? '▶' : ''}</span>
       {label}
     </button>
   );
@@ -447,7 +449,7 @@ function RoomBar({ selected, onSelectRoom, onPlay }: { selected: RoomId | null; 
             key={r.id}
             onClick={() => onSelectRoom(selected === r.id ? null : r.id)}
             aria-pressed={selected === r.id}
-            className={`font-arcade text-[7px] py-2 border-2 border-[#0f380f] ${selected === r.id ? 'bg-[#0f380f] text-[#9bbc0f]' : 'bg-[#9bbc0f]'}`}
+            className={`font-arcade text-[7px] py-2 border-2 border-[#1c1a30] ${selected === r.id ? 'bg-[#2a3570] text-[#faf6e6]' : 'bg-[#faf6e6] text-[#1c1a30]'}`}
           >
             {short[r.id]}
           </button>

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import type { Dir } from './layout';
 
-const D = '#0f380f', M = '#306230', L = '#8bac0f';
+const D = '#2a2a34', M = '#4a4a5e', L = '#9a9ab0', W = '#1c1a30';
 
 /** Game Boy cross D-pad. Slide your thumb across it to change direction. */
 export function DPad({ onDir }: { onDir: (d: Dir | null) => void }) {
@@ -39,7 +39,7 @@ export function DPad({ onDir }: { onDir: (d: Dir | null) => void }) {
       onLostPointerCapture={() => set(null)}
     >
       <svg viewBox="0 0 120 120" className="w-full h-full">
-        <path d="M42 2 h36 v40 h40 v36 h-40 v40 h-36 v-40 h-40 v-36 h40 z" fill={M} transform="translate(0 3)" />
+        <path d="M42 2 h36 v40 h40 v36 h-40 v40 h-36 v-40 h-40 v-36 h40 z" fill={W} transform="translate(0 3)" />
         {arm('up', 0)}
         {arm('right', 90)}
         {arm('down', 180)}
@@ -57,7 +57,7 @@ export function ABButton({ label, onPress, className = '' }: { label: string; on
       <button
         onPointerDown={(e) => { e.preventDefault(); onPress(); }}
         aria-label={label === 'A' ? 'A: talk / play' : 'B: back'}
-        className="w-[52px] h-[52px] rounded-full bg-[#306230] border-[3px] border-[#0f380f] shadow-[0_4px_0_#0f380f] active:translate-y-[3px] active:shadow-none font-arcade text-[12px] text-[#9bbc0f]"
+        className="w-[52px] h-[52px] rounded-full bg-[#c0386a] border-[3px] border-[#1c1a30] shadow-[0_4px_0_#2e2462] active:translate-y-[3px] active:shadow-none font-arcade text-[12px] text-[#faf6e6]"
       >
         {label}
       </button>
