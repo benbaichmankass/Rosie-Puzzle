@@ -31,8 +31,8 @@ const CSS = `
 function hitLine(o: Obstacle | null): string {
   if (!o) return 'Oops!';
   switch (o.kind) {
-    case 'tramIn': return 'The light rail! Watch the far end of the left track.';
-    case 'tramOut': return 'A tram from behind! Watch for the warning sign.';
+    case 'tramIn': return 'Head-on with the light rail! Jump just as it reaches you to land on its roof.';
+    case 'tramOut': return 'Ran into the back of a tram! Jump, or take the yellow ramp, to get on the roof.';
     case 'bike': return 'Bonk! A bike rider on the promenade.';
     case 'walker': return 'Bumped into someone out for a walk.';
     default: return 'Tripped! Swipe up to jump the low stuff.';
@@ -52,7 +52,7 @@ export default function Game({ onExit }: GameProps) {
 
   const sfx = useRef(new Sfx());
   const runRef = useRef<Run | null>(null);
-  const anim = useRef({ phase: 0, wag: 0, idleD: 0, crashT: 0, shake: 0 });
+  const anim = useRef({ phase: 0, wag: 0, idleD: 0, crashT: 0, shake: 0, camLift: 0 });
 
   const go = useCallback((s: Screen) => { screenRef.current = s; setScreen(s); }, []);
 
@@ -173,6 +173,8 @@ export default function Game({ onExit }: GameProps) {
           if (e === 'tramWarn') sfx.current.tramBell();
           else if (e === 'bike') sfx.current.bikeBell();
           else if (e === 'crash') { sfx.current.bonk(); a.shake = 1; a.crashT = 0; }
+          else if (e === 'mount') sfx.current.mount();
+          else if (e === 'land') sfx.current.land();
         }
         if (run.crashed) {
           a.crashT += dt;
@@ -191,10 +193,13 @@ export default function Game({ onExit }: GameProps) {
       if (s === 'play' || s === 'start') {
         const gait = run && !run.crashed && s === 'play' ? 2.1 + speed * 0.11 : s === 'start' ? 1.6 : 0;
         a.phase += dt * Math.PI * 2 * gait;
-        a.wag += dt * (run?.crashed ? 4 : 13);
+        a.wag += dt * (run?.crashed ? 4 : 9 + gait * 2.2);
       }
       a.shake = Math.max(0, a.shake - dt * 2.5);
       const useRun = s !== 'start' && run;
+      // camera rises with Rosie when she is up on a tram roof
+      const liftTarget = useRun ? Math.max(0, run.base - 0.4) * 0.55 : 0;
+      a.camLift += (liftTarget - a.camLift) * Math.min(1, dt * 5);
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       scene.render(g, {
         d: useRun ? run.d : a.idleD,
@@ -202,9 +207,12 @@ export default function Game({ onExit }: GameProps) {
         obstacles: useRun ? run.spawner.obstacles : idleObstacles,
         showObstacles: !!useRun,
         shake: a.shake,
+        camLift: a.camLift,
         player: {
           lanePos: useRun ? run.lanePos : 1,
-          jumpY: useRun ? run.jumpY : 0,
+          y: useRun ? run.y : 0,
+          base: useRun ? run.base : 0,
+          vy: useRun ? run.vy : 0,
           phase: a.phase,
           wag: Math.sin(a.wag),
           lean: useRun ? (run.lane - run.lanePos) * 1.2 : 0,
@@ -260,7 +268,7 @@ export default function Game({ onExit }: GameProps) {
             <div className="text-[13px] font-bold tracking-[0.2em] text-[#c0602e]">YAFO · JAFFA</div>
             <div className="text-[28px] font-black leading-[1.05] mt-1">Jerusalem Boulevard Runner</div>
             <div className="text-[15px] font-medium mt-3 leading-snug">
-              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump. Dodge walkers, bikes and the light rail.
+              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump. Dodge walkers and bikes, and hop onto the light rail's roof.
             </div>
             <button className="br-btn w-full mt-4 py-3 text-[20px]" onClick={start}>PLAY</button>
             <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best} m</div>

@@ -2,10 +2,10 @@
  * Fake-3D renderer for the boulevard: a pinhole camera behind Rosie projects world points
  * (x across, y up, gap = distance ahead of Rosie) onto the canvas. Painter's algorithm, far to near.
  */
-import { type Obstacle, obstacleGap } from './spawner';
+import { type Obstacle, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
 import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, fogc, shade, HAZE } from './art';
 
-export const LANE_W = 1.6;
+export const LANE_W = 1.9;
 const CAM_H = 4.0;
 const CAM_BACK = 8.5;
 const FAR = 120;
@@ -14,7 +14,10 @@ const WIRE_Y = 4.7;
 
 export interface Player {
   lanePos: number; // 0..2 float
-  jumpY: number; // world units
+  /** Height of Rosie's feet and of the surface under her (street, ramp or tram roof). */
+  y: number;
+  base: number;
+  vy: number;
   phase: number;
   wag: number;
   lean: number;
@@ -33,6 +36,8 @@ export interface Frame {
   player: Player;
   showObstacles: boolean;
   shake: number;
+  /** Extra camera height (follows Rosie up onto roofs). */
+  camLift: number;
 }
 
 interface Pt { x: number; y: number; s: number }
@@ -55,10 +60,12 @@ export class Scene {
   F = 844;
   horizon = 290;
   camX = 0;
+  camH = CAM_H;
   private sky: HTMLCanvasElement | null = null;
   private sp: Sprites;
   private dpr = 1;
   private ctx: CanvasRenderingContext2D | null = null;
+  private t = 0;
 
   constructor() {
     this.sp = buildSprites();
@@ -69,7 +76,7 @@ export class Scene {
     this.H = H;
     this.dpr = dpr;
     // Focal length from height, but keep all three lanes on narrow screens.
-    this.F = Math.min(H * 0.98, W * 2.45);
+    this.F = Math.min(H * 0.98, W * 1.85);
     this.horizon = H * 0.80 - (CAM_H * this.F) / CAM_BACK;
     this.sky = this.buildSky();
   }
@@ -77,7 +84,7 @@ export class Scene {
   private P(x: number, y: number, gap: number): Pt {
     const z = Math.max(NEAR_Z, gap + CAM_BACK);
     const s = this.F / z;
-    return { x: this.W / 2 + (x - this.camX) * s, y: this.horizon + (CAM_H - y) * s, s };
+    return { x: this.W / 2 + (x - this.camX) * s, y: this.horizon + (this.camH - y) * s, s };
   }
   private fog(gap: number): number {
     const z = gap + CAM_BACK;
@@ -135,6 +142,8 @@ export class Scene {
   render(g: CanvasRenderingContext2D, fr: Frame) {
     const { W, H } = this;
     this.ctx = g;
+    this.t = fr.t;
+    this.camH = CAM_H + fr.camLift;
     const pl = fr.player;
     const px = (pl.lanePos - 1) * LANE_W;
     this.camX = px * 0.42;
@@ -152,14 +161,16 @@ export class Scene {
     const items: { gap: number; fn: () => void }[] = [];
     this.collectScenery(fr.d, items);
     if (fr.showObstacles) for (const o of fr.obstacles) this.collectObstacle(g, o, fr, items);
+    const hop = Math.max(0, pl.y - pl.base);
     items.push({
-      gap: 0.001,
+      // up on a roof she is above the tram, so draw her after it
+      gap: pl.y > 0.6 ? -100 : 0.001,
       fn: () => {
-        const p = this.P(px, pl.jumpY, 0);
-        // shadow stays on the ground
-        const ps = this.P(px, 0, 0);
-        g.fillStyle = `rgba(50,30,10,${0.32 - pl.jumpY * 0.12})`;
-        g.beginPath(); g.ellipse(ps.x, ps.y, ps.s * (0.36 - pl.jumpY * 0.07), ps.s * 0.08, 0, 0, Math.PI * 2); g.fill();
+        const p = this.P(px, pl.y, 0);
+        // shadow on whatever she is above
+        const ps = this.P(px, pl.base, 0);
+        g.fillStyle = `rgba(50,30,10,${Math.max(0.08, 0.32 - hop * 0.12)})`;
+        g.beginPath(); g.ellipse(ps.x, ps.y, ps.s * Math.max(0.12, 0.36 - hop * 0.07), ps.s * 0.08, 0, 0, Math.PI * 2); g.fill();
         // landing dust
         if (pl.landT >= 0 && pl.landT < 0.4) {
           const k = pl.landT / 0.4;
@@ -197,7 +208,17 @@ export class Scene {
             g.fillStyle = '#ffd23f'; g.fillText('BONK!', 0, 0);
             g.restore();
           }
-        } else drawRosie(g, p.x, p.y, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
+        } else {
+          // squash on landing, stretch while rising, squash a touch at the top of the fall
+          let sx = 1, sy = 1;
+          if (pl.landT >= 0 && pl.landT < 0.16) { const k = 1 - pl.landT / 0.16; sx = 1 + 0.2 * k; sy = 1 - 0.18 * k; }
+          else if (pl.airborne) { const st = Math.max(-0.08, Math.min(0.16, pl.vy * 0.022)); sy = 1 + st; sx = 1 - st * 0.6; }
+          g.save();
+          g.translate(p.x, p.y);
+          g.scale(sx, sy);
+          drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
+          g.restore();
+        }
       },
     });
     items.sort((a, b) => b.gap - a.gap);
@@ -209,18 +230,25 @@ export class Scene {
     }
     if (!wiresDrawn) this.drawWires(g);
 
-    // leash + Bentzi's arm
-    const rp = this.P(px, pl.jumpY, 0);
+    // leash + Bentzi's arm (he walks too: his hand bobs, gets tugged sideways and lifted)
+    const rp = this.P(px, pl.y, 0);
     const k = Math.min(W / 390, H / 844) * 0.85;
-    const handX = W * 0.5 + (rp.x - W * 0.5) * 0.55 + 30 * k;
-    const handY = H * 0.925 + (pl.crashed ? 10 : 0);
+    const step = Math.sin(pl.phase * 0.5);
+    const lift = Math.min(1, pl.y / ROOF_H);
+    const handX = W * 0.5 + (rp.x - W * 0.5) * 0.55 + 30 * k + pl.lean * 16 * k;
+    const handY = H * 0.925 + (pl.crashed ? 10 : 0) + Math.abs(step) * 6 * k - lift * 46 * k - Math.min(1, hop) * 14 * k;
     const ringX = rp.x, ringY = rp.y - 0.74 * rp.s * 1.45;
+    const tug = Math.max(-0.4, Math.min(0.4, (ringX - handX) / W)) + lift * -0.25;
+    const startX = handX + 8 * k, startY = handY - 28 * k;
+    const dist = Math.hypot(ringX - startX, ringY - startY);
+    const slack = Math.max(4, 34 - dist * 0.06 - lift * 20) * k;
+    const swing = Math.sin(pl.phase) * 7 * k;
     g.beginPath();
-    g.moveTo(handX + 8 * k, handY - 28 * k);
-    g.quadraticCurveTo((handX + ringX) / 2, (handY + ringY) / 2 + 26 * k - pl.jumpY * 20, ringX, ringY);
+    g.moveTo(startX, startY);
+    g.quadraticCurveTo((startX + ringX) / 2 + swing, (startY + ringY) / 2 + slack, ringX, ringY);
     g.lineWidth = 3.2 * k; g.strokeStyle = '#c63a2c'; g.stroke();
     g.lineWidth = 1 * k; g.strokeStyle = 'rgba(255,190,170,0.6)'; g.stroke();
-    drawBentziArm(g, handX, handY, k);
+    drawBentziArm(g, handX, handY, k, tug + step * 0.04);
 
     this.drawWarnings(g, fr);
     g.restore();
@@ -262,20 +290,21 @@ export class Scene {
     // haze gradient on the far ground is painted at the end
     for (const side of [-1, 1]) {
       this.strip(g, side * 8.8, side * 11, gN, gF, '#d6cab5'); // sidewalk
-      this.strip(g, side * 2.75, side * 8.8, gN, gF, '#d9b27c'); // sandy park strip
-      this.strip(g, side * 2.4, side * 2.75, gN, gF, '#c4b9a6'); // concrete edge
-      this.strip(g, side * 0.8, side * 2.4, gN, gF, '#958f86'); // track bed
+      this.strip(g, side * 2.95, side * 8.8, gN, gF, '#d9b27c'); // sandy park strip
+      this.strip(g, side * 2.62, side * 2.95, gN, gF, '#c4b9a6'); // concrete edge
+      this.strip(g, side * 1.18, side * 2.62, gN, gF, '#958f86'); // track bed
+      this.strip(g, side * 0.85, side * 1.1, gN, gF, '#cdbca2'); // pavers beside the bike path
     }
-    this.strip(g, -0.8, 0.8, gN, gF, '#cdbca2'); // promenade
+    this.strip(g, -0.85, 0.85, gN, gF, '#a9604c'); // bike path (red asphalt)
     // sand: lighter worn path near the benches, speckles
-    for (const side of [-1, 1]) this.strip(g, side * 4.1, side * 5.6, gN, gF, '#e0bf8d');
+    for (const side of [-1, 1]) this.strip(g, side * 4.6, side * 6.1, gN, gF, '#e0bf8d');
     const z0 = Math.floor(d / 1.5);
     for (let k = z0; k < z0 + 34; k++) {
       const gap = k * 1.5 - d;
       if (gap + CAM_BACK < NEAR_Z + 0.2) continue;
       for (let j = 0; j < 6; j++) {
         const side = j % 2 ? 1 : -1;
-        const x = side * (2.95 + hash2(k, j) * 5.7);
+        const x = side * (3.1 + hash2(k, j) * 5.6);
         const p = this.P(x, 0, gap + hash2(j, k) * 1.4);
         const r = Math.max(0.8, p.s * 0.05);
         g.fillStyle = j % 3 ? 'rgba(150,105,60,0.35)' : 'rgba(255,240,210,0.45)';
@@ -289,15 +318,25 @@ export class Scene {
       if (b + CAM_BACK < NEAR_Z) continue;
       if (a + CAM_BACK > 75) break;
       const fg = this.fog(a);
-      if (k % 2 === 0) this.strip(g, -0.8, 0.8, a, b, fogc('#c2b096', fg));
-      this.strip(g, -0.82, -0.68, a, b, fogc(k % 2 ? '#d8d2c8' : '#c94a3c', fg));
-      this.strip(g, 0.68, 0.82, a, b, fogc(k % 2 ? '#d8d2c8' : '#c94a3c', fg));
-      if (k % 2 === 0) {
-        for (const side of [-1, 1]) this.strip(g, side * 0.9, side * 2.3, a, a + 0.18, fogc('#857f77', fg));
+      for (const side of [-1, 1]) {
+        if (k % 2 === 0) this.strip(g, side * 0.85, side * 1.04, a, b, fogc('#bfae94', fg));
+        this.strip(g, side * 1.04, side * 1.18, a, b, fogc(k % 2 ? '#d8d2c8' : '#c94a3c', fg));
+        if (k % 2 === 0) this.strip(g, side * 1.28, side * 2.52, a, a + 0.18, fogc('#857f77', fg));
       }
+      // dashed white centre line of the two-way bike path
+      if (k % 3 === 0) this.strip(g, -0.035, 0.035, a, a + 1.4, fogc('#f4efe6', fg));
+      // white edge lines
+      for (const side of [-1, 1]) this.strip(g, side * 0.78, side * 0.82, a, b, fogc('#efe8dc', fg));
     }
-    // centre joint on the promenade
-    this.strip(g, -0.015, 0.015, gN, gF, 'rgba(120,100,80,0.35)');
+    // painted bicycle symbols on both halves of the path
+    const bk0 = Math.floor(d / 14);
+    for (let k = bk0; k < bk0 + 6; k++) {
+      const gap = k * 14 - d + 7;
+      if (gap + CAM_BACK < NEAR_Z + 1 || gap + CAM_BACK > 70) continue;
+      const fg = this.fog(gap);
+      this.bikeSymbol(g, -0.42, gap, fogc('#f4efe6', fg), 1);
+      this.bikeSymbol(g, 0.42, gap + 5, fogc('#f4efe6', fg), -1);
+    }
     // rails (with warning glow when a tram is near)
     for (const lane of [0, 2]) {
       const c = (lane - 1) * LANE_W;
@@ -314,6 +353,33 @@ export class Scene {
     grd.addColorStop(1, 'rgba(242,210,174,0)');
     g.fillStyle = grd;
     g.fillRect(0, hz - 1, this.W, this.H * 0.12);
+  }
+
+  /** A painted bicycle pictogram lying on the bike path, drawn in perspective (dir: 1 = facing away). */
+  private bikeSymbol(g: CanvasRenderingContext2D, x: number, gap: number, color: string, dir: number) {
+    // painted markings are stretched along the lane so they read correctly in perspective
+    const ring = (cx: number, cz: number) => {
+      g.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const p = this.P(cx + Math.cos(a) * 0.2, 0, cz + Math.sin(a) * 0.48);
+        if (i === 0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y);
+      }
+      g.stroke();
+    };
+    const p0 = this.P(x, 0, gap);
+    g.strokeStyle = color;
+    g.lineWidth = Math.max(1, p0.s * 0.04);
+    const w = 0.72 * dir;
+    ring(x, gap - w);
+    ring(x, gap + w);
+    // frame: rear hub -> pedal -> seat, pedal -> front hub, seat -> bars
+    const pts: [number, number][] = [[x, gap - w], [x + 0.02, gap - 0.05 * dir], [x - 0.14, gap - 0.25 * dir], [x - 0.14, gap + 0.4 * dir], [x + 0.02, gap - 0.05 * dir], [x, gap + w]];
+    g.beginPath();
+    pts.forEach(([px, pz], i) => { const q = this.P(px, 0, pz); if (i === 0) g.moveTo(q.x, q.y); else g.lineTo(q.x, q.y); });
+    g.stroke();
+    const h1 = this.P(x - 0.22, 0, gap + 0.45 * dir), h2 = this.P(x - 0.06, 0, gap + 0.45 * dir);
+    g.beginPath(); g.moveTo(h1.x, h1.y); g.lineTo(h2.x, h2.y); g.stroke();
   }
 
   /** 0..1 pulsing intensity if a tram warning is active on this lane. */
@@ -397,7 +463,7 @@ export class Scene {
   }
 
   // ---------- scenery ----------
-  private sprite(g: CanvasRenderingContext2D, sp: Sprite, p: Pt, gap: number, frame: number, flip = false) {
+  private sprite(g: CanvasRenderingContext2D, sp: Sprite, p: Pt, gap: number, frame: number, flip = false, sway = 0) {
     const z = gap + CAM_BACK;
     if (z < NEAR_Z + 0.3) return;
     const fg = this.fog(gap);
@@ -406,9 +472,10 @@ export class Scene {
     const w = sp.w * p.s, h = sp.h * p.s;
     const fade = Math.max(0, Math.min(1, (FAR - z) / 18));
     if (fade < 1) g.globalAlpha = fade;
-    if (flip) {
-      g.save(); g.translate(p.x, 0); g.scale(-1, 1);
-      g.drawImage(img, -w / 2, p.y - h, w, h);
+    if (flip || sway) {
+      // sway = horizontal shear about the base (trees in the breeze)
+      g.save(); g.translate(p.x, p.y); g.transform(flip ? -1 : 1, 0, sway, 1, 0, 0);
+      g.drawImage(img, -w / 2, -h, w, h);
       g.restore();
     } else g.drawImage(img, p.x - w / 2, p.y - h, w, h);
     g.globalAlpha = 1;
@@ -430,25 +497,25 @@ export class Scene {
       add(9, side * 3 + 1, (k, gap) => {
         const r = hash2(k, side * 7);
         if (r > 0.86) return;
-        const x = side * (4.0 + hash2(k, 9) * 0.5);
+        const x = side * (4.4 + hash2(k, 9) * 0.5);
         const sp = r < 0.42 ? this.sp.ficus[Math.abs(k) % 3] : this.sp.palms[Math.abs(k) % 3];
-        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 4) < 0.5) });
+        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 4) < 0.5, Math.sin(this.t * 1.3 + k * 1.7) * 0.025) });
       });
       // outer row: tall palms
       add(12, side * 3 + 2, (k, gap) => {
         if (hash2(k, side * 11) < 0.25) return;
         const x = side * (7.4 + hash2(k, 19) * 0.8);
         const sp = hash2(k, side * 13) < 0.7 ? this.sp.palms[Math.abs(k + 1) % 3] : this.sp.ficus[Math.abs(k) % 3];
-        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 5) < 0.5) });
+        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 5) < 0.5, Math.sin(this.t * 1.1 + k * 2.3) * 0.03) });
       });
       // benches and picnic tables in the park strip
       add(7, side * 3 + 3, (k, gap) => {
         const r = hash2(k, side * 17);
         if (r < 0.45) {
-          const x = side * 4.85;
+          const x = side * 5.25;
           items.push({ gap, fn: () => this.sprite(g, this.sp.bench, this.P(x, 0, gap), gap, 0) });
         } else if (r < 0.62) {
-          const x = side * 6.1;
+          const x = side * 6.6;
           items.push({ gap, fn: () => this.sprite(g, this.sp.picnic, this.P(x, 0, gap), gap, 0) });
         }
       });
@@ -469,14 +536,14 @@ export class Scene {
         fn: () => {
           const fg = this.fog(gap);
           for (const side of [-1, 1]) {
-            const b = this.P(side * 2.6, 0, gap), t = this.P(side * 2.6, 5.6, gap);
+            const b = this.P(side * 2.85, 0, gap), t = this.P(side * 2.85, 5.6, gap);
             g.strokeStyle = fogc('#55585e', fg);
             g.lineWidth = Math.max(1, b.s * 0.12);
             g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(t.x, t.y); g.stroke();
-            const a1 = this.P(side * 2.6, 5.3, gap), a2 = this.P(side * 1.2, 5.3, gap);
+            const a1 = this.P(side * 2.85, 5.3, gap), a2 = this.P(side * 1.4, 5.3, gap);
             g.lineWidth = Math.max(1, b.s * 0.06);
             g.beginPath(); g.moveTo(a1.x, a1.y); g.lineTo(a2.x, a2.y); g.stroke();
-            const w = this.P(side * 1.6, WIRE_Y, gap);
+            const w = this.P(side * LANE_W, WIRE_Y, gap);
             g.beginPath(); g.moveTo(a1.x, a1.y + (t.y - a1.y) * 0.5); g.lineTo(w.x, w.y); g.stroke();
           }
         },
@@ -509,7 +576,7 @@ export class Scene {
     }
     const gap = near + (far - near) * 0.5;
     if (gap + CAM_BACK < NEAR_Z + 0.3) return;
-    const frame = Math.floor(fr.t * (o.kind === 'bike' ? 7 : 4) + o.id) % 2;
+    const frame = Math.floor(fr.t * (o.kind === 'bike' ? 12 : 7) + o.id) % 4;
     let sp: Sprite;
     if (o.kind === 'walker') sp = this.sp.walkers[o.variant % this.sp.walkers.length];
     else if (o.kind === 'bike') sp = this.sp.bikers[o.variant % this.sp.bikers.length];
@@ -519,10 +586,48 @@ export class Scene {
   }
 
   private drawTram(g: CanvasRenderingContext2D, o: Obstacle, xc: number, near: number, far: number, fr: Frame) {
+    if (!o.ramp) { this.drawTramBody(g, o, xc, near, far, o.len, fr); return; }
+    this.drawTramBody(g, o, xc, near + RAMP_LEN, far, o.len - RAMP_LEN, fr);
+    this.drawRamp(g, xc, near);
+  }
+
+  /** Yellow-and-black ramp hooked onto the back of a tram, up to its roof. */
+  private drawRamp(g: CanvasRenderingContext2D, xc: number, near: number) {
+    const minGap = NEAR_Z - CAM_BACK + 0.05;
+    const top = near + RAMP_LEN;
+    if (top <= minGap) return;
+    const hw = 0.72, H = ROOF_H;
+    const z0 = Math.max(near, minGap);
+    const h0 = (H * (z0 - near)) / RAMP_LEN;
+    const fg = this.fog(Math.max(0, z0));
+    const inner = xc < 0 ? xc + hw : xc - hw;
+    // side
+    g.beginPath();
+    const a = this.P(inner, 0, z0), b = this.P(inner, h0, z0), c = this.P(inner, H, top), d = this.P(inner, 0, top);
+    g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(d.x, d.y); g.closePath();
+    g.fillStyle = fogc('#5b5a57', fg); g.fill();
+    // sloped deck, in stripes
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      const u0 = Math.max(z0, near + (RAMP_LEN * i) / n), u1 = near + (RAMP_LEN * (i + 1)) / n;
+      if (u1 <= u0) continue;
+      const y0 = (H * (u0 - near)) / RAMP_LEN, y1 = (H * (u1 - near)) / RAMP_LEN;
+      this.quad(g, this.P(xc - hw, y0, u0), this.P(xc + hw, y0, u0), this.P(xc + hw, y1, u1), this.P(xc - hw, y1, u1), fogc(i % 2 ? '#2b2b2b' : '#f2c230', fg));
+    }
+    // rails along the edges
+    g.strokeStyle = fogc('#9a9a9a', fg);
+    for (const sx of [-hw, hw]) {
+      const p1 = this.P(xc + sx, h0 + 0.1, z0), p2 = this.P(xc + sx, H + 0.1, top);
+      g.lineWidth = Math.max(1, p1.s * 0.05);
+      g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
+    }
+  }
+
+  private drawTramBody(g: CanvasRenderingContext2D, o: Obstacle, xc: number, near: number, far: number, bodyLen: number, fr: Frame) {
     const minGap = NEAR_Z - CAM_BACK + 0.05;
     const n = Math.max(near, minGap);
     if (far <= n) return;
-    const hw = 0.78, y0 = 0.22, y1 = 2.85;
+    const hw = 0.78, y0 = 0.22, y1 = ROOF_H;
     const inner = xc < 0 ? xc + hw : xc - hw; // the side facing the camera
     const fg = this.fog(Math.max(n, 0));
     const BODY = fogc('#f3f1ec', fg), RED = fogc('#d22e2e', fg), GLASS = fogc('#26313c', fg), ROOF = fogc('#b9b6af', fg);
@@ -540,7 +645,7 @@ export class Scene {
     // windows and doors along the side
     const segLen = 1.55;
     const startIdx = Math.ceil((n - near) / segLen);
-    for (let i = Math.max(0, startIdx); i * segLen < o.len - 0.6; i++) {
+    for (let i = Math.max(0, startIdx); i * segLen < bodyLen - 0.6; i++) {
       const a = near + i * segLen + 0.25, b = a + segLen - 0.4;
       if (b < n) continue;
       if (a > FAR - CAM_BACK) break;
@@ -559,14 +664,14 @@ export class Scene {
     }
     // articulation joints
     for (let j = 1; j < 3; j++) {
-      const z = near + (o.len * j) / 3;
+      const z = near + (bodyLen * j) / 3;
       if (z < n || z > far) continue;
       const p1 = this.P(inner, y0, z), p2 = this.P(inner, y1, z);
       g.strokeStyle = fogc('#5a5a60', fg); g.lineWidth = Math.max(1, p1.s * 0.05);
       g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
     }
     // pantograph up to the wire
-    const pz = near + o.len * 0.5;
+    const pz = near + bodyLen * 0.5;
     if (pz > n && pz < far) {
       const b1 = this.P(xc - 0.4, y1, pz), b2 = this.P(xc + 0.4, y1, pz), top = this.P(xc, WIRE_Y, pz), mid = this.P(xc + 0.25, (y1 + WIRE_Y) / 2, pz);
       g.strokeStyle = fogc('#2c2c30', fgF); g.lineWidth = Math.max(1, b1.s * 0.05);
@@ -628,19 +733,8 @@ export class Scene {
       const x = (o.lane - 1) * LANE_W;
       const urgency = 1 - (o.D - fr.d) / (o.D - o.warnFrom);
       if (o.kind === 'tramOut') {
-        // coming from behind: chevrons rising from the bottom of the right track
-        const base = this.P(x, 0, -2.4);
-        for (let i = 0; i < 3; i++) {
-          const y = base.y + 40 - i * 22 - ((fr.t * 60) % 22);
-          g.globalAlpha = pulse * (0.4 + 0.2 * i);
-          g.fillStyle = '#ff5a2a';
-          g.beginPath();
-          g.moveTo(base.x - 22, y + 10); g.lineTo(base.x, y - 4); g.lineTo(base.x + 22, y + 10);
-          g.lineTo(base.x + 22, y + 18); g.lineTo(base.x, y + 4); g.lineTo(base.x - 22, y + 18); g.closePath();
-          g.fill();
-        }
-        g.globalAlpha = 1;
-        this.badge(g, Math.min(this.W - 34, base.x + 6), this.H * 0.68, pulse, urgency, 'back');
+        // a slower tram ahead on the right track: Rosie is catching up with it
+        this.badge(g, Math.min(this.W - 34, this.P(x, 0, 6).x + 4), this.horizon + 44, pulse, urgency, 'front');
       } else {
         // oncoming: flashing beacon far down the left track
         const p = this.P(x, 1.2, Math.min(95, (o.D - fr.d) * 1.6 + 10));
