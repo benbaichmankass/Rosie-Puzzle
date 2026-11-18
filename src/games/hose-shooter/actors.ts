@@ -21,6 +21,28 @@ const CATS: CatColors[] = [
 
 const WET = '#5d7f9e';
 
+/** Outlaw gear for the cat being drawn: 0 mask, 1 bandana, 2 both. */
+let gear = 0;
+const hasMask = () => gear !== 1;
+const hasBandana = () => gear !== 0;
+
+/** Bandit eye mask, with ties trailing behind the head (side view when `tie` is set). */
+function banditMask(ctx: Ctx, x: number, y: number, w: number, h: number, seed: number, tie: number, color = '#1d1a1f') {
+  if (tie) {
+    limb(ctx, [x - w * 0.9, y, x - w * 1.5, y - 4 + Math.sin(seed * 3) * 2], 2.4, color);
+    limb(ctx, [x - w * 0.9, y + 1, x - w * 1.4, y + 6], 2.4, color);
+  }
+  blob(ctx, x, y, w, h, color, seed, 0.06);
+}
+
+/** Red outlaw neckerchief with white polka dots. */
+function neckerchief(ctx: Ctx, x: number, y: number, w: number, seed: number, color = '#b8322a') {
+  poly(ctx, [x - w, y - 3, x + w, y - 3, x + w * 0.15, y + w * 1.1], color, seed, 0.5);
+  blob(ctx, x, y - 3, w, 3.2, mix(color, '#2a0a06', 0.2), seed + 1, 0.05);
+  noShadow(ctx);
+  for (let i = 0; i < 4; i++) blob(ctx, x - w * 0.5 + i * w * 0.32, y + 1 + (i % 2) * 3, 0.9, 0.9, '#f6e6c8', seed + i, 0);
+}
+
 function wetten(c: string, k: number) {
   return k > 0 ? mix(c, WET, 0.35 * k) : c;
 }
@@ -113,6 +135,8 @@ function catSide(ctx: Ctx, c: CatColors, frame: number, seed: number, wet: numbe
   blob(ctx, hx, hy, 17, 15 * (wet > 0 ? 0.92 : 1), body, seed + 14, 0.04);
   if (c.patch) blob(ctx, hx - 7, hy - 6, 8, 7, c.patch, seed + 15, 0.1);
   blob(ctx, hx + 8, hy + 6, 9, 6, belly, seed + 16, 0.06);
+  if (hasBandana()) neckerchief(ctx, hx - 6, hy + 11, 10, seed + 30);
+  if (hasMask()) banditMask(ctx, hx + 5, hy - 3, 13, 6, seed + 31, 1);
   if (wet > 0) {
     eyes(ctx, hx + 5, hy - 3, 6, seed + 20, 0.2, -0.2, '#111', 0.18);
     // angry brows
@@ -149,7 +173,9 @@ function catSit(ctx: Ctx, c: CatColors, t: number, seed: number) {
     poly(ctx, [-4, hy - 15, 4, hy - 15, 0, hy - 7], c.dark, seed + 18, 0.4);
   }
   blob(ctx, 0, hy + 6, 9, 6, c.belly, seed + 16, 0.06);
-  const blink = (t * 0.7 + seed) % 3 < 0.12;
+  if (hasBandana()) neckerchief(ctx, 0, hy + 14, 11, seed + 30);
+  if (hasMask()) banditMask(ctx, 0, hy - 3, 14, 6.5, seed + 31, 0);
+  const blink = !hasMask() && (t * 0.7 + seed) % 3 < 0.12;
   if (blink) {
     limb(ctx, [-9, hy - 3, -2, hy - 3], 2, '#111');
     limb(ctx, [2, hy - 3, 9, hy - 3], 2, '#111');
@@ -180,6 +206,8 @@ function catSoaked(ctx: Ctx, c: CatColors, t: number, seed: number) {
   poly(ctx, [-15, hy + 2, -17, hy - 14, -5, hy - 9], body, seed + 11);
   poly(ctx, [5, hy - 9, 17, hy - 14, 15, hy + 2], body, seed + 12);
   blob(ctx, 0, hy, 16, 14, body, seed + 14, 0.06);
+  if (hasBandana()) neckerchief(ctx, 0, hy + 13, 10, seed + 30, mix('#b8322a', WET, 0.35));
+  if (hasMask()) banditMask(ctx, 0, hy - 3, 15, 7, seed + 31, 0);
   eyes(ctx, 0, hy - 3, 6.5, seed + 20, 0, 0, '#111', 0.16);
   limb(ctx, [-12, hy - 13, -3, hy - 9], 2.4, '#111');
   limb(ctx, [3, hy - 9, 12, hy - 13], 2.4, '#111');
@@ -190,6 +218,8 @@ function catSoaked(ctx: Ctx, c: CatColors, t: number, seed: number) {
 
 export function drawCat(ctx: Ctx, e: Ent, t: number, px: number) {
   const c = CATS[e.variant % CATS.length];
+  // the black cat wears a bandana (a black mask wouldn't show); the rest get a mix
+  gear = e.variant === 1 ? 1 : e.id % 3;
   const boil = Math.floor(t * 8);
   const seed = e.id * 7 + (boil % 3) * 0.37;
   groundShadow(ctx, e, 34);
@@ -218,7 +248,7 @@ export function drawCat(ctx: Ctx, e: Ent, t: number, px: number) {
   ctx.restore();
   if (e.state === 'soaked' || (e.state === 'flee' && e.stateT < 0.35)) {
     const age = e.state === 'soaked' ? e.stateT : 1;
-    shout(ctx, e.x + 22, e.y - e.lift - 78 * e.s - 6, e.shout, age, px);
+    shout(ctx, e.x + 32, e.y - e.lift - 78 * e.s - 6, e.shout, age, px);
   }
 }
 
@@ -260,14 +290,30 @@ export function drawChicken(ctx: Ctx, e: Ent, t: number, px: number, L: Layout) 
   blob(ctx, 8, hy, 14, 14, body, seed + 8, 0.05);
   poly(ctx, [19, hy - 2, 30, hy + 2, 19, hy + 5], '#f2c230', seed + 9, 0.3);
   blob(ctx, 18, hy + 9, 3.5, 5, '#e0262e', seed + 10);
+  neckerchief(ctx, 6, hy + 13, 12, seed + 12);
+  paperShadow(ctx, px, s);
   if (hit) {
     eyes(ctx, 11, hy - 3, 5, seed + 11, 0, 0, '#111', 0.15);
   } else {
     eyes(ctx, 11, hy - 3, 4.5, seed + 11, 0.6, 0);
+    limb(ctx, [5, hy - 9, 16, hy - 7], 2, '#111');
   }
+  // outlaw hat (knocked flying when hit)
+  ctx.save();
+  if (hit) {
+    const k = Math.min(1, e.stateT / 0.45);
+    ctx.translate(-10 * k, -30 * k);
+    ctx.rotate(-1.2 * k);
+  }
+  paperShadow(ctx, px, s);
+  blob(ctx, 8, hy - 12, 19, 3.6, '#3a2618', seed + 13, 0.04, -0.08);
+  poly(ctx, [-2, hy - 13, 0, hy - 28, 8, hy - 25, 16, hy - 29, 18, hy - 14], '#4a3020', seed + 14, 0.5);
+  noShadow(ctx);
+  poly(ctx, [-1, hy - 16, 17.5, hy - 17, 17.6, hy - 14, -1.4, hy - 13.4], '#b8322a', seed + 15, 0.2);
+  ctx.restore();
   noShadow(ctx);
   ctx.restore();
-  if (hit) shout(ctx, e.x + 30, L.wallTop - 92 * s, 'BAWK!', e.stateT, px);
+  if (hit) shout(ctx, e.x + 40, L.wallTop - 92 * s, 'BAWK!', e.stateT, px);
 }
 
 // ------------------------------------------------------------------ bunnies
@@ -334,7 +380,7 @@ export function drawBunny(ctx: Ctx, e: Ent, t: number, px: number) {
   noShadow(ctx);
   ctx.restore();
   if (soaked || (e.state === 'flee' && e.stateT < 0.3)) {
-    shout(ctx, e.x + 20, e.y - 70 * e.s - 6, e.shout, soaked ? e.stateT : 1, px);
+    shout(ctx, e.x + 30, e.y - 70 * e.s - 6, e.shout, soaked ? e.stateT : 1, px);
   }
 }
 
@@ -386,5 +432,5 @@ export function drawTurtle(ctx: Ctx, e: Ent, t: number, px: number) {
   blob(ctx, 0, -7, 33, 3.5, mix(shell, '#e3cf4a', 0.35), seed + 10, 0.03);
   noShadow(ctx);
   ctx.restore();
-  if (inShell && e.stateT < 1.1) shout(ctx, e.x + 20, e.y - 50 * e.s - 6, e.shout === '!' ? 'OUCH!' : e.shout, e.stateT, px);
+  if (inShell && e.stateT < 1.1) shout(ctx, e.x + 30, e.y - 50 * e.s - 6, e.shout === '!' ? 'OUCH!' : e.shout, e.stateT, px);
 }

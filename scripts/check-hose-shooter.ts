@@ -4,7 +4,7 @@
 // - an aiming bot scores well (cats and chickens are hittable on the wall, tree and ground)
 // - a careless sprayer does hit bunnies/turtles sometimes (penalties work) and score never goes negative
 // - no NaN positions, entity counts stay bounded
-import { createGame, hitBox, step, ROUND_SECONDS, POINTS, type GameState, type Input } from '../src/games/hose-shooter/logic';
+import { createGame, hitBox, step, ROUND_SECONDS, COUNTDOWN_SECONDS, POINTS, type GameState, type Input } from '../src/games/hose-shooter/logic';
 
 const fail = (msg: string) => {
   console.error('FAIL:', msg);
@@ -59,6 +59,24 @@ function play(seed: number, H: number, bot: (g: GameState) => Input) {
 }
 
 const t0 = performance.now();
+// READY/STEADY/DRAW: no spraying, no clock and no characters until DRAW, then the round runs
+{
+  const g = createGame(866, 42);
+  const beats: string[] = [];
+  for (let i = 0; i < Math.ceil(COUNTDOWN_SECONDS * 60) - 2; i++) {
+    step(g, 1 / 60, { aimX: 200, aimY: 400, spraying: true });
+    for (const ev of g.events) if (ev.type === 'count') beats.push(ev.beat);
+    g.events.length = 0;
+    if (g.spraying || g.drops.length || g.time > 0 || g.ents.length) fail('something happened during the countdown');
+  }
+  for (let i = 0; i < 30; i++) {
+    step(g, 1 / 60, { aimX: 200, aimY: 400, spraying: true });
+    for (const ev of g.events) if (ev.type === 'count') beats.push(ev.beat);
+    g.events.length = 0;
+  }
+  if (beats.join(',') !== 'ready,steady,draw') fail(`countdown beats were ${beats.join(',')}`);
+  if (!g.spraying || g.time <= 0) fail('round did not start after the countdown');
+}
 const N = 60;
 let aimTotal = 0;
 let sweepPenalties = 0;

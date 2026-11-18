@@ -5,6 +5,6 @@ export const meta: GameMeta = {
   title: 'Hose Shooter',
   room: 'yard',
   spot: 'fps-wall',
-  blurb: 'Hose the cats, bonus for the chicken. Spare the bunnies and turtles!',
+  blurb: 'Showdown in the yard: hose the outlaw cats, bounty on the hen. Spare the bunnies and turtles!',
   status: 'ready',
 };

@@ -7,6 +7,8 @@
 
 export const W = 400;
 export const ROUND_SECONDS = 60;
+/** READY... STEADY... DRAW! before the clock starts. */
+export const COUNTDOWN_SECONDS = 2.4;
 
 export const POINTS = {
   catGround: 100,
@@ -180,7 +182,19 @@ export type GameEvent =
   | { type: 'splash'; x: number; y: number }
   | { type: 'chicken-up' }
   | { type: 'tick'; secondsLeft: number }
+  | { type: 'count'; beat: 'ready' | 'steady' | 'draw' }
   | { type: 'end' };
+
+/** A tumbleweed rolling across the dirt (scenery only, water passes through). */
+export interface Weed {
+  x: number;
+  depth: number;
+  vx: number;
+  r: number;
+  spin: number;
+  hopT: number;
+  seed: number;
+}
 
 export interface Stats {
   cats: number;
@@ -227,6 +241,10 @@ export interface GameState {
   bunnyCycle: number;
   turtleCycle: number;
   lastTick: number;
+  /** Seconds left in the READY/STEADY/DRAW countdown (0 once the round is on). */
+  countdown: number;
+  weeds: Weed[];
+  weedTimer: number;
 }
 
 export const CAT_VARIANTS = 5;
@@ -268,6 +286,9 @@ export function createGame(H: number, seed: number, demo = false): GameState {
     bunnyCycle: Math.floor(rng() * 3),
     turtleCycle: 0,
     lastTick: ROUND_SECONDS + 1,
+    countdown: demo ? 0 : COUNTDOWN_SECONDS,
+    weeds: [],
+    weedTimer: lerp(1, 3, rng()),
   };
 }
 
@@ -771,7 +792,7 @@ function soak(g: GameState, e: Ent) {
     else if (e.kind === 'chicken') g.stats.chickens++;
     else if (e.kind === 'bunny') g.stats.bunnies++;
     else g.stats.turtles++;
-    g.fx.push({ kind: 'points', x: fx - 26, y: fy - 4, s: 1, t: 0, life: 1.1, value: pts, seed: 0 });
+    g.fx.push({ kind: 'points', x: fx - 40, y: fy - 4, s: 1, t: 0, life: 1.1, value: pts, seed: 0 });
   }
   if (e.kind === 'chicken') g.fx.push({ kind: 'feathers', x: fx, y: fy + 10, s: 1, t: 0, life: 1.2, seed: g.rng() });
   g.events.push({ type: 'hit', kind: e.kind, points: pts, x: fx, y: fy });
@@ -779,13 +800,52 @@ function soak(g: GameState, e: Ent) {
 
 // ---------------------------------------------------------------- step
 
+function updateWeeds(g: GameState, dt: number) {
+  g.weedTimer -= dt;
+  if (g.weedTimer <= 0 && g.weeds.length < 2) {
+    const fromLeft = g.rng() < 0.5;
+    const depth = lerp(0.05, 0.9, g.rng());
+    g.weeds.push({
+      x: fromLeft ? -40 : W + 40,
+      depth,
+      vx: (fromLeft ? 1 : -1) * lerp(55, 95, g.rng()),
+      r: lerp(18, 26, g.rng()),
+      spin: 0,
+      hopT: g.rng(),
+      seed: g.rng() * 100,
+    });
+    g.weedTimer = lerp(5, 11, g.rng());
+  }
+  for (const w of g.weeds) {
+    const s = groundAt(g.L, w.depth).s;
+    w.x += w.vx * s * dt;
+    w.spin += (w.vx * s * dt) / (w.r * s);
+    w.hopT += dt * 1.6;
+  }
+  g.weeds = g.weeds.filter((w) => w.x > -60 && w.x < W + 60);
+}
+
 export function step(g: GameState, dt: number, input: Input) {
   if (!g.running) return;
   dt = Math.min(dt, 0.05);
   const { L } = g;
   g.aimX = clamp(input.aimX, 0, W);
   g.aimY = clamp(input.aimY, 30, L.aimMaxY);
-  g.spraying = input.spraying && !g.over;
+  g.spraying = input.spraying && !g.over && g.countdown <= 0;
+  updateWeeds(g, dt);
+
+  if (g.countdown > 0) {
+    const before = g.countdown;
+    g.countdown = Math.max(0, g.countdown - dt);
+    const beat = (t: number) => before > t && g.countdown <= t;
+    if (before === COUNTDOWN_SECONDS) g.events.push({ type: 'count', beat: 'ready' });
+    else if (beat(COUNTDOWN_SECONDS * (2 / 3))) g.events.push({ type: 'count', beat: 'steady' });
+    else if (beat(COUNTDOWN_SECONDS / 3)) g.events.push({ type: 'count', beat: 'draw' });
+    const target = Math.atan2(g.aimX - L.pivotX, L.pivotY - g.aimY);
+    g.angle += (target - g.angle) * Math.min(1, dt * 18);
+    for (const f of g.fx) f.t += dt;
+    return;
+  }
 
   if (!g.demo && !g.over) {
     g.time += dt;

@@ -117,38 +117,99 @@ export class Sfx {
     o.stop(t + dur + 0.02);
   }
 
+  private strings = new Map<number, AudioBuffer>();
+
+  /** Karplus-Strong plucked string: a twangy desert guitar note. */
+  private twang(freq: number, at = 0, gain = 0.3, dur = 1.4) {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const key = Math.round(freq);
+    let buf = this.strings.get(key);
+    if (!buf) {
+      const sr = ctx.sampleRate;
+      const len = Math.floor(sr * dur);
+      buf = ctx.createBuffer(1, len, sr);
+      const d = buf.getChannelData(0);
+      const n = Math.max(2, Math.round(sr / freq));
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      for (let i = n; i < len; i++) d[i] = 0.4985 * (d[i - n] + d[i - n + 1]);
+      this.strings.set(key, buf);
+    }
+    const t = ctx.currentTime + at;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    // a touch of "spaghetti western" spring reverb wobble
+    src.detune.setValueAtTime(0, t);
+    src.detune.linearRampToValueAtTime(-25, t + dur);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 90;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(hp).connect(g).connect(this.master);
+    const echo = ctx.createDelay(0.5);
+    echo.delayTime.value = 0.18;
+    const eg = ctx.createGain();
+    eg.gain.value = 0.28;
+    g.connect(echo).connect(eg).connect(this.master);
+    src.start(t);
+    src.stop(t + dur);
+  }
+
+  /** Ricochet: a falling whine off a splash. */
+  private ricochet(at = 0, gain = 0.1) {
+    const f = 2600 + Math.random() * 900;
+    this.tone('sine', [[0, f], [0.28, f * 0.42]], 0.32, gain, at, 60);
+  }
+
+  private bell(freq: number, at = 0, gain = 0.22) {
+    for (const [mul, gk] of [[1, 1], [2.76, 0.45], [5.4, 0.25]] as const) this.tone('sine', [[0, freq * mul], [1, freq * mul]], 1.1, gain * gk, at);
+  }
+
   splash() {
     this.burst(0.18, 1800, 0.35);
   }
 
   cat() {
     this.burst(0.25, 1400, 0.4);
+    this.ricochet(0.02, 0.08);
     const base = 480 + Math.random() * 160;
-    this.tone('sawtooth', [[0, base], [0.12, base * 1.9], [0.38, base * 0.8]], 0.42, 0.22, 0.03, 18);
+    this.tone('sawtooth', [[0, base], [0.12, base * 1.9], [0.38, base * 0.8]], 0.42, 0.2, 0.06, 18);
   }
 
   chicken() {
     this.burst(0.3, 2400, 0.35);
-    for (let i = 0; i < 3; i++) this.tone('square', [[0, 700 + i * 60], [0.05, 1100 + i * 80], [0.1, 600]], 0.12, 0.12, i * 0.11);
-    // a little bonus jingle
-    [784, 988, 1175, 1568].forEach((f, i) => this.tone('triangle', [[0, f], [0.1, f]], 0.16, 0.12, 0.35 + i * 0.07));
+    for (let i = 0; i < 3; i++) this.tone('square', [[0, 700 + i * 60], [0.05, 1100 + i * 80], [0.1, 600]], 0.12, 0.1, i * 0.11);
+    // outlaw caught: a bright twangy run
+    [330, 392, 494, 659, 988].forEach((f, i) => this.twang(f, 0.32 + i * 0.07, 0.24));
   }
 
   oops() {
     this.burst(0.2, 900, 0.3);
-    this.tone('triangle', [[0, 330], [0.12, 300]], 0.16, 0.22);
-    this.tone('triangle', [[0, 220], [0.25, 150]], 0.32, 0.22, 0.15);
+    this.twang(110, 0, 0.32, 1.2);
+    this.twang(104, 0.16, 0.3, 1.2);
   }
 
   chickenUp() {
-    this.tone('square', [[0, 900], [0.06, 1300]], 0.09, 0.06);
+    this.twang(880, 0, 0.12, 0.6);
   }
 
   tick() {
-    this.tone('square', [[0, 1000], [0.04, 1000]], 0.06, 0.08);
+    this.bell(1320, 0, 0.08);
   }
 
+  count(beat: 'ready' | 'steady' | 'draw') {
+    if (beat === 'draw') {
+      this.burst(0.25, 3000, 0.45, 'bandpass');
+      this.ricochet(0.04, 0.12);
+      [165, 247, 330].forEach((f, i) => this.twang(f, 0.05 + i * 0.05, 0.3));
+    } else this.bell(beat === 'ready' ? 660 : 784, 0, 0.18);
+  }
+
+  /** Round over: a mournful low twang riff and a long whistle. */
   whistle() {
-    this.tone('sine', [[0, 1900], [0.1, 2300], [0.5, 2200]], 0.6, 0.18, 0, 40);
+    [330, 294, 247, 165].forEach((f, i) => this.twang(f, i * 0.2, 0.3, 1.6));
+    this.tone('sine', [[0, 1500], [0.25, 1900], [1.1, 1700]], 1.2, 0.1, 0.85, 30);
   }
 }
