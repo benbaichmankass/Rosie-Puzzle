@@ -5,6 +5,6 @@ export const meta: GameMeta = {
   title: 'Cabinet Breaker',
   room: 'kitchen',
   spot: 'kitchen-cabinets',
-  blurb: 'Smash the dishes, pots and pans in the kitchen cabinets.',
-  status: 'coming-soon',
+  blurb: 'Bounce a lemon to smash the dishes, pots and pans off the kitchen shelves.',
+  status: 'ready',
 };
