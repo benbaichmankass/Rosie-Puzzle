@@ -524,17 +524,19 @@ export function drawRosie(g: CanvasRenderingContext2D, x: number, y: number, u: 
   // grey ticking
   const ticks = [[-0.11, -0.5], [-0.06, -0.42], [-0.1, -0.6], [0.12, -0.58], [-0.02, -0.62], [-0.13, -0.38], [0.09, -0.38]];
   for (const [tx, ty] of ticks) ell(g, tx, ty - bob, 0.011, 0.009, '#9a9a9a');
-  // long thin tail, wagging
-  const tb = -0.55 - bob;
-  const tx = Math.sin(wag) * 0.22;
+  // long thin tail, sweeping side to side (wag in -1..1)
+  const tb = -0.54 - bob;
+  const sw = wag;
+  const tipX = sw * 0.36, tipY = tb + 0.12 - Math.abs(sw) * 0.26;
+  const tail = () => { g.beginPath(); g.moveTo(0, tb); g.bezierCurveTo(sw * 0.1, tb - 0.1, sw * 0.3, tb - 0.08, tipX, tipY); };
+  tail();
+  g.lineWidth = 0.058; g.strokeStyle = '#bdb5a8'; g.stroke();
+  tail();
+  g.lineWidth = 0.042; g.strokeStyle = WHITE; g.stroke();
   g.beginPath();
-  g.moveTo(0, tb);
-  g.quadraticCurveTo(tx * 0.4, tb - 0.2, tx, tb - 0.32);
-  g.lineWidth = 0.04; g.strokeStyle = WHITE; g.stroke();
-  g.beginPath();
-  g.moveTo(tx * 0.7, tb - 0.27);
-  g.quadraticCurveTo(tx * 0.9, tb - 0.31, tx, tb - 0.32);
-  g.lineWidth = 0.03; g.strokeStyle = SHADOW; g.stroke();
+  g.moveTo(sw * 0.3, tb - 0.04);
+  g.quadraticCurveTo(sw * 0.34, tipY - 0.02, tipX, tipY);
+  g.lineWidth = 0.028; g.strokeStyle = SHADOW; g.stroke();
   g.restore();
 }
 
