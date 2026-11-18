@@ -14,6 +14,8 @@ export interface Layout {
   /** Scale relative to a 390 px wide phone. */
   s: number;
   wallTop: number;
+  /** The goal line: hedges this tall hide every window of the apartments across the street. */
+  targetY: number;
   /** Where the wall meets the plant bed (plants are rooted just below). */
   soilY: number;
   plantBaseY: number;
@@ -34,7 +36,8 @@ export function makeLayout(W: number, H: number): Layout {
     W,
     H,
     s,
-    wallTop: Math.round(H * 0.13),
+    wallTop: Math.round(H * 0.39),
+    targetY: Math.round(H * 0.135),
     soilY,
     plantBaseY: soilY + 14 * s,
     fenceTop: fenceBottom - fenceH,
@@ -179,14 +182,7 @@ export function paintBackground(ctx: CanvasRenderingContext2D, L: Layout) {
   ctx.fillStyle = '#f2ead9';
   ctx.fillRect(0, 0, W, H);
 
-  // Sky: pale washes above the wall.
-  const sky = ctx.createLinearGradient(0, 0, 0, L.wallTop);
-  sky.addColorStop(0, '#d9e3e2');
-  sky.addColorStop(1, '#efe6d6');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, L.wallTop + 6);
-  wash(ctx, band(-20, W + 20, -20, L.wallTop * 0.6, rng, 16), '178,204,214', 0.35, rng, 8, 3, 0);
-  wash(ctx, blob(W * 0.75, L.wallTop * 0.4, W * 0.35, L.wallTop * 0.35, rng, 14, 0.2), '230,214,200', 0.35, rng, 8, 3, 0);
+  paintApartments(ctx, L, rng);
 
   // Wall: cream render, layered washes.
   wash(ctx, band(-20, W + 20, L.wallTop, L.soilY + 6, rng, 6 * s), '233,220,194', 0.85, rng, 3, 4, 0.25);
@@ -239,14 +235,15 @@ export function paintBackground(ctx: CanvasRenderingContext2D, L: Layout) {
       ctx.stroke();
     }
   };
-  branch(-10, L.wallTop * 0.55, W * 0.36, L.wallTop * 0.35, 6 * s);
-  branch(W * 0.18, L.wallTop * 0.48, W * 0.3, L.wallTop * 0.85, 3 * s);
-  branch(W * 0.3, L.wallTop * 0.38, W * 0.48, L.wallTop * 0.5, 2.5 * s);
+  const by0 = L.targetY;
+  branch(-10, by0 * 0.55, W * 0.36, by0 * 0.35, 6 * s);
+  branch(W * 0.18, by0 * 0.48, W * 0.3, by0 * 0.85, 3 * s);
+  branch(W * 0.3, by0 * 0.38, W * 0.48, by0 * 0.5, 2.5 * s);
   ctx.restore();
   for (let i = 0; i < 26; i++) {
     const t = rng();
     const x = lerp(0, W * 0.5, t) + (rng() - 0.5) * 30 * s;
-    const y = lerp(L.wallTop * 0.55, L.wallTop * 0.4, t) + (rng() - 0.5) * 34 * s;
+    const y = lerp(by0 * 0.55, by0 * 0.4, t) + (rng() - 0.5) * 34 * s;
     const pts = leafShape(x, y, (8 + rng() * 6) * s, (3 + rng() * 2) * s, rng() * TAU);
     wash(ctx, pts, rng() < 0.6 ? '86,120,80' : '120,140,84', 0.5, rng, 0.8, 2, 0.6);
   }
@@ -333,6 +330,214 @@ export function paintBackground(ctx: CanvasRenderingContext2D, L: Layout) {
   ctx.restore();
 }
 
+/** The apartment block across the street, peeking over the yard wall: the view the hedges must hide. */
+function paintApartments(ctx: CanvasRenderingContext2D, L: Layout, rng: Rng) {
+  const { W, s } = L;
+  const sky = ctx.createLinearGradient(0, 0, 0, L.targetY);
+  sky.addColorStop(0, '#d6e2e3');
+  sky.addColorStop(1, '#efe6d6');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, L.wallTop + 6);
+  wash(ctx, band(-20, W + 20, -20, L.targetY * 0.5, rng, 16), '178,204,214', 0.35, rng, 8, 3, 0);
+
+  const rowTop0 = L.targetY + 8 * s;
+  const rowStep = (L.wallTop - L.targetY - 6 * s) / 3;
+  const winH = rowStep * 0.6;
+  const blocks = [
+    { x0: -12, x1: W * 0.56, roof: L.targetY - 22 * s, col: '226,198,156', trim: '196,164,120' },
+    { x0: W * 0.56, x1: W + 12, roof: L.targetY - 34 * s, col: '234,216,200', trim: '204,180,164' },
+  ];
+  blocks.forEach((bk, bi) => {
+    // Facade, parapet and roof clutter (solar water heaters, antennas).
+    wash(ctx, band(bk.x0, bk.x1, bk.roof, L.wallTop + 12, rng, 2 * s, 30), bk.col, 0.9, rng, 1.5, 3, 0.4);
+    wash(ctx, band(bk.x0, bk.x1, bk.roof - 2 * s, bk.roof + 6 * s, rng, 1.5 * s, 30), bk.trim, 0.8, rng, 1, 2, 0.4);
+    const heaters = bi === 0 ? [0.25, 0.68] : [0.4];
+    for (const f of heaters) {
+      const hx = lerp(bk.x0, bk.x1, f);
+      const hy = bk.roof - 2 * s;
+      ctx.strokeStyle = 'rgba(70,64,60,0.7)';
+      ctx.lineWidth = 1.2 * s;
+      ctx.beginPath();
+      ctx.moveTo(hx - 12 * s, hy);
+      ctx.lineTo(hx - 10 * s, hy - 14 * s);
+      ctx.moveTo(hx + 12 * s, hy);
+      ctx.lineTo(hx + 10 * s, hy - 14 * s);
+      ctx.stroke();
+      // Tank.
+      wash(ctx, blob(hx, hy - 17 * s, 15 * s, 5 * s, rng, 14, 0.04), '236,236,232', 0.95, rng, 0.6, 2, 0.6);
+      // Tilted panel.
+      wash(
+        ctx,
+        [
+          [hx - 26 * s, hy],
+          [hx - 14 * s, hy - 12 * s],
+          [hx + 2 * s, hy - 12 * s],
+          [hx - 8 * s, hy],
+        ],
+        '60,78,110',
+        0.85,
+        rng,
+        0.5,
+        2,
+        0.5,
+      );
+    }
+    ctx.strokeStyle = 'rgba(60,55,50,0.7)';
+    ctx.lineWidth = 1 * s;
+    const ax = lerp(bk.x0, bk.x1, bi === 0 ? 0.47 : 0.8);
+    ctx.beginPath();
+    ctx.moveTo(ax, bk.roof);
+    ctx.lineTo(ax, bk.roof - 26 * s);
+    ctx.moveTo(ax - 8 * s, bk.roof - 20 * s);
+    ctx.lineTo(ax + 8 * s, bk.roof - 20 * s);
+    ctx.moveTo(ax - 5 * s, bk.roof - 14 * s);
+    ctx.lineTo(ax + 5 * s, bk.roof - 14 * s);
+    ctx.stroke();
+
+    // Windows, row by row, with a concrete ledge under each row.
+    const cols = Math.max(2, Math.round((bk.x1 - bk.x0) / (72 * s)));
+    const cw = (bk.x1 - bk.x0) / cols;
+    for (let r = 0; r < 3; r++) {
+      const y = rowTop0 + r * rowStep;
+      wash(ctx, band(bk.x0, bk.x1, y + winH + 3 * s, y + winH + 8 * s, rng, 1 * s, 30), bk.trim, 0.75, rng, 0.8, 2, 0.4);
+      wash(ctx, band(bk.x0, bk.x1, y + winH + 8 * s, y + winH + 12 * s, rng, 1 * s, 30), '120,96,70', 0.18, rng, 1, 2, 0);
+      for (let c = 0; c < cols; c++) {
+        const cx = bk.x0 + (c + 0.5) * cw;
+        const ww = Math.min(cw * 0.6, 40 * s);
+        const x0 = cx - ww / 2;
+        // Frame and glass.
+        wash(ctx, band(x0 - 3 * s, x0 + ww + 3 * s, y - 3 * s, y + winH + 3 * s, rng, 0.8 * s, ww), '246,240,228', 0.9, rng, 0.5, 2, 0.3);
+        wash(ctx, band(x0, x0 + ww, y, y + winH, rng, 0.8 * s, ww / 2), '92,114,138', 0.72, rng, 0.6, 3, 0.4);
+        wash(
+          ctx,
+          [
+            [x0 + ww * 0.15, y + winH * 0.1],
+            [x0 + ww * 0.32, y + winH * 0.1],
+            [x0 + ww * 0.12, y + winH * 0.9],
+            [x0 + ww * 0.02, y + winH * 0.9],
+          ],
+          '200,214,224',
+          0.25,
+          rng,
+          0.3,
+          1,
+          0,
+        );
+        // Some roller shutters (trisim) part way down.
+        const shut = rng();
+        if (shut < 0.35) {
+          const sh = winH * (0.25 + rng() * 0.5);
+          wash(ctx, band(x0 - 1 * s, x0 + ww + 1 * s, y - 1 * s, y + sh, rng, 0.5 * s, ww), '206,196,176', 0.95, rng, 0.4, 2, 0.4);
+          ctx.strokeStyle = 'rgba(120,104,84,0.45)';
+          ctx.lineWidth = 0.7 * s;
+          for (let k = y + 3 * s; k < y + sh; k += 3 * s) {
+            ctx.beginPath();
+            ctx.moveTo(x0, k);
+            ctx.lineTo(x0 + ww, k);
+            ctx.stroke();
+          }
+        } else if (shut < 0.7) {
+          paintNeighbour(ctx, cx, y + winH, ww, winH, rng, s);
+        }
+        // The odd AC unit hanging beside a window.
+        if (rng() < 0.18) {
+          const ux = cx + cw * 0.38;
+          wash(ctx, band(ux - 9 * s, ux + 9 * s, y + winH * 0.4, y + winH * 0.4 + 11 * s, rng, 0.5 * s, 18 * s), '240,240,236', 0.95, rng, 0.4, 2, 0.6);
+          ctx.strokeStyle = 'rgba(100,100,100,0.5)';
+          ctx.lineWidth = 0.6 * s;
+          ctx.beginPath();
+          ctx.arc(ux, y + winH * 0.4 + 5.5 * s, 3.5 * s, 0, TAU);
+          ctx.stroke();
+        }
+      }
+    }
+  });
+  // Soft atmospheric haze so the far block sits back behind the yard.
+  ctx.fillStyle = 'rgba(232,226,214,0.22)';
+  ctx.fillRect(0, 0, W, L.wallTop);
+}
+
+/** A neighbour peering out of a window (head and shoulders, sometimes with binoculars or a cat on the sill). */
+function paintNeighbour(ctx: CanvasRenderingContext2D, cx: number, sill: number, ww: number, wh: number, rng: Rng, s: number) {
+  const skins = ['232,190,160', '214,166,130', '176,124,92', '240,206,180'];
+  const shirts = ['190,70,60', '70,110,150', '230,200,90', '120,150,100', '200,200,196'];
+  const hairs = ['50,36,28', '30,24,22', '150,110,70', '200,196,190'];
+  const x = cx + (rng() - 0.5) * ww * 0.3;
+  const headR = Math.min(ww * 0.17, wh * 0.2);
+  const hy = sill - wh * 0.45;
+  wash(ctx, blob(x, sill - wh * 0.08, ww * 0.34, wh * 0.26, rng, 14, 0.06), shirts[Math.floor(rng() * shirts.length)], 0.9, rng, 0.4, 2, 0.4);
+  wash(ctx, blob(x, hy, headR, headR * 1.1, rng, 14, 0.05), skins[Math.floor(rng() * skins.length)], 0.95, rng, 0.3, 2, 0.4);
+  wash(ctx, blob(x, hy - headR * 0.55, headR * 1.05, headR * 0.6, rng, 12, 0.1), hairs[Math.floor(rng() * hairs.length)], 0.9, rng, 0.3, 2, 0.3);
+  const extra = rng();
+  if (extra < 0.4) {
+    // Binoculars, nosy.
+    ctx.fillStyle = 'rgba(30,30,34,0.9)';
+    ctx.beginPath();
+    ctx.arc(x - headR * 0.4, hy + headR * 0.1, headR * 0.38, 0, TAU);
+    ctx.arc(x + headR * 0.4, hy + headR * 0.1, headR * 0.38, 0, TAU);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(30,24,20,0.85)';
+    ctx.beginPath();
+    ctx.arc(x - headR * 0.35, hy + headR * 0.05, 1.1 * s, 0, TAU);
+    ctx.arc(x + headR * 0.35, hy + headR * 0.05, 1.1 * s, 0, TAU);
+    ctx.fill();
+  }
+  if (extra > 0.75) {
+    // A cat on the sill.
+    const kx = cx + ww * 0.28;
+    wash(ctx, blob(kx, sill - 4 * s, 7 * s, 4.5 * s, rng, 10, 0.08), '70,66,64', 0.95, rng, 0.3, 2, 0);
+    wash(ctx, blob(kx + 5 * s, sill - 9 * s, 3.6 * s, 3.4 * s, rng, 10, 0.06), '70,66,64', 0.95, rng, 0.3, 2, 0);
+    ctx.fillStyle = 'rgba(70,66,64,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(kx + 2.4 * s, sill - 11 * s);
+    ctx.lineTo(kx + 3.4 * s, sill - 14.5 * s);
+    ctx.lineTo(kx + 4.8 * s, sill - 11.5 * s);
+    ctx.moveTo(kx + 5.6 * s, sill - 11.5 * s);
+    ctx.lineTo(kx + 7.2 * s, sill - 14.5 * s);
+    ctx.lineTo(kx + 8 * s, sill - 10.5 * s);
+    ctx.fill();
+  }
+}
+
+/** The goal line across the apartment windows, with a little paper flag. */
+export function drawTargetLine(ctx: CanvasRenderingContext2D, L: Layout, now: number, font: string) {
+  const { W, s } = L;
+  const y = L.targetY;
+  ctx.save();
+  ctx.setLineDash([7 * s, 6 * s]);
+  ctx.lineDashOffset = -now * 6 * s;
+  ctx.strokeStyle = 'rgba(183,58,46,0.75)';
+  ctx.lineWidth = 2 * s;
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(W, y);
+  ctx.stroke();
+  ctx.restore();
+  // Flag on the right edge.
+  const fx = W - 8 * s;
+  const fw = 74 * s;
+  const fh = 17 * s;
+  const rng = mulberry32(55);
+  const flag: Pt[] = jitterPts(
+    [
+      [fx - fw, y - fh / 2],
+      [fx, y - fh / 2],
+      [fx, y + fh / 2],
+      [fx - fw, y + fh / 2],
+      [fx - fw - 6 * s, y],
+    ],
+    0.4 * s,
+    rng,
+  );
+  paperPiece(ctx, { polys: [flag], fill: '#b73a2e' });
+  ctx.fillStyle = '#fbefe0';
+  ctx.font = `800 ${10.5 * s}px ${font}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('hide the view', fx - fw / 2 - 1 * s, y + 0.5 * s);
+}
+
 /** The low green wire fence in front of the bed (drawn above the bed but below yard bunnies). */
 export function paintFence(ctx: CanvasRenderingContext2D, L: Layout) {
   const { W, s } = L;
@@ -402,67 +607,63 @@ export function leafShape(x: number, y: number, len: number, w: number, ang: num
   return pts;
 }
 
-interface LeafSlot {
-  stem: number;
-  t: number;
-  side: number;
-  len: number;
-  w: number;
-  spread: number;
+interface Cluster {
+  /** -1..1 across the hedge. */
+  u: number;
+  /** 0..1 up the hedge. */
+  v: number;
+  r: number;
+  /** Foliage level (0..1) at which this cluster is present: the thin outer bits go first. */
+  thr: number;
+  shade: number;
+  pts: Pt[];
 }
 export interface PlantShape {
-  stems: { lean: number; len: number; bend: number; dx: number }[];
-  slots: LeafSlot[];
+  clusters: Cluster[];
+  twigs: { u: number; top: number }[];
   tint: number;
   seed: number;
 }
 
+/** A hedge: a column of watercolor leaf clusters over an ink branch skeleton. */
 export function makePlantShape(i: number): PlantShape {
   const rng = mulberry32(500 + i * 31);
-  const stems = [
-    { lean: -0.12 - rng() * 0.05, len: 0.8 + rng() * 0.1, bend: -0.16, dx: -3 },
-    { lean: (rng() - 0.5) * 0.06, len: 1, bend: 0.06 * (rng() - 0.5), dx: 0 },
-    { lean: 0.12 + rng() * 0.05, len: 0.84 + rng() * 0.1, bend: 0.16, dx: 3 },
-  ];
-  const slots: LeafSlot[] = [];
-  for (let k = 0; k < TUNING.maxLeaves; k++) {
-    const stem = [1, 0, 2][k % 3];
-    const t = 0.12 + (k / (TUNING.maxLeaves - 1)) * 0.84;
-    slots.push({ stem, t, side: k % 2 ? 1 : -1, len: 25 + rng() * 4 - k * 0.6, w: 18 + rng() * 3 - k * 0.4, spread: 0.55 + rng() * 0.25 });
+  const clusters: Cluster[] = [];
+  for (let k = 0; k < 74; k++) {
+    const v = Math.pow(rng(), 0.85);
+    const u = (rng() * 2 - 1) * (1 - 0.35 * v * v);
+    clusters.push({
+      u,
+      v,
+      r: 11 + rng() * 8,
+      thr: Math.min(0.97, 0.04 + 0.6 * rng() * 0.8 + 0.45 * Math.abs(u) * rng()),
+      shade: rng(),
+      pts: blob(0, 0, 1, 0.82, rng, 12, 0.16, rng() * TAU),
+    });
   }
-  return { stems, slots, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
+  clusters.sort((a, b) => a.shade - b.shade);
+  const twigs = [-0.7, -0.35, 0, 0.35, 0.7].map((u) => ({ u: u + (rng() - 0.5) * 0.15, top: 0.75 + rng() * 0.2 }));
+  return { clusters, twigs, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
 }
 
-function stemPoint(bx: number, by: number, st: PlantShape['stems'][number], H: number, t: number): { x: number; y: number; ang: number } {
-  const len = st.len * H;
-  const x1 = bx + st.dx + Math.sin(st.lean) * len;
-  const y1 = by - Math.cos(st.lean) * len;
-  const cx = bx + st.dx + Math.sin(st.lean + st.bend) * len * 0.5;
-  const cy = by - Math.cos(st.lean + st.bend) * len * 0.55;
-  const u = 1 - t;
-  const x = u * u * (bx + st.dx) + 2 * u * t * cx + t * t * x1;
-  const y = u * u * by + 2 * u * t * cy + t * t * y1;
-  const dx = 2 * u * (cx - bx - st.dx) + 2 * t * (x1 - cx);
-  const dy = 2 * u * (cy - by) + 2 * t * (y1 - cy);
-  return { x, y, ang: Math.atan2(dy, dx) };
+/** Hedges start as separate bushes and widen as they grow, closing the gaps only near full height. */
+const hedgeHalfW = (L: Layout, p?: Plant) => (L.W / 5) * 0.6 * (p ? 0.5 + 0.5 * Math.min(1, p.height) : 1);
+const hedgePx = (L: Layout, p: Plant) => p.height * (L.plantBaseY - L.targetY);
+
+/** Where the can should pour for hedge i (its top). */
+export function plantTop(L: Layout, p: Plant, _shape: PlantShape) {
+  return { x: p.x * L.W, y: L.plantBaseY - hedgePx(L, p) };
 }
 
-/** Where the can should pour for plant i (top of its foliage). */
-export function plantTop(L: Layout, p: Plant, shape: PlantShape) {
-  const n = Math.max(1, p.leaves);
-  const t = shape.slots[Math.min(n, shape.slots.length) - 1].t;
-  return { x: p.x * L.W, y: L.plantBaseY - t * L.plantMaxH * 0.95 - 20 * L.s };
-}
-
-export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, shape: PlantShape, appear: number[], now: number, wobble: number, danger = 0) {
+export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, shape: PlantShape, now: number, wobble: number, danger = 0) {
   const bx = p.x * L.W;
   const by = L.plantBaseY;
-  const H = L.plantMaxH;
   const s = L.s;
   const rng = mulberry32(shape.seed);
+  const hPx = hedgePx(L, p);
 
-  // Each plant sits in its own little soil mound ringed with pebbles.
-  const mound = blob(bx, by + 4 * s, 30 * s, 11 * s, rng, 16, 0.08);
+  // Soil mound ringed with pebbles.
+  const mound = blob(bx, by + 4 * s, 34 * s, 11 * s, rng, 16, 0.08);
   wash(
     ctx,
     mound.map(([x, y]) => [x, Math.min(y, by + 6 * s)] as Pt),
@@ -473,131 +674,97 @@ export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, sh
     2,
     0.5,
   );
-  wash(ctx, blob(bx - 4 * s, by - 2 * s, 16 * s, 4 * s, rng, 12, 0.1), '150,112,80', 0.35, rng, 1, 2, 0);
   for (let i = 0; i < 7; i++) {
     const a = Math.PI * (0.05 + (i / 6) * 0.9);
-    const px = bx - Math.cos(a) * 31 * s;
-    const py = by + 6 * s - Math.sin(a) * 3 * s + 2 * s;
-    traceSmooth(ctx, blob(px, py, 3.4 * s, 2.2 * s, rng, 8, 0.2));
+    traceSmooth(ctx, blob(bx - Math.cos(a) * 35 * s, by + 8 * s - Math.sin(a) * 3 * s, 3.4 * s, 2.2 * s, rng, 8, 0.2));
     ctx.fillStyle = i % 2 ? 'rgba(206,190,166,0.9)' : 'rgba(170,156,136,0.9)';
     ctx.fill();
   }
-
-  // Wet soil spot.
   if (p.moisture > 0.02) {
     ctx.fillStyle = `rgba(60,38,26,${0.35 * p.moisture})`;
-    traceSmooth(ctx, blob(bx, by + 6 * s, 30 * s, 7 * s, rng, 12, 0.15));
+    traceSmooth(ctx, blob(bx, by + 6 * s, 34 * s, 7 * s, rng, 12, 0.15));
     ctx.fill();
   }
 
-  if (danger > 0 && p.alive) {
-    // A pulsing red wash behind a plant that is about to be eaten bare.
-    const r = 52 * s;
-    const g = ctx.createRadialGradient(bx, by - 26 * s, 0, bx, by - 26 * s, r);
-    const al = danger * (0.16 + 0.1 * Math.sin(now * 8));
-    g.addColorStop(0, `rgba(196,64,44,${al})`);
-    g.addColorStop(1, 'rgba(196,64,44,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(bx - r, by - 26 * s - r, r * 2, r * 2);
+  const halfW = hedgeHalfW(L, p);
+  const sway = Math.sin(now * 1.1 + shape.seed) * 1.5 * s + wobble * 40 * s;
+
+  // Ink branch skeleton (shows through when the hedge is thin, and is all that is left when it dies).
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const tw of shape.twigs) {
+    const tx = bx + tw.u * halfW * 0.7 + sway * tw.top;
+    const ty = by - hPx * tw.top;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.strokeStyle = p.alive ? (pass ? 'rgba(60,46,34,0.8)' : 'rgba(70,58,40,0.3)') : pass ? 'rgba(110,88,62,0.85)' : 'rgba(110,88,62,0.25)';
+      ctx.lineWidth = (pass ? 1.8 : 3.6) * s;
+      ctx.beginPath();
+      ctx.moveTo(bx + tw.u * 4 * s, by);
+      ctx.quadraticCurveTo(bx + tw.u * halfW * 0.25, by - hPx * 0.45, tx, ty);
+      ctx.stroke();
+    }
   }
+  ctx.restore();
+
   if (!p.alive) {
-    drawDeadPlant(ctx, L, bx, by, shape, now - p.diedAt);
+    // A few dry brown leaves cling to the bare branches.
+    const since = now - p.diedAt;
+    for (let k = 0; k < 7; k++) {
+      const tw = shape.twigs[k % shape.twigs.length];
+      const t = 0.4 + ((k * 0.37) % 0.55);
+      const x = bx + tw.u * halfW * 0.7 * t;
+      const y = by - hPx * tw.top * t + Math.min(1, since) * 4 * s;
+      traceSmooth(ctx, leafShape(x, y, 10 * s, 3.6 * s, 1.2 + k));
+      ctx.fillStyle = 'rgba(150,108,60,0.7)';
+      ctx.fill();
+    }
     return;
   }
 
-  const visible = p.leaves;
-  const topT = visible > 0 ? shape.slots[visible - 1].t : 0.1;
-  const sway = Math.sin(now * 1.3 + shape.seed) * 0.015 + wobble;
+  if (danger > 0) {
+    const r = 56 * s;
+    const cy = by - Math.min(hPx, 120 * s) * 0.4;
+    const g = ctx.createRadialGradient(bx, cy, 0, bx, cy, r);
+    const al = danger * (0.18 + 0.1 * Math.sin(now * 8));
+    g.addColorStop(0, `rgba(196,64,44,${al})`);
+    g.addColorStop(1, 'rgba(196,64,44,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(bx - r, cy - r, r * 2, r * 2);
+  }
 
-  // Ink stems (sumi brush): drawn up to just above the highest leaf.
-  ctx.save();
-  ctx.lineCap = 'round';
-  shape.stems.forEach((st, si) => {
-    const maxT = Math.min(1, topT / st.len + 0.06);
-    const segs = 10;
-    for (let pass = 0; pass < 2; pass++) {
-      ctx.beginPath();
-      for (let k = 0; k <= segs; k++) {
-        const t = (k / segs) * maxT;
-        const q = stemPoint(bx, by, { ...st, lean: st.lean + sway * t }, H, t);
-        if (k === 0) ctx.moveTo(q.x, q.y);
-        else ctx.lineTo(q.x, q.y);
-      }
-      ctx.strokeStyle = pass === 0 ? 'rgba(70,58,40,0.35)' : 'rgba(54,44,32,0.8)';
-      ctx.lineWidth = (pass === 0 ? 4 : 2.1 - si * 0.2) * s;
-      ctx.stroke();
-    }
-  });
-  ctx.restore();
-
-  // Leaf colour: sage green, brighter when watered, yellowing when nearly bare.
+  // Foliage. Fullness is continuous (leaves plus growth towards the next) so clusters fade in and out.
+  const full = clamp01((p.leaves + Math.min(1, p.growth)) / TUNING.maxLeaves);
   const m = p.moisture;
-  const weak = clamp01((4 - visible) / 4);
-  const baseR = lerp(lerp(124, 92, m), 170, weak * 0.6);
-  const baseG = lerp(lerp(150, 158, m), 158, weak * 0.3);
-  const baseB = lerp(lerp(112, 104, m), 90, weak * 0.6);
-  const tint = (shape.tint - 0.5) * 34;
-
-  for (let k = 0; k < visible; k++) {
-    const sl = shape.slots[k];
-    const st = shape.stems[sl.stem];
-    const t = Math.min(1, sl.t / st.len);
-    const q = stemPoint(bx, by, { ...st, lean: st.lean + sway * t }, H, t);
-    const grow = clamp01((now - (appear[k] ?? -10)) / 0.4);
-    const sc = (0.25 + 0.75 * (1 - Math.pow(1 - grow, 3))) * s;
-    for (let j = 0; j < 2; j++) {
-      const ang = q.ang + (j ? -sl.side : sl.side) * sl.spread * (j ? 0.85 : 1) + Math.sin(now * 2 + k + j) * 0.03;
-      const len = sl.len * (j ? 0.82 : 1);
-      const pts = leafShape(q.x, q.y, len * sc, sl.w * sc * (j ? 0.42 : 0.5), ang);
-      const r = Math.round(baseR + tint + (k % 3) * 6);
-      const g = Math.round(baseG - (k % 2) * 8);
-      const b = Math.round(baseB + tint * 0.5);
-      // Bleed, body, pigment rim, vein.
+  const weak = clamp01((3.5 - p.leaves) / 3.5);
+  const tint = (shape.tint - 0.5) * 30;
+  const grow = 0.75 + 0.25 * Math.min(1, p.height);
+  for (const c of shape.clusters) {
+    const a = clamp01((full - c.thr) / 0.08);
+    if (a <= 0) continue;
+    const r = c.r * s * grow;
+    const x = bx + c.u * halfW * (0.75 + 0.25 * full) + sway * c.v;
+    const y = by - r * 0.55 - c.v * Math.max(0, hPx - r * 1.1);
+    const dark = c.shade < 0.35;
+    const R = Math.round(lerp(lerp(dark ? 52 : 86, dark ? 44 : 78, m), 160, weak * 0.5) + tint);
+    const G = Math.round(lerp(lerp(dark ? 92 : 132, dark ? 98 : 146, m), 150, weak * 0.25) + c.shade * 18);
+    const B = Math.round(lerp(lerp(dark ? 64 : 84, dark ? 60 : 80, m), 84, weak * 0.5) + tint * 0.4);
+    const pts = c.pts.map(([px, py]) => [x + px * r, y + py * r] as Pt);
+    traceSmooth(ctx, pts);
+    ctx.fillStyle = `rgba(${R},${G},${B},${0.82 * a})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${R - 40},${G - 45},${B - 35},${0.4 * a})`;
+    ctx.lineWidth = 0.9 * s;
+    ctx.stroke();
+    if (!dark) {
+      // Light dab: wet-in-wet highlight.
       traceSmooth(
         ctx,
-        pts.map(([x, y]) => [x + 0.8 * s, y + 0.6 * s] as Pt),
+        c.pts.map(([px, py]) => [x - r * 0.25 + px * r * 0.45, y - r * 0.3 + py * r * 0.45] as Pt),
       );
-      ctx.fillStyle = `rgba(${r - 20},${g - 20},${b - 20},0.22)`;
+      ctx.fillStyle = `rgba(${Math.min(255, R + 50)},${Math.min(255, G + 40)},${Math.min(255, B + 30)},${0.35 * a})`;
       ctx.fill();
-      traceSmooth(ctx, pts);
-      ctx.fillStyle = `rgba(${r},${g},${b},0.78)`;
-      ctx.fill();
-      ctx.strokeStyle = `rgba(${r - 50},${g - 50},${b - 45},0.5)`;
-      ctx.lineWidth = 0.9 * s;
-      ctx.stroke();
-      ctx.strokeStyle = `rgba(240,245,230,0.35)`;
-      ctx.lineWidth = 0.7 * s;
-      ctx.beginPath();
-      ctx.moveTo(q.x, q.y);
-      ctx.lineTo(q.x + Math.cos(ang) * len * sc * 0.8, q.y + Math.sin(ang) * len * sc * 0.8);
-      ctx.stroke();
     }
   }
-}
-
-function drawDeadPlant(ctx: CanvasRenderingContext2D, L: Layout, bx: number, by: number, shape: PlantShape, since: number) {
-  const s = L.s;
-  const droop = clamp01(since / 1.2);
-  ctx.save();
-  ctx.lineCap = 'round';
-  shape.stems.forEach((st, si) => {
-    const len = (34 + (si === 1 ? 14 : 0)) * s * (1 - droop * 0.25);
-    const a0 = st.lean * (1 + droop * 1.6);
-    const x1 = bx + st.dx + Math.sin(a0) * len;
-    const y1 = by - Math.cos(a0) * len;
-    ctx.strokeStyle = 'rgba(96,74,50,0.85)';
-    ctx.lineWidth = 2.2 * s;
-    ctx.beginPath();
-    ctx.moveTo(bx + st.dx, by);
-    ctx.quadraticCurveTo(bx + st.dx + Math.sin(a0) * len * 0.3, by - len * 0.7, x1, y1 + droop * 6 * s);
-    ctx.stroke();
-    // A curled brown leaf.
-    const pts = leafShape(x1, y1 + droop * 6 * s, 13 * s, 4.5 * s, a0 + Math.PI * 0.5 + droop);
-    traceSmooth(ctx, pts);
-    ctx.fillStyle = 'rgba(150,108,60,0.7)';
-    ctx.fill();
-  });
-  ctx.restore();
 }
 
 // ---------------------------------------------------------------- cut-paper puppets
@@ -1134,30 +1301,27 @@ export function stepParticles(ps: Particle[], dt: number) {
   }
 }
 
-/** Screen position of leaf slot k on a plant (for the scrap that flies off when it is eaten). */
-export function leafPos(L: Layout, p: Plant, shape: PlantShape, k: number): Pt {
-  const sl = shape.slots[Math.max(0, Math.min(shape.slots.length - 1, k))];
-  const st = shape.stems[sl.stem];
-  const q = stemPoint(p.x * L.W, L.plantBaseY, st, L.plantMaxH, Math.min(1, sl.t / st.len));
-  return [q.x + Math.cos(q.ang + sl.side * sl.spread) * sl.len * 0.5 * L.s, q.y + Math.sin(q.ang + sl.side * sl.spread) * sl.len * 0.5 * L.s];
+/** Where a bunny's bite takes a leaf from (the lower part of the hedge), for the flying leaf scrap. */
+export function leafPos(L: Layout, p: Plant, _shape: PlantShape, k: number): Pt {
+  const h = hedgePx(L, p);
+  const f = ((k * 0.618) % 1) - 0.5;
+  return [p.x * L.W + f * hedgeHalfW(L, p), L.plantBaseY - Math.min(h, 60 * L.s) * (0.3 + 0.4 * ((k * 0.37) % 1))];
 }
 
 /**
- * A little paper tag hung on the fence in front of each plant: one pip per leaf, so the player can see at a
- * glance which plant is in trouble. Red when a bunny is eating it bare, an ink cross once it is gone.
+ * A little paper tag hung on the fence in front of each hedge: one pip per leaf so the player sees at a glance
+ * which hedge is in trouble (red when a bunny is eating it bare), a check mark once it is tall enough, and an
+ * ink cross once it is gone.
  */
 export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, index: number, now: number, danger: number) {
   const s = L.s;
-  const cx = p.x * L.W;
   const w = 46 * s;
   const h = 18 * s;
-  const y = L.fenceTop + 2 * s;
   const rng = mulberry32(700 + index);
   const shake = danger > 0 ? Math.sin(now * 30) * 0.04 : Math.sin(now * 1.2 + index) * 0.02;
   ctx.save();
-  ctx.translate(cx, y - 3 * s);
+  ctx.translate(p.x * L.W, L.fenceTop - 1 * s);
   ctx.rotate(shake + (index % 2 ? 0.03 : -0.03));
-  // String loop.
   ctx.strokeStyle = 'rgba(60,45,30,0.7)';
   ctx.lineWidth = 0.8 * s;
   ctx.beginPath();
@@ -1175,29 +1339,30 @@ export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant,
     0.5 * s,
     rng,
   );
-  const tagFill = !p.alive ? '#d8cfbf' : danger > 0 ? `rgb(${Math.round(244 - 10 * Math.sin(now * 8))},214,200)` : '#f6efdf';
-  paperPiece(ctx, { polys: [card], fill: tagFill });
+  const tall = p.alive && p.height >= 1;
+  const fill = !p.alive ? '#d8cfbf' : danger > 0 ? `rgb(${Math.round(244 - 10 * Math.sin(now * 8))},214,200)` : tall ? '#eef3dc' : '#f6efdf';
+  paperPiece(ctx, { polys: [card], fill });
   pin(ctx, 0, 5 * s, 1.1 * s);
+  ctx.lineCap = 'round';
   if (!p.alive) {
     ctx.strokeStyle = 'rgba(60,40,30,0.75)';
     ctx.lineWidth = 2 * s;
-    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(-6 * s, 7 * s);
-    ctx.lineTo(6 * s, 3 * s + h - 3 * s);
+    ctx.lineTo(6 * s, h);
     ctx.moveTo(6 * s, 7 * s);
-    ctx.lineTo(-6 * s, 3 * s + h - 3 * s);
+    ctx.lineTo(-6 * s, h);
     ctx.stroke();
   } else {
     const n = TUNING.maxLeaves;
+    const perRow = Math.ceil(n / 2);
     for (let k = 0; k < n; k++) {
-      const perRow = Math.ceil(n / 2);
       const col = k % perRow;
       const row = Math.floor(k / perRow);
-      const x = -w / 2 + 7.5 * s + col * 7.6 * s + row * 3.8 * s;
-      const yy = 3 * s + 7.5 * s + row * 5.6 * s;
+      const x = -w / 2 + 6.5 * s + col * 6.6 * s + row * 3.3 * s;
+      const yy = 10.5 * s + row * 5.6 * s;
       ctx.beginPath();
-      ctx.ellipse(x, yy, 2.4 * s, 1.9 * s, -0.5, 0, TAU);
+      ctx.ellipse(x, yy, 2.3 * s, 1.8 * s, -0.5, 0, TAU);
       if (k < p.leaves) {
         ctx.fillStyle = p.leaves <= 3 ? 'rgba(186,70,48,0.9)' : 'rgba(78,128,82,0.9)';
         ctx.fill();
@@ -1206,6 +1371,16 @@ export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant,
         ctx.lineWidth = 0.7 * s;
         ctx.stroke();
       }
+    }
+    if (tall) {
+      // Ink check mark: this hedge reaches the line.
+      ctx.strokeStyle = 'rgba(50,110,60,0.95)';
+      ctx.lineWidth = 2.4 * s;
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - 9 * s, 2 * s);
+      ctx.lineTo(w / 2 - 5 * s, 6 * s);
+      ctx.lineTo(w / 2 + 3 * s, -5 * s);
+      ctx.stroke();
     }
   }
   ctx.restore();

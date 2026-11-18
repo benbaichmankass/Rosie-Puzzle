@@ -134,6 +134,12 @@ export class Sfx {
     this.pluck(this.scale[1], 0.18, 0.28, 1.8);
     this.pluck(this.scale[0] / 2, 0.36, 0.22, 2);
   }
+  tall() {
+    [3, 5, 7].forEach((n, i) => this.pluck(this.scale[n], i * 0.08, 0.18, 1));
+  }
+  win() {
+    [0, 2, 3, 5, 6, 7, 8].forEach((n, i) => this.pluck(this.scale[n], i * 0.13, 0.22, 1.6));
+  }
   over() {
     [7, 5, 4, 2, 1, 0].forEach((n, i) => this.pluck(this.scale[n], i * 0.2, 0.22, 1.8));
   }

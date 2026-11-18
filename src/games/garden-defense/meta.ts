@@ -5,6 +5,6 @@ export const meta: GameMeta = {
   title: 'Garden Defense',
   room: 'yard',
   spot: 'bunny-wall',
-  blurb: 'Water the plants faster than the bunnies can eat them.',
+  blurb: 'Grow the hedges to hide the nosy neighbours before the bunnies eat them.',
   status: 'ready',
 };

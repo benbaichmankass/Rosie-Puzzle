@@ -1,10 +1,11 @@
-// Garden Defense balance check: runs the real simulation with simulated players and checks that
-// an idle player loses fast, a careless tapper does a bit better, and a good player lasts a few minutes
-// but always loses eventually (the bunnies keep getting greedier).
+// Garden Defense balance check: runs the real simulation with simulated players. Goal: grow every surviving
+// hedge to the target height (hiding the apartments across the street) before the bunnies eat them all.
+// An idle player must lose, a careless one should mostly lose, and a good player should win in about 2-3 minutes.
+// The bunnies keep getting greedier, so every game ends.
 import { createGame, step, TUNING, type GameState } from '../src/games/garden-defense/sim';
 
 const DT = 1 / 30;
-const LIMIT = 900; // seconds; a game that lasts longer than this means the difficulty never catches up
+const LIMIT = 900; // seconds; a game still going after this means the difficulty never catches up
 const SEEDS = 120;
 
 type Mem = { cur: number; until: number; next?: number };
@@ -27,12 +28,13 @@ const careless: Player = (s, mem) => {
   return mem.cur;
 };
 
-/** Mindlessly sweeps the can along the plants, 0.5 s on each, ignoring the bunnies. */
-const rotator: Player = (s) => Math.floor(s.t / 0.5) % TUNING.plantCount;
+/** Mindlessly sweeps the can along the hedges, 0.5 s on each (0.15 s of that sliding over), ignoring the bunnies. */
+const rotator: Player = (s) => (s.t % 0.5 < 0.15 ? -1 : Math.floor(s.t / 0.5) % TUNING.plantCount);
 
 /**
- * A good player: re-decides every 0.35 s (human reaction) and waters where it helps most: dry soil weighted by
- * bunnies on or heading to the plant and leaves already lost. Moving the can takes 0.2 s.
+ * A good player: re-decides every 0.35 s (human reaction). Rushes to a hedge a bunny is eating once its soil
+ * dries; otherwise sweeps the can over the hedges that still need to grow, driest first, skipping the ones
+ * already tall enough. Moving the can takes 0.15 s.
  */
 const good: Player = (s, mem) => {
   if (s.t < mem.until) return mem.cur;
@@ -41,16 +43,16 @@ const good: Player = (s, mem) => {
   s.plants.forEach((p, i) => {
     if (!p.alive) return;
     const eaters = s.bunnies.filter((b) => b.target === i && b.mode === 'eat').length;
-    const coming = s.bunnies.filter((b) => b.target === i && b.mode === 'hop').length;
-    const need = 1 + eaters * 4 + coming + (TUNING.maxLeaves - p.leaves) / 3;
-    const sc = (1.05 - p.moisture) * need;
+    const threat = eaters * (1 + (TUNING.maxLeaves - p.leaves) / 3);
+    const grow = p.height < 1 ? 1 : 0.1;
+    const sc = (1 - p.moisture) * (grow + threat * 2) + (i === mem.cur ? 0.15 : 0);
     if (sc > score) {
       score = sc;
       best = i;
     }
   });
   const switching = best !== mem.cur;
-  mem.until = s.t + 0.35 + (switching ? 0.2 : 0);
+  mem.until = s.t + 0.35 + (switching ? 0.15 : 0);
   mem.cur = switching ? -1 : best; // finger in transit while switching
   if (switching) mem.next = best;
   return mem.cur;
@@ -59,7 +61,6 @@ const good: Player = (s, mem) => {
 function play(player: Player, seed: number) {
   const s = createGame(seed);
   const mem: Mem = { cur: -1, until: 0 };
-  let firstDeath = -1;
   while (!s.over && s.t < LIMIT) {
     let w = player(s, mem);
     if (w === -1 && mem.next !== undefined && s.t >= mem.until - 0.35) {
@@ -68,24 +69,27 @@ function play(player: Player, seed: number) {
       w = mem.cur;
     }
     step(s, DT, w);
-    if (firstDeath < 0 && s.plants.some((p) => !p.alive)) firstDeath = s.t;
     s.events.length = 0;
   }
-  return { time: s.t, firstDeath, finished: s.over };
+  return { time: s.t, won: s.won, saved: s.plants.filter((p) => p.alive).length, finished: s.over };
 }
 
 function stats(name: string, player: Player) {
   const t0 = performance.now();
   const runs = Array.from({ length: SEEDS }, (_, i) => play(player, 1000 + i * 7919));
-  const times = runs.map((r) => r.time).sort((a, b) => a - b);
-  const q = (f: number) => times[Math.min(times.length - 1, Math.floor(f * times.length))];
-  const firstDeaths = runs.map((r) => r.firstDeath).sort((a, b) => a - b);
+  const med = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[xs.length >> 1] : NaN);
+  const wins = runs.filter((r) => r.won);
+  const losses = runs.filter((r) => r.finished && !r.won);
+  const winRate = wins.length / SEEDS;
+  const winTime = med(wins.map((r) => r.time));
+  const lossTime = med(losses.map((r) => r.time));
+  const saved = wins.reduce((n, r) => n + r.saved, 0) / Math.max(1, wins.length);
   const unfinished = runs.filter((r) => !r.finished).length;
   console.log(
-    `${name.padEnd(9)} survive p10 ${q(0.1).toFixed(0)}s  median ${q(0.5).toFixed(0)}s  p90 ${q(0.9).toFixed(0)}s  ` +
-      `first plant lost (median) ${firstDeaths[SEEDS >> 1].toFixed(0)}s  never-ending ${unfinished}  (${(performance.now() - t0).toFixed(0)}ms)`,
+    `${name.padEnd(9)} wins ${(winRate * 100).toFixed(0).padStart(3)}%  median win ${winTime.toFixed(0)}s (hedges saved ${saved.toFixed(1)})  ` +
+      `median loss ${lossTime.toFixed(0)}s  never-ending ${unfinished}  (${(performance.now() - t0).toFixed(0)}ms)`,
   );
-  return { median: q(0.5), p10: q(0.1), p90: q(0.9), unfinished };
+  return { winRate, winTime, lossTime, saved, unfinished };
 }
 
 const I = stats('idle', idle);
@@ -94,11 +98,14 @@ const R = stats('rotator', rotator);
 const G = stats('good', good);
 
 const fails: string[] = [];
-if (I.median < 25 || I.median > 80) fails.push(`idle player should lose in 25-80 s (median ${I.median.toFixed(0)})`);
-if (C.median <= I.median + 5) fails.push('careless tapping should beat doing nothing');
-if (G.median <= C.median * 1.5) fails.push('a good player should clearly outlast a careless one');
-if (G.median < 150 || G.median > 360) fails.push(`a good player should last a few minutes: median 150-360 s (got ${G.median.toFixed(0)})`);
-if (G.median < R.median * 1.15) fails.push('watering where the bunnies are must beat mindlessly sweeping the can (good >= 1.15 x rotator)');
+if (I.winRate > 0) fails.push('an idle player must never win');
+if (I.lossTime < 25 || I.lossTime > 90) fails.push(`an idle player should lose in 25-90 s (median ${I.lossTime.toFixed(0)})`);
+if (C.winRate > 0.3) fails.push(`careless tapping should mostly lose (wins ${(C.winRate * 100).toFixed(0)}%)`);
+if (G.winRate < 0.85) fails.push(`a good player should win at least 85% of games (wins ${(G.winRate * 100).toFixed(0)}%)`);
+if (!(G.winTime >= 110 && G.winTime <= 190)) fails.push(`a good player should win in about 2-3 minutes: median 110-190 s (got ${G.winTime.toFixed(0)})`);
+// Results rank by hedges saved first, so skill shows as more wins or more hedges saved than sweeping the can.
+if (G.winRate < R.winRate + 0.25 && G.saved < R.saved + 0.6)
+  fails.push(`watering where it is needed must clearly beat mindlessly sweeping the can (saved ${G.saved.toFixed(1)} vs ${R.saved.toFixed(1)})`);
 if (G.unfinished + C.unfinished + I.unfinished + R.unfinished > 0) fails.push('every game must end (difficulty must keep rising)');
 
 if (fails.length) {
