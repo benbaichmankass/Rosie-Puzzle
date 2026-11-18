@@ -13,6 +13,7 @@ import {
   drawCan,
   drawParticles,
   drawPlant,
+  drawPlantTag,
   leafPos,
   makeBunnyPuppet,
   makeCanPuppet,
@@ -28,6 +29,8 @@ import {
 import { Sfx } from './audio';
 
 const ID = meta.id;
+const HINT = 'Tap & hold a plant to water it';
+const HUNGRIER = ['The bunnies are getting hungrier…', 'The bunnies are hopping faster!', 'Greedier and greedier!', 'The bunnies are ravenous!'];
 const STEP = 1 / 60;
 const FONT = '"Shippori Mincho B1", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif';
 
@@ -68,6 +71,9 @@ interface Engine {
   can: { x: number; y: number; tilt: number; init: boolean };
   dropAcc: number;
   overAt: number;
+  msg: string;
+  msgAt: number;
+  milestone: number;
   pouring: boolean;
 }
 
@@ -93,6 +99,9 @@ function newEngine(): Engine {
     can: { x: 0, y: 0, tilt: 0, init: false },
     dropAcc: 0,
     overAt: 0,
+    msg: '',
+    msgAt: -99,
+    milestone: 0,
     pouring: false,
   };
 }
@@ -127,6 +136,9 @@ export default function Game({ onExit }: GameProps) {
     e.phase = 'play';
     e.paused = false;
     e.overAt = 0;
+    e.msg = HINT;
+    e.msgAt = 0;
+    e.milestone = 0;
     setPaused(false);
     setPhase('play');
   }, []);
@@ -188,6 +200,11 @@ export default function Game({ onExit }: GameProps) {
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
 
+    const say = (m: string) => {
+      e.msg = m;
+      e.msgAt = e.game.t;
+    };
+
     const handleEvents = () => {
       const g = e.game;
       const L = e.L!;
@@ -230,7 +247,11 @@ export default function Game({ onExit }: GameProps) {
               floor: 0,
             });
           }
-          if (alivePlants(g) > 0) sfx.current.die();
+          const left = alivePlants(g);
+          if (left > 0) {
+            sfx.current.die();
+            say(left === 1 ? 'Last plant! Save it!' : `Only ${left} plants left!`);
+          }
         } else if (ev.type === 'over') {
           e.overAt = e.now;
           sfx.current.water(false);
@@ -267,7 +288,19 @@ export default function Game({ onExit }: GameProps) {
           handleEvents();
         }
         if (timeRef.current) timeRef.current.textContent = fmt(g.t);
-        if (hintRef.current) hintRef.current.style.opacity = String(Math.max(0, Math.min(1, 5 - g.t)));
+        // Every 40 s the bunnies step up a gear: say so.
+        const ms = Math.floor(g.t / 40);
+        if (ms > e.milestone) {
+          e.milestone = ms;
+          say(HUNGRIER[Math.min(HUNGRIER.length - 1, ms - 1)]);
+        }
+        const hint = hintRef.current;
+        if (hint) {
+          if (hint.textContent !== e.msg) hint.textContent = e.msg;
+          const age = g.t - e.msgAt;
+          const dur = e.msg === HINT ? 5 : 2.6;
+          hint.style.opacity = String(Math.max(0, Math.min(1, dur - age, age * 4)));
+        }
       }
       if (e.phase === 'play' && g.over && e.overAt > 0 && e.now - e.overAt > 1.8) {
         e.phase = 'over';
@@ -287,7 +320,8 @@ export default function Game({ onExit }: GameProps) {
       g.plants.forEach((p, i) => {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
-        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob);
+        const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
+        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
       });
 
       const hopH = 16 * s;
@@ -300,6 +334,10 @@ export default function Game({ onExit }: GameProps) {
       };
       drawB(true);
       ctx.drawImage(e.fence, 0, 0, W, H);
+      g.plants.forEach((p, i) => {
+        const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
+        drawPlantTag(ctx, L, p, i, now, eaten && p.leaves <= 3 ? 1 : 0);
+      });
       drawB(false);
 
       drawParticles(ctx, e.particles, s);
@@ -311,7 +349,7 @@ export default function Game({ onExit }: GameProps) {
       if (col >= 0) {
         const top = plantTop(L, g.plants[col], shapes[col]);
         tx = top.x + 40 * s;
-        ty = Math.max(L.wallTop + 40 * s, top.y - 22 * s);
+        ty = Math.max(L.wallTop + 40 * s, Math.min(top.y - 22 * s, L.plantBaseY - 150 * s));
         tilt = -0.62;
       }
       if (!e.can.init) {
@@ -382,7 +420,7 @@ export default function Game({ onExit }: GameProps) {
   return (
     <div
       className="g-garden-defense fixed inset-0 overflow-hidden select-none"
-      style={{ background: '#f2ead9', fontFamily: FONT, color: ink, touchAction: 'none' }}
+      style={{ background: '#d8cab0', fontFamily: FONT, color: ink, touchAction: 'none' }}
     >
       <style>{`
         .g-garden-defense .gd-card { background: rgba(248,242,228,0.94); box-shadow: 2px 3px 0 rgba(60,40,20,0.18), 0 10px 30px rgba(60,40,20,0.18); }
@@ -392,100 +430,105 @@ export default function Game({ onExit }: GameProps) {
         .g-garden-defense .gd-seal { background: #b73a2e; color: #fbefe0; border-radius: 4px; transform: rotate(-4deg); box-shadow: inset 0 0 0 2px rgba(251,239,224,0.5); }
       `}</style>
       <div
-        ref={wrapRef}
-        className="absolute inset-0"
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onLostPointerCapture={onUp}
+        className="relative h-full w-full max-w-[520px] mx-auto overflow-hidden"
+        style={{ background: '#f2ead9', boxShadow: '0 0 40px rgba(60,40,20,0.25)' }}
       >
-        <canvas ref={canvasRef} className="block" />
-      </div>
-
-      {/* HUD */}
-      <div
-        className="absolute top-0 left-0 right-0 flex items-start justify-between px-3 pointer-events-none"
-        style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
-      >
-        <div className="pointer-events-auto">
-          <ExitButton onExit={onExit} className="!bg-[#f7f0df] !text-[#2b2420] !border-[#2b2420] shadow-[2px_2px_0_rgba(43,36,32,0.3)]" />
-        </div>
-        <div className="text-center" style={{ visibility: phase === 'play' ? 'visible' : 'hidden' }}>
-          <div ref={timeRef} className="text-[34px] leading-none font-extrabold" style={{ textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
-            0:00
-          </div>
-          <div className="text-[11px] tracking-[0.2em] opacity-70 mt-1">BEST {fmt(best)}</div>
-        </div>
-        <button
-          className="pointer-events-auto w-9 h-9 rounded-full border-2 flex items-center justify-center text-[16px] bg-[#f7f0df]"
-          style={{ borderColor: ink, boxShadow: '2px 2px 0 rgba(43,36,32,0.3)' }}
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          onClick={() => {
-            sfx.current.unlock();
-            setMuted((m) => !m);
-          }}
-        >
-          {muted ? '🔇' : '🔊'}
-        </button>
-      </div>
-
-      {phase === 'play' && (
         <div
-          ref={hintRef}
-          className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
-          style={{ top: '30%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+          ref={wrapRef}
+          className="absolute inset-0"
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onLostPointerCapture={onUp}
         >
-          Tap &amp; hold a plant to water it
+          <canvas ref={canvasRef} className="block" />
         </div>
-      )}
 
-      {phase === 'start' && (
-        <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '12%' }}>
-          <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
-            <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
-            <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
-            <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
-            <p className="text-[15px] mt-3 leading-snug">Water the plants faster than the bunnies can eat them.</p>
-            <p className="text-[13px] mt-2 opacity-75 leading-snug">
-              Tap or hold a plant to water it. Watered plants grow leaves faster. A plant with no leaves left is gone.
-            </p>
-            {best > 0 && <p className="text-[13px] mt-3 tracking-[0.15em]">BEST {fmt(best)}</p>}
-            <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
-              PLAY
-            </button>
+        {/* HUD */}
+        <div
+          className="absolute top-0 left-0 right-0 flex items-start justify-between px-3 pointer-events-none"
+          style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
+        >
+          <div className="pointer-events-auto">
+            <ExitButton onExit={onExit} className="!bg-[#f7f0df] !text-[#2b2420] !border-[#2b2420] shadow-[2px_2px_0_rgba(43,36,32,0.3)]" />
           </div>
+          <div className="text-center" style={{ visibility: phase === 'play' ? 'visible' : 'hidden' }}>
+            <div ref={timeRef} className="text-[34px] leading-none font-extrabold" style={{ textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
+              0:00
+            </div>
+            <div className="text-[11px] tracking-[0.2em] opacity-70 mt-1">BEST {fmt(best)}</div>
+          </div>
+          <button
+            className="pointer-events-auto w-9 h-9 rounded-full border-2 flex items-center justify-center text-[16px] bg-[#f7f0df]"
+            style={{ borderColor: ink, boxShadow: '2px 2px 0 rgba(43,36,32,0.3)' }}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            onClick={() => {
+              sfx.current.unlock();
+              setMuted((m) => !m);
+            }}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
         </div>
-      )}
 
-      {phase === 'over' && (
-        <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '14%' }}>
-          <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
-            <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">兎</div>
-            <h2 className="text-[28px] font-extrabold leading-tight">The bunnies won</h2>
-            <p className="text-[14px] mt-2 opacity-75">You kept the garden alive for</p>
-            <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
-            <p className="text-[13px] mt-2 tracking-[0.15em]">{result.newBest ? 'NEW BEST!' : `BEST ${fmt(best)}`}</p>
-            <div className="flex justify-center gap-3 mt-4">
-              <button className="gd-btn primary text-[16px]" onClick={startGame}>
-                RETRY
-              </button>
-              <button className="gd-btn text-[16px]" onClick={onExit}>
-                MAP
+        {phase === 'play' && (
+          <div
+            ref={hintRef}
+            className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
+            style={{ top: '21%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+          >
+            {HINT}
+          </div>
+        )}
+
+        {phase === 'start' && (
+          <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '12%' }}>
+            <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
+              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
+              <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
+              <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
+              <p className="text-[15px] mt-3 leading-snug">Water the plants faster than the bunnies can eat them.</p>
+              <p className="text-[13px] mt-2 opacity-75 leading-snug">
+                Tap or hold a plant to water it. Watered plants grow leaves faster. A plant with no leaves left is gone.
+              </p>
+              {best > 0 && <p className="text-[13px] mt-3 tracking-[0.15em]">BEST {fmt(best)}</p>}
+              <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
+                PLAY
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {paused && phase === 'play' && (
-        <button className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(242,234,217,0.6)' }} onClick={resume}>
-          <div className="gd-card px-8 py-6 text-center">
-            <div className="text-[26px] font-extrabold">Paused</div>
-            <div className="text-[14px] mt-1 opacity-75">Tap to continue</div>
+        {phase === 'over' && (
+          <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '14%' }}>
+            <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
+              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">兎</div>
+              <h2 className="text-[28px] font-extrabold leading-tight">The bunnies won</h2>
+              <p className="text-[14px] mt-2 opacity-75">You kept the garden alive for</p>
+              <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
+              <p className="text-[13px] mt-2 tracking-[0.15em]">{result.newBest ? 'NEW BEST!' : `BEST ${fmt(best)}`}</p>
+              <div className="flex justify-center gap-3 mt-4">
+                <button className="gd-btn primary text-[16px]" onClick={startGame}>
+                  RETRY
+                </button>
+                <button className="gd-btn text-[16px]" onClick={onExit}>
+                  MAP
+                </button>
+              </div>
+            </div>
           </div>
-        </button>
-      )}
+        )}
+
+        {paused && phase === 'play' && (
+          <button className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(242,234,217,0.6)' }} onClick={resume}>
+            <div className="gd-card px-8 py-6 text-center">
+              <div className="text-[26px] font-extrabold">Paused</div>
+              <div className="text-[14px] mt-1 opacity-75">Tap to continue</div>
+            </div>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

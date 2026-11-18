@@ -7,16 +7,16 @@
 
 export const TUNING = {
   plantCount: 5,
-  startLeaves: 7,
-  maxLeaves: 12,
+  startLeaves: 6,
+  maxLeaves: 9,
   /** Leaves per second a plant grows on dry soil. */
   baseGrowth: 0.05,
   /** Extra leaves per second at full soil moisture. */
-  waterGrowth: 0.62,
+  waterGrowth: 1.0,
   /** Moisture gained per second while the can pours on a plant (moisture is 0..1). */
-  waterRate: 2.2,
+  waterRate: 4,
   /** Moisture lost per second. */
-  moistureDecay: 0.3,
+  moistureDecay: 0.9,
 
   /** Seconds for aggression to go from 0 to 1. It keeps rising after that. */
   ramp: 165,
