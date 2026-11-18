@@ -13,6 +13,7 @@ import {
   drawCan,
   drawParticles,
   drawPlant,
+  drawPlantTag,
   leafPos,
   makeBunnyPuppet,
   makeCanPuppet,
@@ -28,6 +29,8 @@ import {
 import { Sfx } from './audio';
 
 const ID = meta.id;
+const HINT = 'Tap & hold a plant to water it';
+const HUNGRIER = ['The bunnies are getting hungrier…', 'The bunnies are hopping faster!', 'Greedier and greedier!', 'The bunnies are ravenous!'];
 const STEP = 1 / 60;
 const FONT = '"Shippori Mincho B1", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif';
 
@@ -68,6 +71,9 @@ interface Engine {
   can: { x: number; y: number; tilt: number; init: boolean };
   dropAcc: number;
   overAt: number;
+  msg: string;
+  msgAt: number;
+  milestone: number;
   pouring: boolean;
 }
 
@@ -93,6 +99,9 @@ function newEngine(): Engine {
     can: { x: 0, y: 0, tilt: 0, init: false },
     dropAcc: 0,
     overAt: 0,
+    msg: '',
+    msgAt: -99,
+    milestone: 0,
     pouring: false,
   };
 }
@@ -127,6 +136,9 @@ export default function Game({ onExit }: GameProps) {
     e.phase = 'play';
     e.paused = false;
     e.overAt = 0;
+    e.msg = HINT;
+    e.msgAt = 0;
+    e.milestone = 0;
     setPaused(false);
     setPhase('play');
   }, []);
@@ -188,6 +200,11 @@ export default function Game({ onExit }: GameProps) {
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
 
+    const say = (m: string) => {
+      e.msg = m;
+      e.msgAt = e.game.t;
+    };
+
     const handleEvents = () => {
       const g = e.game;
       const L = e.L!;
@@ -230,7 +247,11 @@ export default function Game({ onExit }: GameProps) {
               floor: 0,
             });
           }
-          if (alivePlants(g) > 0) sfx.current.die();
+          const left = alivePlants(g);
+          if (left > 0) {
+            sfx.current.die();
+            say(left === 1 ? 'Last plant! Save it!' : `Only ${left} plants left!`);
+          }
         } else if (ev.type === 'over') {
           e.overAt = e.now;
           sfx.current.water(false);
@@ -267,7 +288,19 @@ export default function Game({ onExit }: GameProps) {
           handleEvents();
         }
         if (timeRef.current) timeRef.current.textContent = fmt(g.t);
-        if (hintRef.current) hintRef.current.style.opacity = String(Math.max(0, Math.min(1, 5 - g.t)));
+        // Every 40 s the bunnies step up a gear: say so.
+        const ms = Math.floor(g.t / 40);
+        if (ms > e.milestone) {
+          e.milestone = ms;
+          say(HUNGRIER[Math.min(HUNGRIER.length - 1, ms - 1)]);
+        }
+        const hint = hintRef.current;
+        if (hint) {
+          if (hint.textContent !== e.msg) hint.textContent = e.msg;
+          const age = g.t - e.msgAt;
+          const dur = e.msg === HINT ? 5 : 2.6;
+          hint.style.opacity = String(Math.max(0, Math.min(1, dur - age, age * 4)));
+        }
       }
       if (e.phase === 'play' && g.over && e.overAt > 0 && e.now - e.overAt > 1.8) {
         e.phase = 'over';
@@ -301,6 +334,10 @@ export default function Game({ onExit }: GameProps) {
       };
       drawB(true);
       ctx.drawImage(e.fence, 0, 0, W, H);
+      g.plants.forEach((p, i) => {
+        const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
+        drawPlantTag(ctx, L, p, i, now, eaten && p.leaves <= 4 ? 1 : 0);
+      });
       drawB(false);
 
       drawParticles(ctx, e.particles, s);
@@ -441,7 +478,7 @@ export default function Game({ onExit }: GameProps) {
             className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
             style={{ top: '30%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
           >
-            Tap &amp; hold a plant to water it
+            {HINT}
           </div>
         )}
 

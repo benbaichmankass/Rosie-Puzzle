@@ -420,17 +420,17 @@ export interface PlantShape {
 export function makePlantShape(i: number): PlantShape {
   const rng = mulberry32(500 + i * 31);
   const stems = [
-    { lean: -0.26 - rng() * 0.08, len: 0.78 + rng() * 0.1, bend: -0.2, dx: -4 },
-    { lean: (rng() - 0.5) * 0.1, len: 1, bend: 0.1 * (rng() - 0.5), dx: 0 },
-    { lean: 0.24 + rng() * 0.08, len: 0.82 + rng() * 0.1, bend: 0.2, dx: 4 },
+    { lean: -0.12 - rng() * 0.05, len: 0.8 + rng() * 0.1, bend: -0.16, dx: -3 },
+    { lean: (rng() - 0.5) * 0.06, len: 1, bend: 0.06 * (rng() - 0.5), dx: 0 },
+    { lean: 0.12 + rng() * 0.05, len: 0.84 + rng() * 0.1, bend: 0.16, dx: 3 },
   ];
   const slots: LeafSlot[] = [];
   for (let k = 0; k < TUNING.maxLeaves; k++) {
     const stem = [1, 0, 2][k % 3];
     const t = 0.12 + (k / (TUNING.maxLeaves - 1)) * 0.84;
-    slots.push({ stem, t, side: k % 2 ? 1 : -1, len: 25 + rng() * 6 - k * 0.6, w: 17 + rng() * 4 - k * 0.3, spread: 0.6 + rng() * 0.3 });
+    slots.push({ stem, t, side: k % 2 ? 1 : -1, len: 22 + rng() * 4 - k * 0.5, w: 16 + rng() * 3 - k * 0.3, spread: 0.55 + rng() * 0.25 });
   }
-  return { stems, slots, tint: rng(), seed: 900 + i };
+  return { stems, slots, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
 }
 
 function stemPoint(bx: number, by: number, st: PlantShape['stems'][number], H: number, t: number): { x: number; y: number; ang: number } {
@@ -460,6 +460,28 @@ export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, sh
   const H = L.plantMaxH;
   const s = L.s;
   const rng = mulberry32(shape.seed);
+
+  // Each plant sits in its own little soil mound ringed with pebbles.
+  const mound = blob(bx, by + 4 * s, 30 * s, 11 * s, rng, 16, 0.08);
+  wash(
+    ctx,
+    mound.map(([x, y]) => [x, Math.min(y, by + 6 * s)] as Pt),
+    '84,56,38',
+    0.85,
+    rng,
+    1,
+    2,
+    0.5,
+  );
+  wash(ctx, blob(bx - 4 * s, by - 2 * s, 16 * s, 4 * s, rng, 12, 0.1), '150,112,80', 0.35, rng, 1, 2, 0);
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (0.05 + (i / 6) * 0.9);
+    const px = bx - Math.cos(a) * 31 * s;
+    const py = by + 6 * s - Math.sin(a) * 3 * s + 2 * s;
+    traceSmooth(ctx, blob(px, py, 3.4 * s, 2.2 * s, rng, 8, 0.2));
+    ctx.fillStyle = i % 2 ? 'rgba(206,190,166,0.9)' : 'rgba(170,156,136,0.9)';
+    ctx.fill();
+  }
 
   // Wet soil spot.
   if (p.moisture > 0.02) {
@@ -514,7 +536,7 @@ export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, sh
   const baseR = lerp(lerp(124, 92, m), 170, weak * 0.6);
   const baseG = lerp(lerp(150, 158, m), 158, weak * 0.3);
   const baseB = lerp(lerp(112, 104, m), 90, weak * 0.6);
-  const tint = (shape.tint - 0.5) * 18;
+  const tint = (shape.tint - 0.5) * 34;
 
   for (let k = 0; k < visible; k++) {
     const sl = shape.slots[k];
@@ -1118,4 +1140,72 @@ export function leafPos(L: Layout, p: Plant, shape: PlantShape, k: number): Pt {
   const st = shape.stems[sl.stem];
   const q = stemPoint(p.x * L.W, L.plantBaseY, st, L.plantMaxH, Math.min(1, sl.t / st.len));
   return [q.x + Math.cos(q.ang + sl.side * sl.spread) * sl.len * 0.5 * L.s, q.y + Math.sin(q.ang + sl.side * sl.spread) * sl.len * 0.5 * L.s];
+}
+
+/**
+ * A little paper tag hung on the fence in front of each plant: one pip per leaf, so the player can see at a
+ * glance which plant is in trouble. Red when a bunny is eating it bare, an ink cross once it is gone.
+ */
+export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, index: number, now: number, danger: number) {
+  const s = L.s;
+  const cx = p.x * L.W;
+  const w = 46 * s;
+  const h = 18 * s;
+  const y = L.fenceTop + 2 * s;
+  const rng = mulberry32(700 + index);
+  const shake = danger > 0 ? Math.sin(now * 30) * 0.04 : Math.sin(now * 1.2 + index) * 0.02;
+  ctx.save();
+  ctx.translate(cx, y - 3 * s);
+  ctx.rotate(shake + (index % 2 ? 0.03 : -0.03));
+  // String loop.
+  ctx.strokeStyle = 'rgba(60,45,30,0.7)';
+  ctx.lineWidth = 0.8 * s;
+  ctx.beginPath();
+  ctx.moveTo(-4 * s, 3 * s);
+  ctx.lineTo(0, -1 * s);
+  ctx.lineTo(4 * s, 3 * s);
+  ctx.stroke();
+  const card: Pt[] = jitterPts(
+    [
+      [-w / 2, 3 * s],
+      [w / 2, 3 * s],
+      [w / 2, 3 * s + h],
+      [-w / 2, 3 * s + h],
+    ],
+    0.5 * s,
+    rng,
+  );
+  const tagFill = !p.alive ? '#d8cfbf' : danger > 0 ? `rgb(${Math.round(244 - 10 * Math.sin(now * 8))},214,200)` : '#f6efdf';
+  paperPiece(ctx, { polys: [card], fill: tagFill });
+  pin(ctx, 0, 5 * s, 1.1 * s);
+  if (!p.alive) {
+    ctx.strokeStyle = 'rgba(60,40,30,0.75)';
+    ctx.lineWidth = 2 * s;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-6 * s, 7 * s);
+    ctx.lineTo(6 * s, 3 * s + h - 3 * s);
+    ctx.moveTo(6 * s, 7 * s);
+    ctx.lineTo(-6 * s, 3 * s + h - 3 * s);
+    ctx.stroke();
+  } else {
+    const n = TUNING.maxLeaves;
+    for (let k = 0; k < n; k++) {
+      const col = k % 6;
+      const row = Math.floor(k / 6);
+      const x = -w / 2 + 7.5 * s + col * 6.2 * s;
+      const yy = 3 * s + 7.5 * s + row * 5.6 * s;
+      ctx.beginPath();
+      ctx.ellipse(x, yy, 2.4 * s, 1.9 * s, -0.5, 0, TAU);
+      if (k < p.leaves) {
+        ctx.fillStyle = p.leaves <= 4 ? 'rgba(186,70,48,0.9)' : 'rgba(78,128,82,0.9)';
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = 'rgba(90,80,60,0.35)';
+        ctx.lineWidth = 0.7 * s;
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
 }
