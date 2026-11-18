@@ -24,8 +24,8 @@ export const T = {
   FRICTION_H: 0.5, // depth (cm) at which friction halves
   DRAIN_K: 2.2, // outflow per cm of depth per drain cell (units/s)
   DRAIN_CAP: 2.5, // max outflow per drain cell (units/s) when unclogged
-  INFLOW0: 3.6, // shower units/s at t=0
-  INFLOW_RAMP: 1 / 110, // inflow grows by INFLOW0 every 110 s
+  INFLOW0: 4.6, // shower units/s at t=0
+  INFLOW_RAMP: 0.007, // inflow grows by this fraction of INFLOW0 per second
   SWING_GRAB: 4, // cells downhill of the blade that are scooped
   SWING_FRACTION: 0.7,
   THROW_V0: 30, // initial uphill speed of a swung wave (cells/s)
