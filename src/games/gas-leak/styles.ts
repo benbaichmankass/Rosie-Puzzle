@@ -11,7 +11,7 @@ export const CSS = `
 .g-gas-leak .gl-lvl { font-family: 'Bangers', Impact, sans-serif; letter-spacing: 1px; color: #e2574c; font-size: 19px; margin-right: 4px; }
 .g-gas-leak .gl-mute { width: 38px; height: 34px; border-radius: 10px; background: #fff; border: 2px solid #3b2f22; font-size: 16px; }
 .g-gas-leak .gl-board-wrap { margin-top: auto; position: relative; padding: 0 10px; display: flex; justify-content: center; flex: 0 1 auto; min-height: 0; }
-.g-gas-leak .gl-board { width: 100%; max-height: calc(100dvh - 250px); aspect-ratio: 340 / 384; border-radius: 14px; box-shadow: 0 6px 18px rgba(59,47,34,0.25); background: #fff; touch-action: none; }
+.g-gas-leak .gl-board { width: 100%; max-height: calc(100dvh - 250px); border-radius: 14px; box-shadow: 0 6px 18px rgba(59,47,34,0.25); background: #fff; touch-action: none; }
 .g-gas-leak .gl-panel { flex: 0 0 auto; margin-bottom: auto; display: flex; flex-direction: column; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); gap: 10px; }
 .g-gas-leak .gl-hint { text-align: center; font-size: 15px; font-weight: 500; padding: 14px 6px; color: #6b5a45; min-height: 92px; display: flex; align-items: center; justify-content: center; }
 .g-gas-leak .gl-controls { display: flex; flex-direction: column; gap: 8px; min-height: 92px; }
@@ -60,6 +60,7 @@ export const CSS = `
 .g-gas-leak .gl-smoke { animation: gl-smoke 2.4s ease-in-out infinite; }
 .g-gas-leak .gl-zzz { animation: gl-zzz 2.6s ease-in-out infinite; }
 .g-gas-leak .gl-hiss { animation: gl-hiss 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.g-gas-leak .gl-hiss-text { animation: gl-hisst 0.8s steps(2) infinite; }
 .g-gas-leak .gl-boom { animation: gl-boom 0.5s cubic-bezier(.2,1.6,.4,1) both; }
 .g-gas-leak .gl-boom > * { transform-box: view-box; }
 .g-gas-leak .gl-wind { animation: gl-wind 1.2s linear infinite; }
@@ -72,6 +73,7 @@ export const CSS = `
 @keyframes gl-ember { 50% { fill: #ffb347; } }
 @keyframes gl-smoke { 0% { opacity: 0; transform: translateY(4px); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(-6px); } }
 @keyframes gl-zzz { 0% { opacity: 0; transform: translate(0, 2px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -6px); } }
+@keyframes gl-hisst { 50% { opacity: 0.2; } }
 @keyframes gl-hiss { 50% { transform: scale(1.5); opacity: 0.5; } }
 @keyframes gl-boom { from { opacity: 0; transform: scale(0.2); } }
 @keyframes gl-wind { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }

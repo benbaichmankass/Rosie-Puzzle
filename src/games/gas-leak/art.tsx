@@ -6,7 +6,7 @@ import { COLS, DC, DR, EXIT_ROW, ROWS, type Dir, type ExitId, type Furniture } f
 export const CELL = 40;
 export const WALL = 12;
 export const OUT_L = 18; // outside strip on the left (yard)
-export const OUT_R = 18; // kitchen strip on the right
+export const OUT_R = 22; // kitchen strip on the right
 export const X0 = OUT_L + WALL;
 export const Y0 = WALL;
 export const VB_W = X0 + COLS * CELL + WALL + OUT_R;
@@ -43,7 +43,11 @@ export function Defs() {
       <pattern id="gl-tiles" width={CELL} height={CELL} patternUnits="userSpaceOnUse" x={X0} y={Y0}>
         <rect width={CELL} height={CELL} fill="#ece4d6" />
         <rect x="1" y="1" width={CELL - 2} height={CELL - 2} rx="2" fill="#f3ece0" />
-        <path d="M6 30 q8 -4 14 2 t14 -3" stroke="#e4d9c6" strokeWidth="1.2" fill="none" />
+        <circle cx="9" cy="12" r="0.9" fill="#dccfb9" />
+        <circle cx="27" cy="8" r="0.7" fill="#dccfb9" />
+        <circle cx="31" cy="29" r="1" fill="#dccfb9" />
+        <circle cx="14" cy="31" r="0.6" fill="#dccfb9" />
+        <circle cx="21" cy="19" r="0.5" fill="#d3c4ab" />
       </pattern>
       <pattern id="gl-kitchen" width="12" height="12" patternUnits="userSpaceOnUse">
         <rect width="12" height="12" fill="#f5f5f5" />
@@ -96,15 +100,25 @@ export function Room({ open, source, acOn }: { open: Record<ExitId, boolean>; so
         <circle cx={X0 + 190} cy="7" r="4.5" fill="#ffe7a3" stroke="#2b2b2b" strokeWidth="1.2" />
         <circle cx={X0 + 190} cy="7" r="9" fill="#fff3c4" opacity="0.35" />
       </g>
-      {/* kitchen doorway (gas source) */}
+      {/* kitchen doorway (gas source): a gas stove with a leaking knob */}
       <g>
         <rect x={x1 - 1} y={Y0 + source * CELL + 2} width={WALL + OUT_R + 1} height={CELL - 4} fill="url(#gl-kitchen)" />
-        <rect x={x1 + 8} y={Y0 + source * CELL + 6} width="20" height={CELL - 12} rx="2" fill="#3a3f45" />
+        <rect x={x1 + 7} y={Y0 + source * CELL + 4} width={OUT_R + WALL - 8} height={CELL - 8} rx="2.5" fill="#e8ebee" stroke="#8a949c" strokeWidth="1.2" />
+        <rect x={x1 + 7} y={Y0 + source * CELL + 4} width="4" height={CELL - 8} fill="#3a3f45" />
         {[0, 1].map((i) => (
-          <circle key={i} cx={x1 + 18} cy={Y0 + source * CELL + 13 + i * 14} r="4" fill="none" stroke="#9aa3ab" strokeWidth="1.6" />
+          <g key={i}>
+            <circle cx={x1 + 20} cy={Y0 + source * CELL + 13 + i * 14} r="5" fill="#3a3f45" />
+            <circle cx={x1 + 20} cy={Y0 + source * CELL + 13 + i * 14} r="2.2" fill="none" stroke="#9aa3ab" strokeWidth="1" />
+          </g>
         ))}
-        <circle className="gl-hiss" cx={x1 + 6} cy={Y0 + source * CELL + CELL / 2} r="5" fill="url(#gl-gas)" />
+        <circle className="gl-hiss" cx={x1 + 4} cy={Y0 + source * CELL + CELL / 2} r="5" fill="url(#gl-gas)" />
+        <text x={x1 + 30} y={Y0 + source * CELL - 3} fontSize="7" fontFamily="'Bangers', sans-serif" fill="#5fa82c" textAnchor="end" className="gl-hiss-text">
+          SSSS
+        </text>
       </g>
+      <text x={x1 + WALL + OUT_R / 2} y={Y0 + ROWS * CELL - 30} fontSize="7" fontFamily="'Fredoka', sans-serif" fontWeight="700" fill="#8a949c" textAnchor="middle" transform={`rotate(-90 ${x1 + WALL + OUT_R / 2} ${Y0 + ROWS * CELL - 30})`}>
+        KITCHEN
+      </text>
       {/* left wall openings */}
       <Window y={exitY('window')} open={open.window} />
       <Door y={exitY('door')} open={open.door} />

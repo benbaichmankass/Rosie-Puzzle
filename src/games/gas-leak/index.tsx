@@ -387,7 +387,7 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
         }
       />
       <div className="gl-board-wrap">
-        <svg ref={svgRef} viewBox={`0 0 ${VB_W} ${VB_H}`} className="gl-board" onPointerDown={onBoardTap}>
+        <svg ref={svgRef} viewBox={`0 0 ${VB_W} ${VB_H}`} className="gl-board" style={{ aspectRatio: `${VB_W} / ${VB_H}` }} onPointerDown={onBoardTap}>
           <Defs />
           <Room open={level.open} source={level.source} acOn={!!level.ac} />
           {danger.map((d) => (
