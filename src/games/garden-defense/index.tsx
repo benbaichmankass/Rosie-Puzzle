@@ -321,7 +321,7 @@ export default function Game({ onExit }: GameProps) {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
         const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
-        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob, eaten && p.leaves <= 4 ? 1 : 0);
+        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
       });
 
       const hopH = 16 * s;
@@ -336,7 +336,7 @@ export default function Game({ onExit }: GameProps) {
       ctx.drawImage(e.fence, 0, 0, W, H);
       g.plants.forEach((p, i) => {
         const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
-        drawPlantTag(ctx, L, p, i, now, eaten && p.leaves <= 4 ? 1 : 0);
+        drawPlantTag(ctx, L, p, i, now, eaten && p.leaves <= 3 ? 1 : 0);
       });
       drawB(false);
 
@@ -349,7 +349,7 @@ export default function Game({ onExit }: GameProps) {
       if (col >= 0) {
         const top = plantTop(L, g.plants[col], shapes[col]);
         tx = top.x + 40 * s;
-        ty = Math.max(L.wallTop + 40 * s, top.y - 22 * s);
+        ty = Math.max(L.wallTop + 40 * s, Math.min(top.y - 22 * s, L.plantBaseY - 150 * s));
         tilt = -0.62;
       }
       if (!e.can.init) {
@@ -476,7 +476,7 @@ export default function Game({ onExit }: GameProps) {
           <div
             ref={hintRef}
             className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
-            style={{ top: '30%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+            style={{ top: '21%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
           >
             {HINT}
           </div>

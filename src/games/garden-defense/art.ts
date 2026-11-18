@@ -41,7 +41,7 @@ export function makeLayout(W: number, H: number): Layout {
     fenceBottom,
     groundTop,
     groundRange: H - groundTop - 70 * s,
-    plantMaxH: Math.min(H * 0.25, 215 * s),
+    plantMaxH: Math.min(H * 0.22, 190 * s),
   };
 }
 
@@ -428,7 +428,7 @@ export function makePlantShape(i: number): PlantShape {
   for (let k = 0; k < TUNING.maxLeaves; k++) {
     const stem = [1, 0, 2][k % 3];
     const t = 0.12 + (k / (TUNING.maxLeaves - 1)) * 0.84;
-    slots.push({ stem, t, side: k % 2 ? 1 : -1, len: 22 + rng() * 4 - k * 0.5, w: 16 + rng() * 3 - k * 0.3, spread: 0.55 + rng() * 0.25 });
+    slots.push({ stem, t, side: k % 2 ? 1 : -1, len: 25 + rng() * 4 - k * 0.6, w: 18 + rng() * 3 - k * 0.4, spread: 0.55 + rng() * 0.25 });
   }
   return { stems, slots, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
 }
@@ -1191,14 +1191,15 @@ export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant,
   } else {
     const n = TUNING.maxLeaves;
     for (let k = 0; k < n; k++) {
-      const col = k % 6;
-      const row = Math.floor(k / 6);
-      const x = -w / 2 + 7.5 * s + col * 6.2 * s;
+      const perRow = Math.ceil(n / 2);
+      const col = k % perRow;
+      const row = Math.floor(k / perRow);
+      const x = -w / 2 + 7.5 * s + col * 7.6 * s + row * 3.8 * s;
       const yy = 3 * s + 7.5 * s + row * 5.6 * s;
       ctx.beginPath();
       ctx.ellipse(x, yy, 2.4 * s, 1.9 * s, -0.5, 0, TAU);
       if (k < p.leaves) {
-        ctx.fillStyle = p.leaves <= 4 ? 'rgba(186,70,48,0.9)' : 'rgba(78,128,82,0.9)';
+        ctx.fillStyle = p.leaves <= 3 ? 'rgba(186,70,48,0.9)' : 'rgba(78,128,82,0.9)';
         ctx.fill();
       } else {
         ctx.strokeStyle = 'rgba(90,80,60,0.35)';

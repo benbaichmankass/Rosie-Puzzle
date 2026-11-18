@@ -27,9 +27,12 @@ const careless: Player = (s, mem) => {
   return mem.cur;
 };
 
+/** Mindlessly sweeps the can along the plants, 0.5 s on each, ignoring the bunnies. */
+const rotator: Player = (s) => Math.floor(s.t / 0.5) % TUNING.plantCount;
+
 /**
- * A good player: re-decides every 0.35 s (human reaction), waters the plant under the most bunny pressure
- * (bunnies on it vs leaves left), otherwise tops up the driest plant. Moving the can takes 0.2 s.
+ * A good player: re-decides every 0.35 s (human reaction) and waters where it helps most: dry soil weighted by
+ * bunnies on or heading to the plant and leaves already lost. Moving the can takes 0.2 s.
  */
 const good: Player = (s, mem) => {
   if (s.t < mem.until) return mem.cur;
@@ -39,7 +42,8 @@ const good: Player = (s, mem) => {
     if (!p.alive) return;
     const eaters = s.bunnies.filter((b) => b.target === i && b.mode === 'eat').length;
     const coming = s.bunnies.filter((b) => b.target === i && b.mode === 'hop').length;
-    const sc = (eaters * 3 + coming) / (p.leaves + 1) + (1 - p.moisture) * 0.25;
+    const need = 1 + eaters * 4 + coming + (TUNING.maxLeaves - p.leaves) / 3;
+    const sc = (1.05 - p.moisture) * need;
     if (sc > score) {
       score = sc;
       best = i;
@@ -86,6 +90,7 @@ function stats(name: string, player: Player) {
 
 const I = stats('idle', idle);
 const C = stats('careless', careless);
+const R = stats('rotator', rotator);
 const G = stats('good', good);
 
 const fails: string[] = [];
@@ -93,7 +98,8 @@ if (I.median < 25 || I.median > 80) fails.push(`idle player should lose in 25-80
 if (C.median <= I.median + 5) fails.push('careless tapping should beat doing nothing');
 if (G.median <= C.median * 1.5) fails.push('a good player should clearly outlast a careless one');
 if (G.median < 150 || G.median > 360) fails.push(`a good player should last a few minutes: median 150-360 s (got ${G.median.toFixed(0)})`);
-if (G.unfinished + C.unfinished + I.unfinished > 0) fails.push('every game must end (difficulty must keep rising)');
+if (G.median < R.median * 1.15) fails.push('watering where the bunnies are must beat mindlessly sweeping the can (good >= 1.15 x rotator)');
+if (G.unfinished + C.unfinished + I.unfinished + R.unfinished > 0) fails.push('every game must end (difficulty must keep rising)');
 
 if (fails.length) {
   console.error('FAIL:\n  ' + fails.join('\n  '));
