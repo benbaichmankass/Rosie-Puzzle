@@ -181,7 +181,7 @@ export function difficulty(level: number): Difficulty {
     puddles: L >= 6 ? (L >= 10 ? 2 : 1) : 0,
     pillows: L >= 2 ? Math.min(1 + Math.floor((L - 2) / 3), 3) : 0,
     movers: L >= 4 ? (L >= 8 ? 2 : 1) : 0,
-    budget: 8 + Math.floor(L / 4),
+    budget: 8 + Math.floor(L / 3),
   };
 }
 

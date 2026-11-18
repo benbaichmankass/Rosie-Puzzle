@@ -12,7 +12,7 @@ export interface HudState { level: number; flings: number; budget: number; pct: 
 export interface ClearInfo { level: number; flings: number; score: LevelScore; run: number }
 interface Callbacks { onHud: (h: HudState) => void; onClear: (c: ClearInfo) => void; onOver: (c: ClearInfo) => void }
 
-interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string }
+interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; star?: boolean }
 interface Popup { x: number; y: number; text: string; life: number; color: string }
 
 const DIRT_K = 2;
@@ -246,7 +246,13 @@ export class Engine {
     d.globalCompositeOperation = 'source-over';
     const len = Math.hypot(x1 - x0, y1 - y0);
     const n = Math.max(1, Math.ceil(len / 3));
-    for (let i = 0; i <= n; i++) cleanAt(this.grid, x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n);
+    let fresh = 0;
+    for (let i = 0; i <= n; i++) fresh += cleanAt(this.grid, x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n);
+    // sparkles on freshly cleaned floor
+    if (fresh > 0 && this.particles.length < 160 && Math.random() < Math.min(0.6, fresh * 0.08)) {
+      const a = Math.random() * Math.PI * 2, d = Math.random() * R;
+      this.particles.push({ x: x1 + Math.cos(a) * d, y: y1 + Math.sin(a) * d, vx: 0, vy: 0, life: 0, max: 0.5 + Math.random() * 0.4, size: 2 + Math.random() * 2.5, color: '#ffffff', star: true });
+    }
   }
 
   private puff(x: number, y: number, color: string, speed: number) {
@@ -260,6 +266,14 @@ export class Engine {
     this.rosieWake = Math.max(0, this.rosieWake - dt * 0.6);
     for (const [k, v] of this.squash) { const n = v - dt * 4; if (n <= 0) this.squash.delete(k); else this.squash.set(k, n); }
     this.shake = Math.max(0, this.shake - dt * 30);
+
+    // the rolling ball shoves a parked Roomba instead of rolling through it
+    if (this.state === 'aim') {
+      for (const m of this.level.movers) {
+        const p = moverPos(m, this.t);
+        if (Math.hypot(p.x - this.body.x, p.y - this.body.y) < m.r + R) { this.aim = null; this.state = 'moving'; break; }
+      }
+    }
 
     if (this.state === 'moving') {
       const x0 = this.body.x, y0 = this.body.y;
@@ -380,7 +394,6 @@ export class Engine {
       ctx.beginPath(); ctx.moveTo(m.x0, m.y0); ctx.lineTo(m.x1, m.y1); ctx.stroke();
       ctx.setLineDash([]);
       drawBall(ctx, m, this.t);
-      void moverPos;
     }
 
     // aiming: slingshot band, power ring and trajectory preview
@@ -447,6 +460,16 @@ export class Engine {
       const a = 1 - p.life / p.max;
       ctx.globalAlpha = a;
       ctx.fillStyle = p.color;
+      if (p.star) {
+        // four-point twinkle that grows then fades
+        const sz = p.size * Math.sin((p.life / p.max) * Math.PI);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - sz); ctx.quadraticCurveTo(p.x, p.y, p.x + sz, p.y);
+        ctx.quadraticCurveTo(p.x, p.y, p.x, p.y + sz); ctx.quadraticCurveTo(p.x, p.y, p.x - sz, p.y);
+        ctx.quadraticCurveTo(p.x, p.y, p.x, p.y - sz);
+        ctx.fill();
+        continue;
+      }
       ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.6 + a * 0.4), 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;

@@ -57,6 +57,8 @@ function circle(ctx: Ctx, x: number, y: number, r: number) {
 export function drawFloor(ctx: Ctx, level: Level) {
   const rng = mulberry32(level.seed ^ 0x51a7);
   const T = 60;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
   ctx.fillStyle = C.grout;
   ctx.fillRect(0, 0, W, H);
   for (let y = 0; y < H; y += T) {
@@ -74,6 +76,16 @@ export function drawFloor(ctx: Ctx, level: Level) {
       }
     }
   }
+  ctx.restore();
+  // doormat inside the yard door
+  ctx.save();
+  shadow(ctx, 2, 1, 0.15);
+  ctx.fillStyle = '#7a5c3e';
+  rrect(ctx, 2, 276, 22, 52, 3); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(40,25,10,0.35)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(5, 282 + i * 10); ctx.lineTo(21, 282 + i * 10); ctx.stroke(); }
   for (const z of level.zones) if (z.kind === 'rug') drawRug(ctx, z);
 }
 
@@ -260,21 +272,14 @@ export function drawWalls(ctx: Ctx, level: Level) {
     ctx.fillRect(-3, y0 + len - 8, 3, 14);
   };
   win(70, 70);
-  // door gap with an open door swinging in
+  // doorway out to the yard: dirt and a doormat, the door swung open outside
   const dy = 270;
-  ctx.fillStyle = '#e9e1d2';
+  ctx.fillStyle = '#9b7b57';
   ctx.fillRect(-WALL, dy, WALL, 64);
-  ctx.strokeStyle = 'rgba(120,100,80,0.25)';
-  ctx.setLineDash([3, 3]);
-  ctx.beginPath(); ctx.arc(0, dy, 62, 0, Math.PI / 2); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.save();
-  shadow(ctx, 4, 1, 0.2);
-  ctx.fillStyle = '#f3efe6';
-  ctx.fillRect(0, dy - 1, 5, 62);
-  ctx.restore();
-  ctx.fillStyle = '#b9ae9a';
-  circle(ctx, 3, dy + 50, 1.6); ctx.fill();
+  ctx.fillStyle = 'rgba(70,50,30,0.35)';
+  for (let i = 0; i < 10; i++) { circle(ctx, -WALL + 3 + ((i * 7) % 11), dy + 5 + i * 6, 1); ctx.fill(); }
+  ctx.fillStyle = '#d8d0c2';
+  ctx.fillRect(-4, dy, 4, 64);
   win(H - 200, 80);
   // AC unit above that window (drawn on the wall top, sticking into the room a bit)
   ctx.save();
@@ -289,11 +294,17 @@ export function drawWalls(ctx: Ctx, level: Level) {
   ctx.fillStyle = '#58c26a';
   circle(ctx, 7, H - 120, 1.2); ctx.fill();
 
-  // right wall: open to the kitchen
-  ctx.fillStyle = '#efe9dc';
-  ctx.fillRect(W, 120, WALL, 110);
-  ctx.fillStyle = 'rgba(0,0,0,0.05)';
-  for (let i = 0; i < 4; i++) ctx.fillRect(W + 2, 124 + i * 26, WALL - 4, 22);
+  // right wall: open to the kitchen (its own checker tiles show through)
+  ctx.save();
+  ctx.beginPath(); ctx.rect(W - 0.5, 120, WALL + 1, 110); ctx.clip();
+  for (let yy = 120; yy < 230; yy += 8) for (let xx = W; xx < W + WALL; xx += 8) {
+    ctx.fillStyle = ((yy - 120) / 8 + (xx - W) / 8) % 2 ? '#e9dfcb' : '#c9b48f';
+    ctx.fillRect(xx, yy, 8, 8);
+  }
+  ctx.restore();
+  ctx.fillStyle = '#e4ded3';
+  ctx.fillRect(W, 116, WALL, 4);
+  ctx.fillRect(W, 230, WALL, 4);
   ctx.restore();
   void level;
 }
@@ -825,19 +836,29 @@ export function drawRosie(ctx: Ctx, r: Rosie, t: number, wake: number) {
   ctx.stroke();
   ctx.restore();
   // legs (lying on her side, legs stretched out toward +y)
-  const leg = (x0: number, y0: number, dx: number, dy: number) => {
-    ctx.strokeStyle = col.coat;
-    ctx.lineWidth = 4.2;
+  const leg = (x0: number, y0: number, dx: number, dy: number, bend: number) => {
+    // upper leg + lower leg with a soft knee, then a little oval paw
+    const kx = x0 + dx * 0.5 + bend, ky = y0 + dy * 0.5;
+    const px = x0 + dx, py = y0 + dy;
     ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x0 + dx * 0.6, y0 + dy * 0.5, x0 + dx, y0 + dy); ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-    ctx.lineWidth = 0.8;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(kx, ky); ctx.lineTo(px, py); ctx.stroke();
+    ctx.strokeStyle = col.coat;
+    ctx.lineWidth = 3.6;
     ctx.stroke();
+    ctx.fillStyle = col.coat;
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.ellipse(px, py + 1, 2.8, 2.2, Math.atan2(dy, dx), 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col.ticking;
+    circle(ctx, kx, ky, 0.8); ctx.fill();
   };
-  leg(-16, 6, -6, 17);
-  leg(-10, 7, 2, 18);
-  leg(12, 6, 6, 17);
-  leg(18, 6, 13, 13);
+  leg(-18, 6, -7, 17, -4);
+  leg(-11, 7, 1, 18, -3);
+  leg(12, 6, 6, 16, 3);
+  leg(18, 6, 12, 12, 2);
   // body
   ctx.save();
   ctx.scale(1, breathe);
