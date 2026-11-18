@@ -52,32 +52,48 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
   const posOf = (row: number[], s: number) => row.indexOf(s);
   const last = rows[K];
 
+  // Each strand is one continuous path (knot -> braid rows -> free end), so there are no seams;
+  // then each crossing segment is redrawn on top so the moved strand lies OVER the others.
   const segs: React.ReactNode[] = [];
-  for (let k = 1; k <= K; k++) {
-    const crosser = braid.crosses[k - 1].strand;
-    const ids = last.slice().sort((a, b) => (a === crosser ? 1 : 0) - (b === crosser ? 1 : 0));
-    for (const s of ids) {
-      const d = vcurve(bx(posOf(rows[k - 1], s)), rowY(k - 1), bx(posOf(rows[k], s)), rowY(k));
-      segs.push(
-        <g key={`${k}-${s}`}>
-          <StrandSeg d={d} baked={done} />
-        </g>,
-      );
-    }
-  }
-  // Free strand ends from the last braided row up to the handles.
-  const freeOrder = last.slice().sort((a, b) => (drag && last[drag.from] === a ? 1 : 0) - (drag && last[drag.from] === b ? 1 : 0));
-  for (const s of freeOrder) {
+  const draggedStrand = drag ? last[drag.from] : -1;
+  const strandPath = (s: number) => {
+    let d = `M ${bx(posOf(rows[0], s))} ${rowY(0)}`;
+    for (let k = 1; k <= K; k++) d += vcurve(bx(posOf(rows[k - 1], s)), rowY(k - 1), bx(posOf(rows[k], s)), rowY(k)).replace(/^M [^C]+/, ' ');
     const p = posOf(last, s);
-    const dragged = drag && drag.from === p;
-    const ex = dragged ? drag.x : fx(p);
-    const ey = dragged ? drag.y : TOP_Y;
+    const ex = s === draggedStrand && drag ? drag.x : fx(p);
+    const ey = s === draggedStrand && drag ? drag.y : TOP_Y;
+    d += vcurve(bx(p), rowY(K), ex, ey).replace(/^M [^C]+/, ' ');
+    return { d, ex, ey };
+  };
+  const order = last.slice().sort((a, b) => (a === draggedStrand ? 1 : 0) - (b === draggedStrand ? 1 : 0));
+  const paths = new Map(order.map((s) => [s, strandPath(s)]));
+  for (const s of order) {
+    if (s === draggedStrand) continue;
     segs.push(
-      <g key={`free-${s}`}>
-        <StrandSeg d={vcurve(bx(p), rowY(K), ex, ey)} baked={done} />
-        <circle cx={ex} cy={ey} r={STRAND / 2 + 1} fill={done ? P.baked : P.dough} stroke={INK} strokeWidth={3} />
+      <g key={`s-${s}`}>
+        <StrandSeg d={paths.get(s)!.d} baked={done} />
       </g>,
     );
+  }
+  for (let k = 1; k <= K; k++) {
+    const c = braid.crosses[k - 1].strand;
+    const d = vcurve(bx(posOf(rows[k - 1], c)), rowY(k - 1), bx(posOf(rows[k], c)), rowY(k));
+    segs.push(
+      <g key={`x-${k}`}>
+        <StrandSeg d={d} baked={done} />
+      </g>,
+    );
+  }
+  if (draggedStrand >= 0) {
+    segs.push(
+      <g key={`s-${draggedStrand}`}>
+        <StrandSeg d={paths.get(draggedStrand)!.d} baked={done} />
+      </g>,
+    );
+  }
+  for (const s of order) {
+    const { ex, ey } = paths.get(s)!;
+    segs.push(<circle key={`tip-${s}`} cx={ex} cy={ey} r={STRAND / 2 + 1} fill={done ? P.baked : P.dough} stroke={INK} strokeWidth={3} />);
   }
 
   const moves = legalMoves(braid);
