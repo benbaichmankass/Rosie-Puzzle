@@ -219,7 +219,8 @@ export function buildSolids(pieces: Piece[], rosie: Rosie): Solid[] {
         circ(0.7);
         break;
       case 'dogbed':
-        circ(0.4, 'soft');
+        // with Rosie asleep in it, bumping the bed disturbs her
+        circ(0.4, rosie.where === 'bed' ? 'rosie' : 'soft');
         break;
       case 'pillow':
         circ(1.35, 'pillow', 1);
@@ -742,11 +743,20 @@ export const cleanPct = (g: CleanGrid) => (g.total ? g.cleaned / g.total : 0);
 
 // ---------------------------------------------------------------- scoring
 
-export interface LevelScore { cleanPts: number; flingPts: number; total: number; pct: number }
-/** Score per level: % of the floor cleaned (x12 per percent) + 100 per unused battery bar. */
-export function levelScore(flings: number, pct: number, budget: number): LevelScore {
+/** Points lost each time the Roomba bumps Rosie and wakes her from her nap. */
+export const ROSIE_PENALTY = 150;
+/** Bumps closer together than this (seconds) count as one disturbance. */
+export const ROSIE_COOLDOWN = 1.2;
+
+export interface LevelScore { cleanPts: number; flingPts: number; rosiePts: number; bumps: number; total: number; pct: number }
+/**
+ * Score per level: % of the floor cleaned (x12 per percent) + 100 per unused battery bar,
+ * minus ROSIE_PENALTY for every time Rosie was disturbed. Never below 0.
+ */
+export function levelScore(flings: number, pct: number, budget: number, bumps = 0): LevelScore {
   const p = Math.round(pct * 100);
   const cleanPts = p * 12;
   const flingPts = Math.max(0, budget - flings) * 100;
-  return { cleanPts, flingPts, total: cleanPts + flingPts, pct: p };
+  const rosiePts = bumps * ROSIE_PENALTY;
+  return { cleanPts, flingPts, rosiePts, bumps, total: Math.max(0, cleanPts + flingPts - rosiePts), pct: p };
 }

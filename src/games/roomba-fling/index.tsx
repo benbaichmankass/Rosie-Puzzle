@@ -4,6 +4,7 @@ import { ExitButton } from '../../shared/ExitButton';
 import { getHighScore, submitScore, load, save } from '../../shared/storage';
 import { meta } from './meta';
 import { Engine, type HudState, type ClearInfo } from './engine';
+import { ROSIE_PENALTY } from './sim';
 
 const ID = meta.id;
 
@@ -41,7 +42,7 @@ export default function Game({ onExit }: GameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
   const [screen, setScreen] = useState<Screen>('start');
-  const [hud, setHud] = useState<HudState>({ level: 1, flings: 0, budget: 8, pct: 0, run: 0 });
+  const [hud, setHud] = useState<HudState>({ level: 1, flings: 0, budget: 8, pct: 0, run: 0, bumps: 0 });
   const [clear, setClear] = useState<ClearInfo | null>(null);
   const [best, setBest] = useState(() => getHighScore(ID));
   const [muted, setMuted] = useState(() => load<boolean>(ID, 'muted', false));
@@ -132,6 +133,7 @@ export default function Game({ onExit }: GameProps) {
           <span className="text-[#ffd479]">LV {hud.level}</span>
           <Battery left={Math.max(0, hud.budget - hud.flings)} total={hud.budget} />
           <span className="tabular-nums">🧹 {Math.round(hud.pct * 100)}%</span>
+          {hud.bumps > 0 && <span className="tabular-nums text-[#ff8a75]" aria-label={`Rosie woken ${hud.bumps} times`}>💢{hud.bumps}</span>}
         </div>
         <div className="text-right leading-tight">
           <div className="text-[10px] opacity-70">SCORE</div>
@@ -157,7 +159,7 @@ export default function Game({ onExit }: GameProps) {
               <div className="mt-4 text-[16px] leading-snug">
                 Drag back from the Roomba and let go to fling it. Clean as much floor as you can and reach the dock in as few flings as possible.
               </div>
-              <div className="mt-2 text-[13px] text-[#8a7f72]">Don’t wake Rosie… too much.</div>
+              <div className="mt-2 text-[14px] font-semibold text-[#c0453a]">Don’t bump Rosie, she’s napping! Each bump costs {ROSIE_PENALTY}.</div>
               <button onClick={play} className="rf-btn mt-5 w-full bg-[#3fbf74] text-white">PLAY</button>
               <div className="mt-3 text-[13px] text-[#8a7f72]">Best: <b className="text-[#3a332c]">{best}</b></div>
             </div>
@@ -175,6 +177,12 @@ export default function Game({ onExit }: GameProps) {
                 <div className="flex justify-between"><span>Floor cleaned {clear.score.pct}%</span><b>+{clear.score.cleanPts}</b></div>
                 {screen === 'clear' && (
                   <div className="flex justify-between"><span>{clear.flings} fling{clear.flings === 1 ? '' : 's'} · battery left</span><b>+{clear.score.flingPts}</b></div>
+                )}
+                {clear.score.bumps > 0 && (
+                  <div className="flex justify-between text-[#c0453a]"><span>Woke Rosie ×{clear.score.bumps}</span><b>−{clear.score.rosiePts}</b></div>
+                )}
+                {screen === 'clear' && clear.score.bumps === 0 && (
+                  <div className="flex justify-between text-[#2f9e5e]"><span>Rosie slept through it</span><b>+0</b></div>
                 )}
                 {screen === 'clear' && (
                   <div className="flex justify-between border-t border-[#e5ddd0] pt-1"><span>Level score</span><b>{clear.score.total}</b></div>

@@ -1,19 +1,19 @@
 /** Roomba Fling runtime: canvas rendering, input and the game loop around the pure sim. */
 import {
   W, H, R, MAX_DRAG, CLEAN_RADIUS, generateLevel, makeCleanGrid, cleanAt, cleanPct, step, atDock, flingVelocity,
-  predict, levelScore, type Level, type Body, type Hit, type CleanGrid, type LevelScore, moverPos,
+  predict, levelScore, ROSIE_PENALTY, ROSIE_COOLDOWN, type Level, type Body, type Hit, type CleanGrid, type LevelScore, moverPos,
 } from './sim';
 import {
   WALL, drawFloor, drawDirt, drawWalls, drawPiece, drawPuddle, drawPillow, drawDock, drawBall, drawRosie, drawRosieZ, drawRoomba,
 } from './draw';
 import { Sfx } from './audio';
 
-export interface HudState { level: number; flings: number; budget: number; pct: number; run: number }
+export interface HudState { level: number; flings: number; budget: number; pct: number; run: number; bumps: number }
 export interface ClearInfo { level: number; flings: number; score: LevelScore; run: number }
 interface Callbacks { onHud: (h: HudState) => void; onClear: (c: ClearInfo) => void; onOver: (c: ClearInfo) => void }
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; star?: boolean }
-interface Popup { x: number; y: number; text: string; life: number; color: string }
+interface Popup { x: number; y: number; text: string; life: number; color: string; big?: boolean }
 
 const DIRT_K = 2;
 const SUB = 1 / 240;
@@ -50,6 +50,8 @@ export class Engine {
   private dockFrom = { x: 0, y: 0 };
   private overT = 0;
   private rosieWake = 0;
+  private rosieCool = 0;
+  private bumps = 0;
   private squash = new Map<number, number>();
   private particles: Particle[] = [];
   private popups: Popup[] = [];
@@ -127,6 +129,8 @@ export class Engine {
     this.flings = 0;
     this.state = 'aim';
     this.rosieWake = 0;
+    this.rosieCool = 0;
+    this.bumps = 0;
     this.squash.clear();
     this.particles = [];
     this.popups = [];
@@ -179,7 +183,7 @@ export class Engine {
     const pr = Math.round(pct * 100);
     if (!force && pr === this.lastPct) return;
     this.lastPct = pr;
-    this.cb.onHud({ level: this.level.level, flings: this.flings, budget: this.level.budget, pct, run: this.run });
+    this.cb.onHud({ level: this.level.level, flings: this.flings, budget: this.level.budget, pct, run: this.run, bumps: this.bumps });
   }
 
   // ------------------------------------------------------------ input
@@ -263,7 +267,8 @@ export class Engine {
   private update(dt: number) {
     this.t += dt;
     this.hintT += dt;
-    this.rosieWake = Math.max(0, this.rosieWake - dt * 0.6);
+    this.rosieWake = Math.max(0, this.rosieWake - dt * 0.45);
+    this.rosieCool = Math.max(0, this.rosieCool - dt);
     for (const [k, v] of this.squash) { const n = v - dt * 4; if (n <= 0) this.squash.delete(k); else this.squash.set(k, n); }
     this.shake = Math.max(0, this.shake - dt * 30);
 
@@ -324,7 +329,7 @@ export class Engine {
       this.sfx.hum(0);
       if (this.dockT > 1.0) {
         this.state = 'done';
-        const score = levelScore(this.flings, cleanPct(this.grid), this.level.budget);
+        const score = levelScore(this.flings, cleanPct(this.grid), this.level.budget, this.bumps);
         this.run = this.runBeforeLevel + score.total;
         this.active = false;
         this.pushHud(true);
@@ -335,11 +340,11 @@ export class Engine {
       if (this.overT <= 0) {
         this.active = false;
         this.sfx.fail();
-        const score = levelScore(this.level.budget, cleanPct(this.grid), this.level.budget);
-        // battery died: the cleaning still counts toward the run
-        this.run = this.runBeforeLevel + score.cleanPts;
+        const score = levelScore(this.level.budget, cleanPct(this.grid), this.level.budget, this.bumps);
+        // battery died: the cleaning (minus Rosie penalties) still counts toward the run
+        this.run = this.runBeforeLevel + score.total;
         this.pushHud(true);
-        this.cb.onOver({ level: this.level.level, flings: this.flings, score: { ...score, flingPts: 0, total: score.cleanPts }, run: this.run });
+        this.cb.onOver({ level: this.level.level, flings: this.flings, score, run: this.run });
       }
     }
 
@@ -357,10 +362,22 @@ export class Engine {
     if (h.speed > 500) this.shake = Math.min(6, h.speed / 180);
     for (let i = 0; i < Math.round(3 + v * 8); i++) this.puff(h.x, h.y, h.tag === 'pillow' ? '#fff3b0' : 'rgba(200,185,160,0.9)', 50 + v * 120);
     if (h.tag === 'pillow') this.squash.set(h.owner, 1);
-    if (h.tag === 'rosie' && h.speed > 60) {
-      if (this.rosieWake < 0.3) this.popups.push({ x: this.level.rosie.x, y: this.level.rosie.y - 30, text: 'Woof!', life: 0, color: '#d93a3a' });
-      this.rosieWake = 1;
-    }
+    const r = this.level.rosie;
+    // bumping Rosie (on the floor, her bed, or the sofa right where she sleeps) wakes her up
+    const nearCouchRosie = r.where === 'couch' && h.tag === 'soft' && this.level.pieces[h.owner]?.type === 'sofa' && Math.hypot(h.x - r.x, h.y - r.y) < 52;
+    if ((h.tag === 'rosie' || nearCouchRosie) && h.speed > 30) this.disturbRosie();
+  }
+
+  private disturbRosie() {
+    this.rosieWake = 1;
+    if (this.rosieCool > 0) return; // one collision with several contact frames counts once
+    this.rosieCool = ROSIE_COOLDOWN;
+    this.bumps++;
+    const r = this.level.rosie;
+    this.sfx.growl();
+    this.popups.push({ x: r.x, y: r.y - 34, text: `-${ROSIE_PENALTY}`, life: 0, color: '#d93a3a', big: true });
+    this.popups.push({ x: r.x + 26, y: r.y - 14, text: this.bumps > 1 ? 'GRRR!' : 'Grr!', life: 0, color: '#6b4a2b' });
+    this.cb.onHud({ level: this.level.level, flings: this.flings, budget: this.level.budget, pct: cleanPct(this.grid), run: this.run, bumps: this.bumps });
   }
 
   // ------------------------------------------------------------ rendering
@@ -476,7 +493,7 @@ export class Engine {
     drawRosieZ(ctx, L.rosie, this.t, this.rosieWake);
     for (const p of this.popups) {
       ctx.globalAlpha = Math.max(0, 1 - p.life / 1.1);
-      ctx.font = '700 14px Fredoka, sans-serif';
+      ctx.font = p.big ? '700 20px Fredoka, sans-serif' : '700 14px Fredoka, sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#fff';

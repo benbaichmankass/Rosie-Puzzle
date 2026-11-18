@@ -901,9 +901,17 @@ export function drawRosie(ctx: Ctx, r: Rosie, t: number, wake: number) {
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 0.9;
   if (wake > 0.2) {
+    // awake and grumpy: open eyes under frowning brows
+    ctx.fillStyle = '#f4e3c4';
+    circle(ctx, 3, -4, 1.9); ctx.fill();
+    circle(ctx, 3, 4, 1.9); ctx.fill();
     ctx.fillStyle = '#3a2614';
-    circle(ctx, 3, -4, 1.4); ctx.fill();
-    circle(ctx, 3, 4, 1.4); ctx.fill();
+    circle(ctx, 3.4, -4, 1.2); ctx.fill();
+    circle(ctx, 3.4, 4, 1.2); ctx.fill();
+    ctx.strokeStyle = '#d8d0c4';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(0.5, -6.8); ctx.lineTo(5, -5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.5, 6.8); ctx.lineTo(5, 5); ctx.stroke();
   } else {
     ctx.strokeStyle = '#555';
     ctx.beginPath(); ctx.arc(3, -4, 1.6, 0.2, Math.PI - 0.2); ctx.stroke();
@@ -919,9 +927,21 @@ export function drawRosieZ(ctx: Ctx, r: Rosie, t: number, wake: number) {
   ctx.save();
   ctx.textAlign = 'center';
   if (wake > 0.2) {
-    ctx.font = 'bold 14px "Pixelify Sans", sans-serif';
-    ctx.fillStyle = `rgba(217,58,58,${Math.min(1, wake * 1.5)})`;
-    ctx.fillText('!', hx + 6, hy - 14 - (1 - wake) * 6);
+    // cartoon "annoyed" mark: four red ticks, pulsing
+    const a = Math.min(1, wake * 1.5);
+    const k = 1 + Math.sin(t * 14) * 0.12;
+    const mx = hx + 10, my = hy - 16;
+    ctx.strokeStyle = `rgba(217,58,58,${a})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const ang = Math.PI / 4 + (i * Math.PI) / 2;
+      const cx = mx + Math.cos(ang) * 4.5 * k, cy = my + Math.sin(ang) * 4.5 * k;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.sin(ang) * 2.5, cy + Math.cos(ang) * 2.5);
+      ctx.quadraticCurveTo(cx - Math.cos(ang) * 2, cy - Math.sin(ang) * 2, cx + Math.sin(ang) * 2.5, cy - Math.cos(ang) * 2.5);
+      ctx.stroke();
+    }
   } else {
     for (let i = 0; i < 3; i++) {
       const k = (t * 0.5 + i / 3) % 1;
