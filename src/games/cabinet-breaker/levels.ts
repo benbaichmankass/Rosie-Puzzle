@@ -53,43 +53,29 @@ export interface LevelDef {
   rows: string[];
 }
 
+/** Ordered roughly by difficulty: heavier items and trickier shapes come later. */
 export const LEVELS: LevelDef[] = [
-  {
-    name: 'Clean Dishes',
-    rows: ['PPPPPPPP', 'BBBBBBBB', 'GGGGGGGG', '........', 'CCCCCCCC'],
-  },
-  {
-    name: 'Stacked Up',
-    rows: ['...PP...', '..BBBB..', '.GGGGGG.', 'PPPPPPPP', 'CCTCCTCC'],
-  },
-  {
-    name: 'Two Cupboards',
-    rows: ['PPP..BBB', 'GGG..GGG', 'TCT..TCT', 'BBB..PPP', 'CCC..CCC', 'OPO..OPO'],
-  },
-  {
-    name: 'Pantry Check',
-    rows: ['C.C.C.C.', '.T.T.T.T', 'B.B.B.B.', '.G.G.G.G', 'P.P.P.P.', '.C.C.C.C'],
-  },
-  {
-    name: 'Soup Night',
-    rows: ['O.O..O.O', 'BBBBBBBB', '.PPPPPP.', 'GG.GG.GG', 'TTTTTTTT', '..BBBB..'],
-  },
-  {
-    name: 'Diamond Dinnerware',
-    rows: ['...GG...', '..PBBP..', '.PTOOTP.', 'GBONNOBG', '.PTOOTP.', '..PBBP..', '...GG...'],
-  },
+  { name: 'Clean Dishes', rows: ['PPPPPPPP', 'BBBBBBBB', 'GGGGGGGG', '........', 'CCCCCCCC'] },
+  { name: 'Stacked Up', rows: ['...PP...', '..BBBB..', '.GGGGGG.', 'PPPPPPPP', 'CCTCCTCC'] },
+  { name: 'Two Cupboards', rows: ['PPP..BBB', 'GGG..GGG', 'TCT..TCT', 'BBB..PPP', 'CCC..CCC', 'OPO..OPO'] },
+  { name: 'Pantry Check', rows: ['C.C.C.C.', '.T.T.T.T', 'B.B.B.B.', '.G.G.G.G', 'P.P.P.P.', '.C.C.C.C'] },
+  { name: 'Dinner for Two', rows: ['.BB..BB.', 'BPPBBPPB', 'BPPGGPPB', '.BPGGPB.', '..BPPB..', '...BB...'] },
+  { name: 'Soup Night', rows: ['O.O..O.O', 'BBBBBBBB', '.PPPPPP.', 'GG.GG.GG', 'TTTTTTTT', '..BBBB..'] },
+  { name: 'Spice Rack', rows: ['TCTCTCTC', '........', 'CTCTCTCT', '........', 'GGGGGGGG', 'OBOBOBOB'] },
   {
     name: 'Good Morning',
     rows: ['.PP..PP.', 'PGGPPGGP', 'PGGPPGGP', '.PP..PP.', '........', 'C......C', '.CTTTTC.', '..BBBB..'],
   },
-  {
-    name: 'Heavy Metal',
-    rows: ['NNNNNNNN', 'O.O..O.O', 'GGGGGGGG', 'TBTBTBTB', 'PPPPPPPP', '.O.OO.O.'],
-  },
+  { name: 'Diamond Dinnerware', rows: ['...GG...', '..PBBP..', '.PTOOTP.', 'GBONNOBG', '.PTOOTP.', '..PBBP..', '...GG...'] },
+  { name: 'The Valley', rows: ['P......P', 'BP....PB', 'GBP..PBG', 'TGBPPBGT', '.TGBBGT.', '..TGGT..', '...OO...'] },
   {
     name: 'Zig Zag Shelves',
     rows: ['PPPP....', '.BBBB...', '..GGGG..', '...TTTT.', '....OOOO', '...CCCC.', '..PPPP..', '.BBBB...'],
   },
+  { name: 'Hourglass', rows: ['TTTTTTTT', '.PPPPPP.', '..GGGG..', '...NN...', '..GGGG..', '.BBBBBB.', 'CCCCCCCC'] },
+  { name: 'Up the Shelf', rows: ['...NN...', '..OGGO..', '.OGPPGO.', 'OGPBBPGO', '...TT...', '...TT...', '...CC...'] },
+  { name: 'Heavy Metal', rows: ['NNNNNNNN', 'O.O..O.O', 'GGGGGGGG', 'TBTBTBTB', 'PPPPPPPP', '.O.OO.O.'] },
+  { name: 'Fortress', rows: ['NNNNNNNN', 'N.GGGG.N', 'N.GPPG.N', 'N.GGGG.N', 'O......O', 'OTTTTTTO'] },
   {
     name: 'Full Kitchen',
     rows: ['NOOGGOON', 'TPPBBPPT', 'CGGTTGGC', 'BBOPPOBB', 'PPPNNPPP', 'GCTCCTCG', 'BBBBBBBB', 'PPPPPPPP'],
