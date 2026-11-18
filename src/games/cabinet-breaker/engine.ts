@@ -78,6 +78,8 @@ export class Engine {
   private hitStop = 0;
   private bumps = new Map<number, number>();
   private squash = 0;
+  private ballSquash = 0;
+  private combo = 0;
   private spin = 0;
   private trail: { x: number; y: number }[] = [];
   private slimeStart: number | null = null;
@@ -275,6 +277,7 @@ export class Engine {
     this.shake *= Math.exp(-dt * 10);
     if (this.shake < 0.05) this.shake = 0;
     this.squash = Math.max(0, this.squash - dt * 5);
+    this.ballSquash = Math.max(0, this.ballSquash - dt * 7);
     this.banner = Math.max(0, this.banner - dt);
     this.lostFlash = Math.max(0, this.lostFlash - dt);
     for (const [id, t] of this.bumps) {
@@ -313,16 +316,20 @@ export class Engine {
   private onEvent(e: SimEvent) {
     switch (e.type) {
       case 'wall':
+        this.ballSquash = 0.7;
         this.sfx.wall();
         this.dust(e.x, e.y, 3, 'rgba(255,255,255,0.8)');
         break;
       case 'paddle':
         this.sfx.paddle(e.offset);
         this.squash = 1;
+        this.ballSquash = 1;
+        this.combo = 0;
         for (let i = 0; i < 5; i++) this.spark(e.x, e.y, this.rand(-140, 140), this.rand(-200, -80), '#fff3b0');
         break;
       case 'hit': {
         const b = e.brick;
+        this.ballSquash = 1;
         this.sfx.smash(b.def.material, false);
         this.bumps.set(b.id, 0.18);
         this.shake = Math.max(this.shake, 1.2);
@@ -366,6 +373,7 @@ export class Engine {
         break;
       }
       case 'lost':
+        this.combo = 0;
         this.sfx.lose();
         this.shake = 9;
         this.lostFlash = 0.5;
@@ -405,7 +413,12 @@ export class Engine {
     const variant = variantOf(b);
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
+    this.combo++;
+    this.ballSquash = 1;
+    this.sfx.pitch = 1 + Math.min(this.combo - 1, 10) * 0.045;
     this.sfx.smash(m, true);
+    this.sfx.pitch = 1;
+    if (this.combo >= 3) this.popup(cx, b.y - 16, `COMBO x${this.combo}`, '#ffb347', false);
     const heavy = m === 'metal' || m === 'iron' || m === 'tin';
     this.shake = Math.max(this.shake, heavy ? 3.5 : 2.2);
     if (m === 'iron' || m === 'metal') this.hitStop = 0.045;
@@ -558,7 +571,7 @@ export class Engine {
         c.arc(t.x, t.y, BALL_R * (0.4 + a * 0.5), 0, Math.PI * 2);
         c.fill();
       }
-      drawBall(c, s.ball.x, s.ball.y, BALL_R, this.spin);
+      drawBall(c, s.ball.x, s.ball.y, BALL_R, this.spin, this.ballSquash, Math.atan2(s.ball.vy, s.ball.vx));
     }
 
     // Particles.

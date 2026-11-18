@@ -8,6 +8,8 @@ export class Sfx {
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   muted = false;
+  /** Multiplies every pitch; the engine raises it during smash combos. */
+  pitch = 1;
 
   /** Must be called from a user gesture (tap) to unlock audio on mobile. */
   unlock() {
@@ -43,8 +45,8 @@ export class Sfx {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
-    o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    o.frequency.setValueAtTime(freq * this.pitch, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo * this.pitch, t + dur);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -62,7 +64,7 @@ export class Sfx {
     s.playbackRate.value = 0.8 + Math.random() * 0.4;
     const f = ctx.createBiquadFilter();
     f.type = filter;
-    f.frequency.value = freq;
+    f.frequency.value = freq * this.pitch;
     f.Q.value = q;
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t);

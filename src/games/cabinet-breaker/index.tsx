@@ -9,7 +9,7 @@ import { meta } from './meta';
 type Screen = 'start' | 'play' | 'clear' | 'over';
 
 const CSS = `
-.g-cabinet-breaker { font-family: "Fredoka", "Baloo 2", system-ui, sans-serif; }
+.g-cabinet-breaker { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; font-family: "Fredoka", "Baloo 2", system-ui, sans-serif; }
 .g-cabinet-breaker .cb-card {
   background: #fff8ea;
   border: 3px solid #2b1d14;
@@ -182,6 +182,7 @@ export default function Game({ onExit }: GameProps) {
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
+        onContextMenu={(e) => e.preventDefault()}
       >
         <div className="relative" style={{ width: board.w, height: board.h }}>
           <canvas ref={canvasRef} className="block" />

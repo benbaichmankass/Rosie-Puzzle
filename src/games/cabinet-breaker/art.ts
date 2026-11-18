@@ -15,7 +15,7 @@ import {
   WALL_T,
   type ItemKind,
 } from './levels';
-import type { Critter } from './sim';
+import { paddleY, type Critter } from './sim';
 
 type C = CanvasRenderingContext2D;
 
@@ -69,6 +69,7 @@ export function drawBackground(c: C, H: number) {
   c.fillRect(0, CABINET_BOTTOM, BOARD_W, 140);
 
   // Hanging utensil rail under the cabinet.
+  drawWindow(c, H);
   drawUtensils(c);
 
   // Cabinet interior back panel.
@@ -193,6 +194,97 @@ export function drawBackground(c: C, H: number) {
   // Counter edge shadow onto the tiles.
   c.fillStyle = 'rgba(60,30,10,0.18)';
   c.fillRect(WALL_L, ct - 3, WALL_R - WALL_L, 3);
+}
+
+/** A small kitchen window on the backsplash (only when the screen is tall enough). */
+function drawWindow(c: C, H: number) {
+  const top = CABINET_BOTTOM + 96;
+  const avail = paddleY(H) - 40 - top;
+  if (avail < 90) return;
+  const h = Math.min(150, avail);
+  const w = 132;
+  const x = BOARD_W / 2 - w / 2;
+  // Frame.
+  c.fillStyle = '#fffaf0';
+  rr(c, x - 7, top - 7, w + 14, h + 14, 6);
+  c.fill();
+  c.strokeStyle = 'rgba(80,50,20,0.35)';
+  c.lineWidth = 1.5;
+  c.stroke();
+  // Evening sky.
+  c.save();
+  rr(c, x, top, w, h, 3);
+  c.clip();
+  const sky = c.createLinearGradient(0, top, 0, top + h);
+  sky.addColorStop(0, '#7fb4d8');
+  sky.addColorStop(0.55, '#f6c79a');
+  sky.addColorStop(1, '#f39a6b');
+  c.fillStyle = sky;
+  c.fillRect(x, top, w, h);
+  c.fillStyle = 'rgba(255,240,200,0.9)';
+  c.beginPath();
+  c.arc(x + w * 0.68, top + h * 0.72, 11, 0, Math.PI * 2);
+  c.fill();
+  // Low rooftops.
+  c.fillStyle = '#c99a86';
+  c.fillRect(x, top + h * 0.78, w * 0.4, h);
+  c.fillRect(x + w * 0.55, top + h * 0.82, w * 0.45, h);
+  c.fillStyle = '#b58673';
+  c.fillRect(x + w * 0.32, top + h * 0.72, w * 0.3, h);
+  // Palm silhouettes.
+  const palm = (px: number, py: number, s: number) => {
+    c.strokeStyle = '#3f4a3a';
+    c.lineWidth = 2.2 * s;
+    c.beginPath();
+    c.moveTo(px, top + h);
+    c.quadraticCurveTo(px - 4 * s, (py + top + h) / 2, px, py);
+    c.stroke();
+    c.fillStyle = '#3f4a3a';
+    for (let i = 0; i < 7; i++) {
+      const a = -Math.PI / 2 + (i - 3) * 0.48;
+      c.save();
+      c.translate(px, py);
+      c.rotate(a);
+      c.beginPath();
+      c.ellipse(9 * s, 2 * s, 10 * s, 2.4 * s, 0.35, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
+  };
+  palm(x + w * 0.22, top + h * 0.38, 1);
+  palm(x + w * 0.86, top + h * 0.5, 0.75);
+  c.restore();
+  // Mullions + sill.
+  c.fillStyle = '#fffaf0';
+  c.fillRect(x + w / 2 - 2.5, top, 5, h);
+  c.fillRect(x, top + h * 0.45 - 2.5, w, 5);
+  c.fillStyle = PAL.wood;
+  rr(c, x - 12, top + h + 5, w + 24, 7, 2);
+  c.fill();
+  c.fillStyle = PAL.woodDark;
+  c.fillRect(x - 10, top + h + 11, w + 20, 2);
+  // Herb pot on the sill.
+  const hx = x + w - 18;
+  const hy = top + h + 5;
+  c.fillStyle = '#c4623d';
+  c.beginPath();
+  c.moveTo(hx - 8, hy - 12);
+  c.lineTo(hx + 8, hy - 12);
+  c.lineTo(hx + 6, hy);
+  c.lineTo(hx - 6, hy);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#4c9a3a';
+  for (const [dx, dy, r] of [
+    [-4, -16, 4],
+    [2, -19, 4.5],
+    [5, -14, 3.5],
+    [-1, -13, 3.5],
+  ]) {
+    c.beginPath();
+    c.arc(hx + dx, hy + dy, r, 0, Math.PI * 2);
+    c.fill();
+  }
 }
 
 function drawUtensils(c: C) {
@@ -616,13 +708,19 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
 /* ------------------------------------------------------------------ ball, paddle */
 
 /** The ball is a lemon. */
-export function drawBall(c: C, x: number, y: number, r: number, spin: number) {
+export function drawBall(c: C, x: number, y: number, r: number, spin: number, squash = 0, dir = 0) {
   c.save();
   c.translate(x, y);
   c.fillStyle = 'rgba(60,30,0,0.18)';
   c.beginPath();
   c.ellipse(1.5, 2.5, r * 1.05, r * 0.9, 0, 0, Math.PI * 2);
   c.fill();
+  if (squash > 0) {
+    // Squash along the travel direction right after an impact.
+    c.rotate(dir);
+    c.scale(1 - squash * 0.22, 1 + squash * 0.18);
+    c.rotate(-dir);
+  }
   c.rotate(spin);
   const g = c.createRadialGradient(-r * 0.4, -r * 0.4, 1, 0, 0, r * 1.2);
   g.addColorStop(0, '#fff7a8');
