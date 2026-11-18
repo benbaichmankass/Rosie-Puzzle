@@ -425,6 +425,54 @@ function drawSolar(g: CanvasRenderingContext2D) {
   line(g, [0, -0.1, 0, -0.55], 0.03, '#8aa2c0');
 }
 
+// ---------- treats and power-ups ----------
+function drawBone(g: CanvasRenderingContext2D) {
+  // dog biscuit bone, centred at y = -0.2
+  g.translate(0, -0.2);
+  const C = '#e9c37c', O = '#8a5a26';
+  const shape = () => {
+    g.beginPath();
+    g.roundRect(-0.2, -0.06, 0.4, 0.12, 0.04);
+    for (const [x, y] of [[-0.22, -0.07], [-0.22, 0.07], [0.22, -0.07], [0.22, 0.07]]) { g.moveTo(x + 0.08, y); g.arc(x, y, 0.08, 0, Math.PI * 2); }
+  };
+  shape(); g.lineWidth = 0.05; g.strokeStyle = O; g.stroke();
+  shape(); g.fillStyle = C; g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.beginPath(); g.roundRect(-0.15, -0.045, 0.22, 0.03, 0.015); g.fill();
+  for (const x of [-0.08, 0, 0.08]) ell(g, x, 0.02, 0.012, 0.012, '#b98a4a');
+}
+function drawBoardItem(g: CanvasRenderingContext2D) {
+  g.translate(0, -0.25);
+  g.rotate(-0.25);
+  rrect(g, -0.42, -0.07, 0.84, 0.14, 0.07, '#1f9aa6');
+  rrect(g, -0.38, -0.07, 0.76, 0.05, 0.03, '#2b2b30');
+  rrect(g, -0.2, -0.02, 0.4, 0.05, 0.02, '#f2c14e');
+  for (const x of [-0.27, 0.27]) { ell(g, x, 0.1, 0.06, 0.06, '#ff7a3a'); ell(g, x, 0.1, 0.025, 0.025, '#ffd8a0'); }
+}
+function drawMagnet(g: CanvasRenderingContext2D) {
+  g.translate(0, -0.25);
+  g.beginPath();
+  g.arc(0, 0, 0.2, Math.PI, 0, false);
+  g.lineWidth = 0.13; g.strokeStyle = '#d63a2f'; g.stroke();
+  g.beginPath(); g.arc(0, 0, 0.2, Math.PI * 1.15, Math.PI * 1.4); g.lineWidth = 0.035; g.strokeStyle = 'rgba(255,255,255,0.6)'; g.stroke();
+  rrect(g, -0.265, 0, 0.13, 0.14, 0.02, '#d63a2f');
+  rrect(g, 0.135, 0, 0.13, 0.14, 0.02, '#d63a2f');
+  rrect(g, -0.265, 0.1, 0.13, 0.09, 0.02, '#dfe3e8');
+  rrect(g, 0.135, 0.1, 0.13, 0.09, 0.02, '#dfe3e8');
+}
+
+/** Rosie's skateboard seen from behind (drawn under her feet, in units). */
+export function drawBoardUnder(g: CanvasRenderingContext2D, x: number, y: number, u: number, tilt: number) {
+  g.save();
+  g.translate(x, y);
+  g.scale(u, u);
+  g.rotate(tilt);
+  rrect(g, -0.24, -0.07, 0.48, 0.07, 0.035, '#1f9aa6');
+  rrect(g, -0.24, -0.075, 0.48, 0.025, 0.012, '#2b2b30');
+  for (const sx of [-0.17, 0.17]) { rrect(g, sx - 0.045, -0.02, 0.09, 0.07, 0.03, '#ff7a3a'); }
+  g.restore();
+}
+
 // ---------- the cast ----------
 export interface Sprites {
   walkers: Sprite[];
@@ -436,6 +484,9 @@ export interface Sprites {
   picnic: Sprite;
   lamp: Sprite;
   solar: Sprite;
+  bone: Sprite;
+  boardItem: Sprite;
+  magnet: Sprite;
 }
 
 export function buildSprites(): Sprites {
@@ -458,6 +509,9 @@ export function buildSprites(): Sprites {
     picnic: makeSprite(2.8, 1.0, 60, drawPicnic),
     lamp: makeSprite(1.4, 5.1, 40, drawLampPost),
     solar: makeSprite(2, 1.1, 40, drawSolar),
+    bone: makeSprite(0.7, 0.42, 120, drawBone),
+    boardItem: makeSprite(1.0, 0.55, 110, drawBoardItem),
+    magnet: makeSprite(0.65, 0.5, 120, drawMagnet),
   };
 }
 

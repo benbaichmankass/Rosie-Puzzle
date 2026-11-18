@@ -91,6 +91,26 @@ export class Sfx {
     if (!this.ok()) return;
     this.noise(this.ctx!.currentTime, 0.06, 0.25, 400);
   }
+  /** Treat: bright two-note blip. */
+  treat() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    this.tone(1320, t, 0.08, 'triangle', 0.16);
+    this.tone(1760, t + 0.05, 0.1, 'triangle', 0.14);
+  }
+  /** Power-up: rising arpeggio. */
+  power() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    [660, 880, 1100, 1320].forEach((f, i) => this.tone(f, t + i * 0.06, 0.16, 'square', 0.07));
+  }
+  /** Skateboard takes the hit: crack + whoosh. */
+  shield() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    this.noise(t, 0.12, 0.5, 2500);
+    this.tone(500, t, 0.25, 'sawtooth', 0.12, 120);
+  }
   bonk() {
     if (!this.ok()) return;
     const t = this.ctx!.currentTime;
