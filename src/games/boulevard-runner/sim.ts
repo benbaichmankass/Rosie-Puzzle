@@ -13,6 +13,7 @@ export class Run {
   lane = 1; // target lane
   lanePos = 1; // drawn/collision position
   jumpT = -1; // seconds into the jump, -1 = on the ground
+  landedAt = -10; // run time of the last landing (for dust puffs)
   crashed = false;
   hit: Obstacle | null = null;
   spawner: Spawner;
@@ -61,7 +62,7 @@ export class Run {
     else this.lanePos += Math.sign(this.lane - this.lanePos) * step;
     if (this.jumpT >= 0) {
       this.jumpT += dt;
-      if (this.jumpT >= CONTROLS.jumpTime) this.jumpT = -1;
+      if (this.jumpT >= CONTROLS.jumpTime) { this.jumpT = -1; this.landedAt = this.t; }
     }
     this.spawner.ensure(this.d + 220);
     this.spawner.prune(this.d);

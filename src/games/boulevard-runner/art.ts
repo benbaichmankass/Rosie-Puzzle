@@ -518,7 +518,12 @@ export function drawRosie(g: CanvasRenderingContext2D, x: number, y: number, u: 
   ell(g, 0, -0.45 - bob, 0.16, 0.13, WHITE);
   g.save();
   g.beginPath(); g.ellipse(0, -0.45 - bob, 0.16, 0.13, 0, 0, Math.PI * 2); g.clip();
-  ell(g, -0.075, -0.5 - bob, 0.075, 0.06, BLACK);
+  g.beginPath();
+  g.moveTo(-0.02, -0.56 - bob);
+  g.bezierCurveTo(-0.08, -0.6 - bob, -0.15, -0.55 - bob, -0.14, -0.48 - bob);
+  g.bezierCurveTo(-0.13, -0.43 - bob, -0.07, -0.44 - bob, -0.05, -0.48 - bob);
+  g.bezierCurveTo(-0.02, -0.5 - bob, -0.01, -0.53 - bob, -0.02, -0.56 - bob);
+  g.fillStyle = BLACK; g.fill();
   ell(g, -0.05, -0.36 - bob, 0.13, 0.05, 'rgba(0,0,0,0.06)');
   g.restore();
   // grey ticking

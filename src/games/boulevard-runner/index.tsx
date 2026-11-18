@@ -22,6 +22,8 @@ const CSS = `
   display: flex; align-items: center; justify-content: center; font-weight: 800; box-shadow: 0 3px 10px rgba(80,35,10,0.25); }
 .g-boulevard-runner .br-exit { background: rgba(255,248,236,0.88); color: #6b3a1f; border: none; border-radius: 999px; padding: 10px 14px;
   box-shadow: 0 3px 10px rgba(80,35,10,0.25); }
+@keyframes br-swipe { 0%,15% { transform: translateX(-46px); opacity: 0 } 30% { opacity: 1 } 60% { transform: translateX(46px); opacity: 1 } 75%,100% { transform: translateX(46px); opacity: 0 } }
+.g-boulevard-runner .br-hand { animation: br-swipe 1.4s ease-in-out infinite; }
 @keyframes br-pop { 0% { transform: scale(.7); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
 .g-boulevard-runner .br-pop { animation: br-pop .25s ease-out; }
 `;
@@ -45,6 +47,7 @@ export default function Game({ onExit }: GameProps) {
   const screenRef = useRef<Screen>('start');
   const [best, setBest] = useState(() => getHighScore(meta.id));
   const [last, setLast] = useState({ score: 0, newBest: false, why: '' });
+  const [hint, setHint] = useState(false);
   const [muted, setMuted] = useState(() => load<boolean>(meta.id, 'muted', false));
 
   const sfx = useRef(new Sfx());
@@ -60,6 +63,10 @@ export default function Game({ onExit }: GameProps) {
     runRef.current = new Run((Date.now() ^ (Math.random() * 1e9)) >>> 0);
     anim.current.crashT = 0;
     anim.current.shake = 0;
+    if (!load<boolean>(meta.id, 'hinted', false)) {
+      setHint(true);
+      window.setTimeout(() => { setHint(false); save(meta.id, 'hinted', true); }, 4200);
+    }
     go('play');
   }, [go]);
 
@@ -203,6 +210,8 @@ export default function Game({ onExit }: GameProps) {
           lean: useRun ? (run.lane - run.lanePos) * 1.2 : 0,
           airborne: useRun ? run.jumpY > 0.05 : false,
           crashed: !!(useRun && run.crashed),
+          crashT: useRun && run.crashed ? a.crashT : -1,
+          landT: useRun ? run.t - run.landedAt : -1,
         },
       });
     };
@@ -255,6 +264,15 @@ export default function Game({ onExit }: GameProps) {
             </div>
             <button className="br-btn w-full mt-4 py-3 text-[20px]" onClick={start}>PLAY</button>
             <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best} m</div>
+          </div>
+        </div>
+      )}
+
+      {screen === 'play' && hint && (
+        <div className="absolute inset-x-0 top-[30%] flex flex-col items-center pointer-events-none br-pop">
+          <div className="br-hand text-[44px] leading-none" aria-hidden>👆</div>
+          <div className="mt-2 px-4 py-2 rounded-full bg-[rgba(255,248,236,0.9)] text-[#5a2f17] text-[15px] font-bold shadow">
+            Swipe ← → to dodge · swipe ↑ to jump
           </div>
         </div>
       )}
