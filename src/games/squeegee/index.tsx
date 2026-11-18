@@ -272,6 +272,7 @@ export default function Game({ onExit }: GameProps) {
               ) : (
                 <div className="text-[16px] mb-2">Best: {fmt(best)} s</div>
               )}
+              <p className="italic text-[14px] opacity-75 mb-1">Tip: from a few steps below the shower, your waves land right in the drain.</p>
               <div className="flex gap-3 justify-center mt-2">
                 <button onClick={start} className="ink-btn sc text-[22px] px-5 py-1.5">Retry</button>
                 <button onClick={onExit} className="ink-btn sc text-[22px] px-5 py-1.5">Map</button>

@@ -506,6 +506,7 @@ export function draw(
   drawBentzi(c, fx, fy, bx, by, { swing: swingP, walk: pose.walk, lean, zap: zapT >= 0 ? 1 : 0 }, t);
 
   drawWater(c, s, t);
+  drawDrainSwirl(c, s, t);
   drawRolls(c, s);
   updateParticles(c, s, v, dt);
 
@@ -706,6 +707,11 @@ function updateParticles(c: Ctx, s: S.State, v: View, dt: number): void {
     c.stroke();
     c.restore();
   }
+  // splashy footsteps when Bentzi walks through water
+  if (Math.abs(s.pv) > 2 && S.depthAt(s, s.px) > 0.15 && R() < dt * 18) {
+    const x = X(s.px), y = Y(S.surfaceAt(s, s.px));
+    for (let k = 0; k < 3; k++) v.drops.push({ x: x + (R() - 0.5) * 10, y, vx: (R() - 0.5) * 50, vy: -30 - R() * 40, life: 0.45 });
+  }
   // slug spray: droplets at the front of moving waves
   for (const g of s.slugs) {
     if (R() < 0.7) {
@@ -726,6 +732,28 @@ function updateParticles(c: Ctx, s: S.State, v: View, dt: number): void {
   for (const d of v.drops) {
     c.beginPath(); c.arc(d.x, d.y, 1.6, 0, Math.PI * 2); c.fill(); c.stroke();
   }
+}
+
+/** A little ink whirlpool over the drain while it swallows water (slower and smaller when clogged). */
+function drawDrainSwirl(c: Ctx, s: S.State, t: number): void {
+  const d = S.depthAt(s, S.DRAIN_CELLS[1]);
+  if (d < 0.08) return;
+  const f = S.drainFactor(s);
+  const cx = X(S.DRAIN_CELLS[1]), cy = Y(s.bed[S.DRAIN_CELLS[1]] + d) + 1;
+  const rx = 4 + Math.min(d, 2) * 3;
+  c.save();
+  c.strokeStyle = 'rgba(43,32,22,0.7)';
+  c.lineWidth = 0.9;
+  c.beginPath();
+  const spin = t * 6 * f;
+  for (let k = 0; k <= 40; k++) {
+    const a = spin + k * 0.45;
+    const r = rx * (1 - k / 44);
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.35;
+    if (k) c.lineTo(x, y); else c.moveTo(x, y);
+  }
+  c.stroke();
+  c.restore();
 }
 
 /** Splash of droplets (e.g. when a wave hits the drain). */
