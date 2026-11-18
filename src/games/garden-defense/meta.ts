@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'yard',
   spot: 'bunny-wall',
   blurb: 'Water the plants faster than the bunnies can eat them.',
-  status: 'coming-soon',
+  status: 'ready',
 };
