@@ -22,12 +22,14 @@ const vcurve = (x0: number, y0: number, x1: number, y1: number) => {
   return `M ${x0} ${y0} C ${x0} ${y0 - d} ${x1} ${y1 + d} ${x1} ${y1}`;
 };
 
-function StrandSeg({ d, baked, hi = true }: { d: string; baked: boolean; hi?: boolean }) {
+/** A dough strand. `overlay` segments get round fill caps that blend into the strand underneath (no seams). */
+function StrandSeg({ d, baked, hi = true, overlay = false }: { d: string; baked: boolean; hi?: boolean; overlay?: boolean }) {
+  const cap = overlay ? 'round' : 'butt';
   return (
     <g>
       <path d={d} stroke={INK} strokeWidth={STRAND + 6} fill="none" strokeLinecap="butt" />
-      <path d={d} stroke={baked ? P.baked : P.dough} strokeWidth={STRAND} fill="none" strokeLinecap="butt" />
-      {hi && <path d={d} stroke={baked ? P.bakedHi : P.doughHi} strokeWidth={4} fill="none" strokeLinecap="butt" transform="translate(-3 0)" opacity={0.9} />}
+      <path d={d} stroke={baked ? P.baked : P.dough} strokeWidth={STRAND} fill="none" strokeLinecap={cap} />
+      {hi && <path d={d} stroke={baked ? P.bakedHi : P.doughHi} strokeWidth={4} fill="none" strokeLinecap={cap} transform="translate(-3 0)" opacity={0.9} />}
     </g>
   );
 }
@@ -80,7 +82,7 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
     const d = vcurve(bx(posOf(rows[k - 1], c)), rowY(k - 1), bx(posOf(rows[k], c)), rowY(k));
     segs.push(
       <g key={`x-${k}`}>
-        <StrandSeg d={d} baked={done} />
+        <StrandSeg d={d} baked={done} overlay />
       </g>,
     );
   }

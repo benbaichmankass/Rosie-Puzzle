@@ -403,9 +403,9 @@ export function PlataItem({ kind, w, h }: { kind: ItemKind; w: number; h: number
 export function PlataSurface({ w, on, placed, unit = 1 }: { w: number; on: boolean; placed: Placed[]; unit?: number }) {
   return (
     <g>
-      <rect x={(-w / 2) * unit - 4} y={0} width={w * unit + 8} height={16 * unit} rx={4} fill={P.black} stroke={INK} strokeWidth={2.5} />
+      <rect x={(-w / 2) * unit - 4} y={0} width={w * unit + 8} height={16 * unit} rx={4} fill="#5b5566" stroke={INK} strokeWidth={2.5} />
       <rect x={(-w / 2) * unit + 6} y={4 * unit} width={10 * unit} height={5 * unit} rx={2} fill={on ? '#ff5a3c' : '#5a5260'} />
-      <rect x={(-w / 2) * unit} y={-4 * unit} width={w * unit} height={6 * unit} rx={2} fill={on ? '#5a2a2e' : '#3b3644'} stroke={INK} strokeWidth={2} />
+      <rect x={(-w / 2) * unit} y={-4 * unit} width={w * unit} height={6 * unit} rx={2} fill={on ? '#7a2f2f' : '#8a8494'} stroke={INK} strokeWidth={2} />
       {on && <rect x={(-w / 2) * unit + 6} y={-3 * unit} width={w * unit - 12} height={2 * unit} rx={1} fill="#ff7a4a" opacity={0.6} />}
       <g transform={`translate(0 ${-4 * unit}) scale(${unit})`}>
         {placed.map((p) => {
