@@ -2,14 +2,22 @@
 import { groundAt, type Layout } from './logic';
 import { blob, ellipsePath, hn, limb, makeGrain, mix, noShadow, paperShadow, poly, type Ctx } from './paper';
 
-function layer(L: Layout, px: number): { c: HTMLCanvasElement; ctx: Ctx } | null {
+/** A pre-rendered layer and where it goes (world units). */
+export interface Sprite {
+  c: HTMLCanvasElement;
+  x: number;
+  y: number;
+}
+
+function layer(L: Layout, px: number, x = 0, y = 0, w = L.W, h = L.H): { c: HTMLCanvasElement; ctx: Ctx; x: number; y: number } | null {
   const c = document.createElement('canvas');
-  c.width = Math.ceil(L.W * px);
-  c.height = Math.ceil(L.H * px);
+  c.width = Math.ceil(w * px);
+  c.height = Math.ceil(h * px);
   const ctx = c.getContext('2d');
   if (!ctx) return null;
   ctx.scale(px, px);
-  return { c, ctx };
+  ctx.translate(-x, -y);
+  return { c, ctx, x, y };
 }
 
 /** Torn-paper band: fills between a wavy top edge and the bottom of the screen. */
@@ -34,7 +42,7 @@ function palm(ctx: Ctx, x: number, base: number, h: number, seed: number) {
   }
 }
 
-export function renderBackground(L: Layout, px: number): HTMLCanvasElement | null {
+export function renderBackground(L: Layout, px: number): Sprite | null {
   const lay = layer(L, px);
   if (!lay) return null;
   const { ctx } = lay;
@@ -212,7 +220,7 @@ export function renderBackground(L: Layout, px: number): HTMLCanvasElement | nul
   ctx.globalAlpha = 1;
 
   grain(ctx, L, 0.09);
-  return lay.c;
+  return { c: lay.c, x: lay.x, y: lay.y };
 }
 
 function grain(ctx: Ctx, L: Layout, alpha: number) {
@@ -228,8 +236,8 @@ function grain(ctx: Ctx, L: Layout, alpha: number) {
 }
 
 /** The corner tree (in front of the wall): trunk, branch, canopy and the hanging colander. */
-export function renderTree(L: Layout, px: number): HTMLCanvasElement | null {
-  const lay = layer(L, px);
+export function renderTree(L: Layout, px: number): Sprite | null {
+  const lay = layer(L, px, 0, 0, 280, L.treeBaseY + 24);
   if (!lay) return null;
   const { ctx } = lay;
   const { treeX, treeBaseY, branchY, branchEndX, wallTop } = L;
@@ -301,12 +309,12 @@ export function renderTree(L: Layout, px: number): HTMLCanvasElement | null {
   blob(ctx, branchEndX - 22, branchY - 36, 11, 8, '#5ea54f', 91, 0.12);
   noShadow(ctx);
   grain(ctx, L, 0.06);
-  return lay.c;
+  return { c: lay.c, x: lay.x, y: lay.y };
 }
 
 /** Foreground: the cable-spool table in the near-left corner. */
-export function renderForeground(L: Layout, px: number): HTMLCanvasElement | null {
-  const lay = layer(L, px);
+export function renderForeground(L: Layout, px: number): Sprite | null {
+  const lay = layer(L, px, 0, L.groundNear - 20, 110, L.H - L.groundNear + 20);
   if (!lay) return null;
   const { ctx } = lay;
   const y = L.groundNear + 18;
@@ -330,5 +338,5 @@ export function renderForeground(L: Layout, px: number): HTMLCanvasElement | nul
   for (let i = 0; i < 6; i++) blob(ctx, 14 + i * 3.4, y + 2 - (i % 2) * 6, 6, 4, i % 2 ? '#5a9a4a' : '#7ab35a', 10 + i, 0.2, (i - 3) * 0.3);
   noShadow(ctx);
   grain(ctx, L, 0.06);
-  return lay.c;
+  return { c: lay.c, x: lay.x, y: lay.y };
 }

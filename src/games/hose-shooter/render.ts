@@ -1,28 +1,25 @@
 /** Draws one frame of Hose Shooter from the simulation state. */
 import { dropPos, nozzleTip, type Ent, type Fx, type GameState, type Layout } from './logic';
 import { drawBunny, drawCat, drawChicken, drawTurtle } from './actors';
-import { renderBackground, renderForeground, renderTree } from './scene';
-import { blob, ellipsePath, FONT, hn, limb, makeGrain, noShadow, paperShadow, poly, type Ctx } from './paper';
+import { renderBackground, renderForeground, renderTree, type Sprite } from './scene';
+import { blob, ellipsePath, FONT, hn, limb, noShadow, paperShadow, poly, type Ctx } from './paper';
 import { CHARACTERS } from '../../shared/characters';
 
 export interface Layers {
   px: number;
   H: number;
-  bg: HTMLCanvasElement | null;
-  tree: HTMLCanvasElement | null;
-  fg: HTMLCanvasElement | null;
-  grain: CanvasPattern | null;
+  bg: Sprite | null;
+  tree: Sprite | null;
+  fg: Sprite | null;
 }
 
-export function makeLayers(ctx: Ctx, L: Layout, px: number): Layers {
-  const g = makeGrain(128);
+export function makeLayers(L: Layout, px: number): Layers {
   return {
     px,
     H: L.H,
     bg: renderBackground(L, px),
     tree: renderTree(L, px),
     fg: renderForeground(L, px),
-    grain: ctx.createPattern(g, 'repeat'),
   };
 }
 
@@ -37,11 +34,11 @@ function drawMarks(ctx: Ctx, g: GameState) {
   for (const f of g.fx) {
     const k = 1 - f.t / f.life;
     if (f.kind === 'wallsplat') {
-      ctx.globalAlpha = 0.4 * Math.min(1, k * 1.6);
-      blob(ctx, f.x, f.y, 11, 8, '#c4ad84', f.seed * 100, 0.3);
+      ctx.globalAlpha = 0.3 * Math.min(1, k * 1.6);
+      blob(ctx, f.x, f.y, 11, 8, '#9c9a8c', f.seed * 100, 0.3);
       // a drip running down the render
       const run = Math.min(1, f.t / 1.2) * (14 + f.seed * 18);
-      limb(ctx, [f.x + (f.seed - 0.5) * 6, f.y, f.x + (f.seed - 0.5) * 6, f.y + run], 2.2, '#c4ad84');
+      limb(ctx, [f.x + (f.seed - 0.5) * 6, f.y, f.x + (f.seed - 0.5) * 6, f.y + run], 2.2, '#9c9a8c');
     } else if (f.kind === 'groundsplat') {
       ctx.globalAlpha = 0.35 * Math.min(1, k * 1.5);
       blob(ctx, f.x, f.y, 11 * f.s, 4 * f.s, '#3e2614', f.seed * 100, 0.2);
@@ -203,7 +200,7 @@ export function drawFrame(ctx: Ctx, g: GameState, lay: Layers, t: number, showRe
   const { L } = g;
   const px = lay.px;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (lay.bg) ctx.drawImage(lay.bg, 0, 0);
+  if (lay.bg) ctx.drawImage(lay.bg.c, Math.round(lay.bg.x * px), Math.round(lay.bg.y * px));
   ctx.setTransform(px, 0, 0, px, 0, 0);
   drawMarks(ctx, g);
 
@@ -212,7 +209,7 @@ export function drawFrame(ctx: Ctx, g: GameState, lay: Layers, t: number, showRe
   for (const e of g.ents) if (e.kind !== 'chicken' && e.zone === 'wall') drawEnt(ctx, e, t, px, L);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (lay.tree) ctx.drawImage(lay.tree, 0, 0);
+  if (lay.tree) ctx.drawImage(lay.tree.c, Math.round(lay.tree.x * px), Math.round(lay.tree.y * px));
   ctx.setTransform(px, 0, 0, px, 0, 0);
 
   const front = g.ents.filter((e) => e.kind !== 'chicken' && e.zone !== 'wall');
@@ -220,7 +217,7 @@ export function drawFrame(ctx: Ctx, g: GameState, lay: Layers, t: number, showRe
   for (const e of front) drawEnt(ctx, e, t, px, L);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (lay.fg) ctx.drawImage(lay.fg, 0, 0);
+  if (lay.fg) ctx.drawImage(lay.fg.c, Math.round(lay.fg.x * px), Math.round(lay.fg.y * px));
   ctx.setTransform(px, 0, 0, px, 0, 0);
 
   drawStream(ctx, g);
@@ -228,16 +225,6 @@ export function drawFrame(ctx: Ctx, g: GameState, lay: Layers, t: number, showRe
   drawNozzle(ctx, g, px, t);
   if (showReticle) drawReticle(ctx, g, t);
 
-  // subtle paper grain over the moving cut-outs
-  if (lay.grain) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 0.05;
-    ctx.globalCompositeOperation = 'overlay';
-    ctx.fillStyle = lay.grain;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-  }
 }
 
 export type { Fx };

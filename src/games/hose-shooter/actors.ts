@@ -218,7 +218,7 @@ export function drawCat(ctx: Ctx, e: Ent, t: number, px: number) {
   ctx.restore();
   if (e.state === 'soaked' || (e.state === 'flee' && e.stateT < 0.35)) {
     const age = e.state === 'soaked' ? e.stateT : 1;
-    shout(ctx, e.x + 10, e.y - e.lift - 78 * e.s - 6, e.shout, age, px);
+    shout(ctx, e.x + 22, e.y - e.lift - 78 * e.s - 6, e.shout, age, px);
   }
 }
 
@@ -267,7 +267,7 @@ export function drawChicken(ctx: Ctx, e: Ent, t: number, px: number, L: Layout) 
   }
   noShadow(ctx);
   ctx.restore();
-  if (hit) shout(ctx, e.x + 14, L.wallTop - 92 * s, 'BAWK!', e.stateT, px);
+  if (hit) shout(ctx, e.x + 30, L.wallTop - 92 * s, 'BAWK!', e.stateT, px);
 }
 
 // ------------------------------------------------------------------ bunnies
@@ -334,7 +334,7 @@ export function drawBunny(ctx: Ctx, e: Ent, t: number, px: number) {
   noShadow(ctx);
   ctx.restore();
   if (soaked || (e.state === 'flee' && e.stateT < 0.3)) {
-    shout(ctx, e.x, e.y - 70 * e.s - 6, e.shout, soaked ? e.stateT : 1, px);
+    shout(ctx, e.x + 20, e.y - 70 * e.s - 6, e.shout, soaked ? e.stateT : 1, px);
   }
 }
 
@@ -386,5 +386,5 @@ export function drawTurtle(ctx: Ctx, e: Ent, t: number, px: number) {
   blob(ctx, 0, -7, 33, 3.5, mix(shell, '#e3cf4a', 0.35), seed + 10, 0.03);
   noShadow(ctx);
   ctx.restore();
-  if (inShell && e.stateT < 1.1) shout(ctx, e.x, e.y - 50 * e.s - 6, e.shout === '!' ? 'OUCH!' : e.shout, e.stateT, px);
+  if (inShell && e.stateT < 1.1) shout(ctx, e.x + 20, e.y - 50 * e.s - 6, e.shout === '!' ? 'OUCH!' : e.shout, e.stateT, px);
 }

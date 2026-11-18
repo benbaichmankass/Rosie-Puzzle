@@ -13,6 +13,15 @@ const TOUCH_OFFSET = 64;
 
 type Phase = 'start' | 'play' | 'over';
 
+/** Short vibration where supported (Android Chrome). */
+function buzz(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    /* not supported */
+  }
+}
+
 interface Result {
   score: number;
   best: number;
@@ -108,7 +117,7 @@ export default function Game({ onExit }: GameProps) {
     const g = gameRef.current;
     if (!g) gameRef.current = createGame(H, Date.now() & 0xffff, true);
     else if (Math.abs(g.L.H - H) > 0.5) g.L = makeLayout(H);
-    layersRef.current = makeLayers(ctx, gameRef.current.L, px);
+    layersRef.current = makeLayers(gameRef.current.L, px);
   }, []);
 
   useEffect(() => {
@@ -152,6 +161,7 @@ export default function Game({ onExit }: GameProps) {
           if (ev.kind === 'cat') sfx.cat();
           else if (ev.kind === 'chicken') sfx.chicken();
           else sfx.oops();
+          if (playing && !sfx.muted) buzz(ev.kind === 'cat' ? 15 : ev.kind === 'chicken' ? [25, 40, 25] : 70);
         } else if (ev.type === 'chicken-up' && playing) sfx.chickenUp();
         else if (ev.type === 'tick') sfx.tick();
         else if (ev.type === 'end') sfx.whistle();
@@ -196,6 +206,7 @@ export default function Game({ onExit }: GameProps) {
   }, []);
 
   useEffect(() => () => sfxRef.current?.close(), []);
+
 
   // ---- input
   const toWorld = (e: React.PointerEvent) => {

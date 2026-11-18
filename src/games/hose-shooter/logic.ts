@@ -420,10 +420,16 @@ function spawn(g: GameState, kind: Kind, path: Waypoint[], speed: number, varian
   return e;
 }
 
+function crowded(g: GameState, p: Waypoint): boolean {
+  return g.ents.some((e) => e.kind === 'cat' && e.zone === p.zone && Math.abs(e.x - p.x) < 150 && Math.abs(e.y - p.y) < 24);
+}
+
 function spawnCat(g: GameState) {
   const p = progress(g);
   const r = g.rng();
-  const path = r < 0.42 ? catGroundRoute(g) : r < 0.74 ? catWallRoute(g) : catTreeRoute(g);
+  let path = r < 0.42 ? catGroundRoute(g) : r < 0.74 ? catWallRoute(g) : catTreeRoute(g);
+  // don't stack a new cat right on top of one already entering from the same spot
+  for (let tries = 0; tries < 4 && crowded(g, path[0]); tries++) path = catGroundRoute(g);
   const speed = lerp(125, 200, p) * lerp(0.85, 1.2, g.rng());
   spawn(g, 'cat', path, speed, Math.floor(g.rng() * CAT_VARIANTS));
   g.stats.catsSpawned++;
@@ -726,7 +732,7 @@ function landDrop(g: GameState, d: Drop) {
   }
   // landed on the scenery
   if (y < L.wallBase) {
-    g.fx.push({ kind: 'wallsplat', x, y, s: 0.7, t: 0, life: 1.8, seed: g.rng() });
+    if (d.n % 2 === 0) g.fx.push({ kind: 'wallsplat', x, y, s: 0.7, t: 0, life: 1.8, seed: g.rng() });
   } else {
     const s = groundAt(L, depthOfY(L, y)).s;
     g.fx.push({ kind: 'groundsplat', x, y, s, t: 0, life: 1.6, seed: g.rng() });
@@ -765,7 +771,7 @@ function soak(g: GameState, e: Ent) {
     else if (e.kind === 'chicken') g.stats.chickens++;
     else if (e.kind === 'bunny') g.stats.bunnies++;
     else g.stats.turtles++;
-    g.fx.push({ kind: 'points', x: fx, y: fy - 10, s: 1, t: 0, life: 1.1, value: pts, seed: 0 });
+    g.fx.push({ kind: 'points', x: fx - 26, y: fy - 4, s: 1, t: 0, life: 1.1, value: pts, seed: 0 });
   }
   if (e.kind === 'chicken') g.fx.push({ kind: 'feathers', x: fx, y: fy + 10, s: 1, t: 0, life: 1.2, seed: g.rng() });
   g.events.push({ type: 'hit', kind: e.kind, points: pts, x: fx, y: fy });
