@@ -26,7 +26,7 @@ function Battery({ left, total }: { left: number; total: number }) {
         {Array.from({ length: total }, (_, i) => (
           <div
             key={i}
-            className="w-[5px] h-[12px] rounded-[1px]"
+            className="w-[4px] h-[12px] rounded-[1px]"
             style={{ background: i < left ? (left <= 2 ? '#f0644a' : '#6ee08f') : 'rgba(255,255,255,0.12)' }}
           />
         ))}
