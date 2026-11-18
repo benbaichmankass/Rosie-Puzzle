@@ -267,7 +267,7 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
               <rect key={i} x={x + 4} y={y + 4 + i * CELL} width={w - 16} height={CELL - 8} rx="5" fill="#575c62" />
             ),
           )}
-          {horiz && <rect x={x + 5} y={y + 13} width="10" height="9" rx="3" fill="#e9d9a6" transform={`rotate(-12 ${x + 10} ${y + 17})`} />}
+          {horiz && <rect x={x + w - 16} y={y + 13} width="10" height="9" rx="3" fill="#e9d9a6" transform={`rotate(12 ${x + w - 11} ${y + 17})`} />}
           {rosie && rosie.r >= f.r && rosie.r < f.r + f.h && rosie.c >= f.c && rosie.c < f.c + f.w && <RosieSleeping x={cx(rosie.c)} y={cy(rosie.r) + 2} />}
         </g>
       );
@@ -338,29 +338,53 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
 
 function RosieSleeping({ x, y }: { x: number; y: number }) {
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <g transform={`translate(${x} ${y}) scale(0.95)`}>
+      {/* long thin tail curled round the front */}
+      <path d="M12 3 q4 9 -6 10 q-10 1 -15 -3" fill="none" stroke={R.coat} strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M12 3 q4 9 -6 10 q-10 1 -15 -3" fill="none" stroke="#d6d2ca" strokeWidth="0.6" strokeLinecap="round" />
       {/* curled body */}
-      <ellipse rx="14" ry="10" fill={R.coat} stroke="#c9c6bf" strokeWidth="0.8" />
+      <path d="M-13 2 q-2 -12 10 -13 q15 -1 16 9 q1 9 -10 9 q-14 1 -16 -5z" fill={R.coat} stroke="#c9c6bf" strokeWidth="0.8" />
       {[
+        [-3, -7],
+        [2, -4],
         [-6, -3],
-        [3, 4],
-        [7, -4],
-        [-2, 5],
-        [-9, 3],
+        [6, -8],
+        [-1, 2],
+        [4, 3],
       ].map(([a, b], i) => (
-        <circle key={i} cx={a} cy={b} r="0.9" fill={R.ticking} />
+        <circle key={i} cx={a} cy={b} r="0.8" fill={R.ticking} />
       ))}
-      <circle cx="7" cy="2" r="4" fill={R.head} />
-      <path d="M10 -6 q8 2 3 10" fill="none" stroke={R.coat} strokeWidth="2.4" strokeLinecap="round" />
-      {/* head tucked */}
-      <ellipse cx="-7" cy="-1" rx="6" ry="5" fill={R.head} />
-      <path d="M-7 -6 v8" stroke="#f4f2ee" strokeWidth="1.6" />
-      <ellipse cx="-11" cy="1" rx="2.6" ry="2" fill={R.coat} />
-      <ellipse cx="-4" cy="-6" rx="2.2" ry="3.2" fill={R.head} transform="rotate(30 -4 -6)" />
-      <path d="M-9 -2 q1 1 2 0" stroke="#fff" strokeWidth="0.8" fill="none" />
-      <text x="2" y="-12" fontSize="7" fill="#7c8a99" fontFamily="sans-serif" className="gl-zzz">
+      {/* the big black spot on her rump by the tail */}
+      <ellipse cx="8" cy="-2" rx="4.6" ry="4" fill={R.head} />
+      {/* thin back leg tucked */}
+      <path d="M2 6 q5 2 9 0" stroke={R.coat} strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* head resting on her paws: black with a white blaze and muzzle */}
+      <path d="M-15 4 h8" stroke={R.coat} strokeWidth="2.2" strokeLinecap="round" />
+      <ellipse cx="-10" cy="-2" rx="6.2" ry="5.2" fill={R.head} />
+      <ellipse cx="-6.5" cy="-6.5" rx="2.4" ry="3.6" fill={R.head} transform="rotate(40 -6.5 -6.5)" />
+      <path d="M-10.5 -7 q0.5 4 -2.5 6" stroke={R.coat} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <ellipse cx="-14" cy="0.5" rx="3" ry="2.3" fill={R.coat} />
+      <circle cx="-16" cy="0.2" r="0.9" fill="#222" />
+      <path d="M-10 -3 q1.2 1 2.4 0" stroke="#e8e6e1" strokeWidth="0.8" fill="none" />
+      <path d="M-11 2.4 h4" stroke={R.collar} strokeWidth="1.4" strokeLinecap="round" />
+      <text x="-8" y="-12" fontSize="7" fill="#7c8a99" fontFamily="sans-serif" className="gl-zzz">
         z
       </text>
+    </g>
+  );
+}
+
+/** Gas whooshing out through an opening on the left wall. */
+export function ExitWhoosh({ r }: { r: number }) {
+  return (
+    <g>
+      {[0, 1, 2].map((i) => (
+        <g key={i} transform={`translate(${X0 - 4} ${cy(r) + (i - 1) * 6})`}>
+          <g className="gl-exitpuff" style={{ animationDelay: `${i * 0.12}s` }}>
+            <circle r={9 - i * 1.5} fill="url(#gl-gas)" stroke="#6aa83a" strokeWidth="1" />
+          </g>
+        </g>
+      ))}
     </g>
   );
 }
