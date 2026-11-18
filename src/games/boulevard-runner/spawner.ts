@@ -240,20 +240,16 @@ class Reach {
     for (let i = a; i <= b; i++) arr[i] += delta;
     if (o.ramp) this.rampStart[o.lane][a] += delta;
   }
-  private any(l: number, i: number) { return this.tall[l][i] > 0 || this.low[l][i] > 0 || this.tram[l][i] > 0; }
-  /** Recompute reachability from cell `from` up to cell `to`; returns true if anything is reachable at `to`. */
-  recompute(from: number, to: number): boolean {
-    this.grow(to + 400);
-    const kmax = 120;
-    from = Math.min(from, this.done);
-    const s0 = Math.max(0, from - kmax);
-    this.ground.fill(0, Math.max(1, from), to + kmax + 2);
-    this.roof.fill(0, from, to + kmax + 2);
-    this.done = to;
+  any(l: number, i: number) { return this.tall[l][i] > 0 || this.low[l][i] > 0 || this.tram[l][i] > 0; }
+  /**
+   * Forward propagation over cells [s0, to) on state arrays g (street) and r (roof), indexed by cell - off.
+   * Encodes the game's moves (see the file comment).
+   */
+  private propagate(g: Uint8Array, r: Uint8Array, off: number, s0: number, to: number) {
     const t = this.t;
     const { tall, low, tram } = this;
     for (let i = s0; i < to; i++) {
-      const gm = this.ground[i], rm = this.roof[i];
+      const gm = g[i - off], rm = r[i - off];
       if (!gm && !rm) continue;
       const s = speedAt(i * CELL);
       const kc = Math.max(1, Math.ceil((t.laneChangeTime * s) / CELL));
@@ -266,8 +262,8 @@ class Reach {
         if (gm & bit) {
           // walk on: free cell, or up a ramp that starts here
           if (tram[l][i] > 0) {
-            if (this.rampStart[l][i] > 0 && tall[l][i] === 0 && low[l][i] === 0 && tram[l][i + 1] > 0) this.roof[i + 1] |= bit;
-          } else if (tall[l][i] === 0 && low[l][i] === 0) this.ground[i + 1] |= bit;
+            if (this.rampStart[l][i] > 0 && tall[l][i] === 0 && low[l][i] === 0 && tram[l][i + 1] > 0) r[i + 1 - off] |= bit;
+          } else if (tall[l][i] === 0 && low[l][i] === 0) g[i + 1 - off] |= bit;
           // jump: clear low stuff, or land on a tram roof
           let ok = true, mountAt = -1;
           for (let k = 0; k < kj && ok && mountAt < 0; k++) {
@@ -276,72 +272,132 @@ class Reach {
             else if (tall[l][c] > 0) ok = false;
             else if (low[l][c] > 0 && (k <= ja || k >= jb)) ok = false;
           }
-          if (ok) { if (mountAt >= 0) this.roof[mountAt] |= bit; else this.ground[i + kj] |= bit; }
-          // change lane on the ground
+          if (ok) { if (mountAt >= 0) r[mountAt - off] |= bit; else g[i + kj - off] |= bit; }
+          // change lane on the street
           for (const n of [l - 1, l + 1]) {
             if (n < 0 || n >= LANES) continue;
             let ok2 = true;
             for (let k = 0; k < kc && ok2; k++) if (this.any(l, i + k) || this.any(n, i + k)) ok2 = false;
-            if (ok2) this.ground[i + kc] |= 1 << n;
+            if (ok2) g[i + kc - off] |= 1 << n;
           }
         }
         if ((rm & bit) && tram[l][i] > 0) {
           // keep running along the roof, or drop off its end
-          if (tram[l][i + 1] > 0) this.roof[i + 1] |= bit;
+          if (tram[l][i + 1] > 0) r[i + 1 - off] |= bit;
           else {
             let ok = true;
             for (let k = 1; k <= kf && ok; k++) if (this.any(l, i + k)) ok = false;
-            if (ok) this.ground[i + 1 + kf] |= bit;
+            if (ok) g[i + 1 + kf - off] |= bit;
           }
           // hop down to a neighbouring lane
           for (const n of [l - 1, l + 1]) {
             if (n < 0 || n >= LANES) continue;
             let ok2 = true;
             for (let k = 0; k < kc + kf && ok2; k++) if (this.any(n, i + k)) ok2 = false;
-            if (ok2) this.ground[i + kc + kf] |= 1 << n;
+            if (ok2) g[i + kc + kf - off] |= 1 << n;
           }
           // leap across the bike path onto a tram on the other track
           const far = 2 - l;
           if (far !== l) {
             let ok3 = true;
             for (let k = 0; k <= 2 * kc && ok3; k++) if (tram[far][i + k] === 0) ok3 = false;
-            if (ok3) this.roof[i + 2 * kc] |= 1 << far;
+            if (ok3) r[i + 2 * kc - off] |= 1 << far;
           }
         }
       }
     }
+  }
+
+  /** Recompute reachability from cell `from` up to cell `to`; returns true if anything is reachable at `to`. */
+  recompute(from: number, to: number): boolean {
+    this.grow(to + 400);
+    const kmax = 120;
+    from = Math.min(from, this.done);
+    const s0 = Math.max(0, from - kmax);
+    this.ground.fill(0, Math.max(1, from), to + kmax + 2);
+    this.roof.fill(0, from, to + kmax + 2);
+    this.done = to;
+    this.propagate(this.ground, this.roof, 0, s0, to);
     return this.ground[to] !== 0 || this.roof[to] !== 0;
   }
+
+  /** Can Rosie, standing in `lane` at cell `cell` (on a roof if `onRoof`), still get through to cell `to`? */
+  fromSeed(cell: number, lane: number, onRoof: boolean, to: number): boolean {
+    if (to <= cell) return true;
+    this.grow(to + 400);
+    const len = to - cell + 160;
+    const g = new Uint8Array(len), r = new Uint8Array(len);
+    (onRoof ? r : g)[0] = 1 << lane;
+    this.propagate(g, r, cell, cell, to);
+    return g[to - cell] !== 0 || r[to - cell] !== 0;
+  }
+
+  /** Treats Rosie may be standing at; a new obstacle must not turn them into dead ends. */
+  pins: { cell: number; lane: number; roof: boolean }[] = [];
+
   try(o: Obstacle, horizonEnd: number): boolean {
     this.mark(o, 1);
     const from = Math.floor(o.start / CELL);
     const to = Math.ceil(horizonEnd / CELL) + 20;
-    if (this.recompute(from, to)) return true;
+    let ok = this.recompute(from, to);
+    if (ok) {
+      for (const p of this.pins) {
+        if (p.cell < from - 240) continue; // settled long ago (the check script verifies every treat anyway)
+        if (!this.fromSeed(p.cell, p.lane, p.roof, to)) { ok = false; break; }
+      }
+    }
+    if (ok) return true;
     this.mark(o, -1);
     this.recompute(from, to);
     return false;
   }
 }
 
+// ---------- treats and power-ups ----------
+export type PickupKind = 'treat' | 'board' | 'magnet';
+export interface Pickup {
+  id: number;
+  kind: PickupKind;
+  lane: Lane;
+  /** Player distance at which Rosie reaches it. */
+  d: number;
+  /** Lying on a tram roof (collect it up there) rather than on the street. */
+  roof: boolean;
+}
+export const TREAT_POINTS = 10;
+export const POWERUP_POINTS = 50;
+/** Seconds a power-up lasts. */
+export const BOARD_TIME = 8;
+export const MAGNET_TIME = 10;
+/** Skateboard speed multiplier. */
+export const BOARD_SPEED = 1.2;
+
 /** Streams obstacles ahead of the player. Same seed = same boulevard. */
 export class Spawner {
   readonly obstacles: Obstacle[] = [];
   private rand: () => number;
+  /** Separate stream for pickups, so the obstacle stream does not depend on how generation is chunked. */
+  private prand: () => number;
   private cursor: number;
   private nextId = 1;
   private reach = new Reach(COMFORT);
   private maxEnd = 0;
   private laneFree: number[] = [0, 0, 0];
   private nextStation = 0;
+  readonly pickups: Pickup[] = [];
+  private pickupCursor = 60;
+  private nextPowerup = 380;
 
   constructor(seed: number, startClear = 45) {
     this.rand = mulberry32(seed);
+    this.prand = mulberry32(seed ^ 0x5bd1e995);
     this.cursor = startClear;
   }
 
   /** Generate obstacles until the cursor is past `until`. */
   ensure(until: number) {
     while (this.cursor < until) this.step();
+    this.placePickups();
   }
 
   private pick(diff: number): Kind {
@@ -406,10 +462,65 @@ export class Spawner {
     this.maxEnd = Math.max(this.maxEnd, o.end);
   }
 
+  /**
+   * Lay rows of treats (and now and then a power-up) behind the obstacle cursor, where obstacles are final.
+   * A treat only goes where the planner can reach Rosie standing in that lane (on the street or a roof) and the
+   * lane stays clear long enough to stand there: collecting it never forces a crash. The check script verifies
+   * every one with the real timings.
+   */
+  private placePickups() {
+    const r = this.prand;
+    const limit = this.cursor - 50;
+    const R = this.reach;
+    while (this.pickupCursor < limit) {
+      const d0 = this.pickupCursor;
+      const lane = Math.floor(r() * 3) as Lane;
+      const power = d0 >= this.nextPowerup;
+      const count = power ? 1 : 4 + Math.floor(r() * 4);
+      const spacing = 2.4;
+      const row: Pickup[] = [];
+      for (let j = 0; j < count; j++) {
+        const d = d0 + j * spacing;
+        const i = Math.floor(d / CELL);
+        const bit = 1 << lane;
+        const tramHere = R.tram[lane][i] > 0;
+        const reachable = tramHere ? (R.roof[i] & bit) !== 0 : (R.ground[i] & bit) !== 0;
+        if (!reachable) break;
+        // the lane must stay standable for ~1 s around the treat (no obstacle, or the same tram roof)
+        const k = Math.ceil((speedAt(d) * 0.9) / CELL);
+        let ok = true;
+        for (let c = i - 2; c <= i + k && ok; c++) {
+          if (tramHere) { if (R.tram[lane][c] === 0) ok = false; }
+          else if (R.any(lane, c)) ok = false;
+        }
+        if (!ok) break;
+        row.push({ id: 0, kind: 'treat', lane, d, roof: tramHere });
+      }
+      if (row.length >= (power ? 1 : 3)) {
+        const last = row[row.length - 1];
+        const cell = Math.floor(last.d / CELL);
+        const horizon = Math.ceil((Math.min(this.maxEnd + 25, last.d + 120)) / CELL);
+        if (!R.fromSeed(cell, lane, last.roof, horizon)) { this.pickupCursor = d0 + 3; continue; }
+        R.pins.push({ cell, lane, roof: last.roof });
+        if (R.pins.length > 16) R.pins.shift();
+        if (power) {
+          row[0].kind = r() < 0.6 ? 'board' : 'magnet';
+          this.nextPowerup = d0 + 500 + r() * 300;
+        }
+        for (const p of row) { p.id = this.nextPickupId++; this.pickups.push(p); }
+        this.pickupCursor = d0 + row.length * spacing + 10 + r() * 25;
+      } else this.pickupCursor = d0 + 3;
+    }
+  }
+  private nextPickupId = 1;
+
   /** Drop obstacles Rosie has fully passed (keeps arrays small in long runs). */
   prune(d: number) {
     let n = 0;
     while (n < this.obstacles.length && this.obstacles[n].end < d - 30) n++;
     if (n > 50) this.obstacles.splice(0, n);
+    let m = 0;
+    while (m < this.pickups.length && this.pickups[m].d < d - 30) m++;
+    if (m > 50) this.pickups.splice(0, m);
   }
 }

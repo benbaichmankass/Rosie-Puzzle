@@ -1,5 +1,5 @@
 /** One run of the boulevard: Rosie's movement, jumping, tram roofs, collisions and score. Pure TS. */
-import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, type Obstacle } from './spawner';
+import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, TREAT_POINTS, POWERUP_POINTS, BOARD_TIME, MAGNET_TIME, BOARD_SPEED, type Obstacle, type Pickup } from './spawner';
 
 export { JUMP_H, ROOF_H };
 /** Forgiveness: shave this much player distance off each end of an obstacle's hit interval. */
@@ -10,7 +10,8 @@ const JUMP_V = (4 * JUMP_H) / CONTROLS.jumpTime;
 /** Speed Rosie scrambles up onto a roof she reached mid-jump (units/s). */
 const CLIMB_V = 16;
 
-export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount';
+export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount' | 'treat' | 'power' | 'shield' | 'powerEnd';
+export interface Power { kind: 'board' | 'magnet'; until: number; total: number }
 
 export class Run {
   d = 0;
@@ -30,6 +31,14 @@ export class Run {
   jumpedAt = -10;
   crashed = false;
   hit: Obstacle | null = null;
+  /** Points from treats and power-ups (score = metres + bonus). */
+  bonus = 0;
+  treats = 0;
+  power: Power | null = null;
+  /** After the skateboard takes a hit Rosie is briefly untouchable. */
+  ghostUntil = -1;
+  /** Ids of pickups already collected, and the time each was taken (for the pop animation). */
+  taken = new Map<number, number>();
   spawner: Spawner;
   private warned = new Set<number>();
   private bells = new Set<number>();
@@ -40,8 +49,9 @@ export class Run {
     this.spawner.ensure(200);
   }
 
-  get speed() { return speedAt(this.d); }
-  get score() { return Math.floor(this.d); }
+  get speed() { return speedAt(this.d) * (this.power?.kind === 'board' ? BOARD_SPEED : 1); }
+  get score() { return Math.floor(this.d) + this.bonus; }
+  get ghost() { return this.t < this.ghostUntil; }
   /** Height above whatever she is standing on (for the jump animation). */
   get jumpY() { return Math.max(0, this.y - this.base); }
   get onRoof() { return this.roof !== null; }
@@ -122,7 +132,13 @@ export class Run {
           this.roof = tr;
           ev.push('mount');
         } else if (this.d >= tr.start + f && this.d <= tr.end - f) {
-          return this.crash(tr, ev);
+          if (this.ghost || this.power?.kind === 'board') {
+            // the skateboard takes the hit and Rosie scrambles up onto the roof
+            if (!this.ghost) this.breakBoard(ev);
+            this.roof = tr;
+            this.grounded = false;
+            ev.push('mount');
+          } else return this.crash(tr, ev);
         }
       }
     }
@@ -152,6 +168,17 @@ export class Run {
     }
     this.base = base;
 
+    // --- power-ups ---
+    if (this.power && this.t >= this.power.until) { this.power = null; ev.push('powerEnd'); }
+    if (this.power?.kind === 'board' && this.grounded) {
+      // auto-jump anything low coming up in this lane
+      for (const o of this.spawner.obstacles) {
+        if (o.start > this.d + 6) break;
+        if (!o.tall && o.lane === myLane && o.start - this.d > 0 && o.start - this.d < this.speed * 0.1) { this.jump(); ev.push('jump'); break; }
+      }
+    }
+    this.collect(myLane, ev);
+
     // --- warnings, bells and street obstacles ---
     for (const o of this.spawner.obstacles) {
       if (o.start > this.d + 200) break;
@@ -167,10 +194,44 @@ export class Run {
       const f = Math.min(FORGIVE, (o.end - o.start) * 0.3);
       if (this.d < o.start + f || this.d > o.end - f) continue;
       const clear = o.tall ? 1.95 : 0.35; // a walker is ~1.8 tall; low stuff ~0.5
-      if (this.y - 0 >= clear) continue;
+      if (this.y - 0 >= clear || this.ghost) continue;
+      if (this.power?.kind === 'board') { this.breakBoard(ev); continue; }
       return this.crash(o, ev);
     }
     return ev;
+  }
+
+  private breakBoard(ev: RunEvent[]) {
+    this.power = null;
+    this.ghostUntil = this.t + 1.3;
+    ev.push('shield');
+  }
+
+  private collect(myLane: number, ev: RunEvent[]) {
+    const magnet = this.power?.kind === 'magnet';
+    for (const p of this.spawner.pickups) {
+      if (p.d > this.d + 8) break;
+      if (this.taken.has(p.id) || p.d < this.d - 1.5) continue;
+      const ahead = p.d - this.d;
+      const sameSpot = Math.abs(this.lanePos - p.lane) < 0.55 && Math.abs(ahead) < 1.1 &&
+        (p.roof ? this.y > ROOF_H - 0.7 : this.y < 1.9);
+      const pulled = magnet && p.kind === 'treat' && ahead < 1.2;
+      if (!sameSpot && !pulled) continue;
+      this.taken.set(p.id, this.t);
+      this.take(p, ev);
+    }
+  }
+  private take(p: Pickup, ev: RunEvent[]) {
+    if (p.kind === 'treat') {
+      this.treats++;
+      this.bonus += TREAT_POINTS;
+      ev.push('treat');
+      return;
+    }
+    this.bonus += POWERUP_POINTS;
+    const total = p.kind === 'board' ? BOARD_TIME : MAGNET_TIME;
+    this.power = { kind: p.kind, until: this.t + total, total };
+    ev.push('power');
   }
 
   private crash(o: Obstacle, ev: RunEvent[]): RunEvent[] {

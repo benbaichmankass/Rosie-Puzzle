@@ -2,9 +2,9 @@
  * Fake-3D renderer for the boulevard: a pinhole camera behind Rosie projects world points
  * (x across, y up, gap = distance ahead of Rosie) onto the canvas. Painter's algorithm, far to near.
  */
-import { type Obstacle, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
+import { type Obstacle, type Pickup, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
 import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN, SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
-import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, fogc, shade, HAZE } from './art';
+import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, drawBoardUnder, fogc, shade, HAZE } from './art';
 
 export const LANE_W = 1.9;
 const CAM_H = 4.0;
@@ -28,6 +28,9 @@ export interface Player {
   crashT: number;
   /** Seconds since the last landing. */
   landT: number;
+  /** Riding the skateboard power-up; flickering after it took a hit. */
+  board: boolean;
+  ghost: boolean;
 }
 
 export interface Frame {
@@ -39,6 +42,10 @@ export interface Frame {
   shake: number;
   /** Extra camera height (follows Rosie up onto roofs). */
   camLift: number;
+  pickups: Pickup[];
+  /** Pickup id -> run time it was collected (for the pop). */
+  taken: Map<number, number>;
+  magnet: boolean;
 }
 
 interface Pt { x: number; y: number; s: number }
@@ -169,7 +176,10 @@ export class Scene {
     const items: { gap: number; fn: () => void }[] = [];
     this.collectScenery(fr.d, items);
     this.collectStations(g, fr.d, items);
-    if (fr.showObstacles) for (const o of fr.obstacles) this.collectObstacle(g, o, fr, items);
+    if (fr.showObstacles) {
+      for (const o of fr.obstacles) this.collectObstacle(g, o, fr, items);
+      this.collectPickups(g, fr, items, px);
+    }
     const hop = Math.max(0, pl.y - pl.base);
     items.push({
       // up on a roof she is above the tram, so draw her after it
@@ -223,9 +233,14 @@ export class Scene {
           if (pl.landT >= 0 && pl.landT < 0.16) { const k = 1 - pl.landT / 0.16; sx = 1 + 0.2 * k; sy = 1 - 0.18 * k; }
           else if (pl.airborne) { const st = Math.max(-0.08, Math.min(0.16, pl.vy * 0.022)); sy = 1 + st; sx = 1 - st * 0.6; }
           g.save();
+          if (pl.ghost) g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(this.t * 22));
           g.translate(p.x, p.y);
           g.scale(sx, sy);
-          drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
+          if (pl.board) {
+            // riding: stands on the deck, gentle carving sway, no gallop
+            drawBoardUnder(g, 0, 0, p.s * 1.45, Math.sin(this.t * 3) * 0.06 + pl.lean * 0.1);
+            drawRosie(g, 0, -p.s * 1.45 * 0.06, p.s * 1.45, 0, pl.wag, pl.lean + Math.sin(this.t * 3) * 0.3, false);
+          } else drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
           g.restore();
         }
       },
@@ -477,6 +492,54 @@ export class Scene {
         const p = this.P(X + side * 1.5, h + 0.35, gp);
         this.sprite(g, this.sp.solar, p, gp, 0);
       }
+    }
+  }
+
+  // ---------- treats and power-ups ----------
+  private collectPickups(g: CanvasRenderingContext2D, fr: Frame, items: { gap: number; fn: () => void }[], px: number) {
+    for (const p of fr.pickups) {
+      let gap = p.d - fr.d;
+      if (gap > 70 || gap + CAM_BACK < NEAR_Z + 0.5) continue;
+      const takenAt = fr.taken.get(p.id);
+      let x = (p.lane - 1) * LANE_W;
+      let y = (p.roof ? ROOF_H : 0) + 0.25 + Math.sin(fr.t * 4 + p.id) * 0.08;
+      let alpha = 1, grow = 1;
+      if (takenAt !== undefined) {
+        // pop up toward Rosie and fade out
+        const k = (fr.t - takenAt) / 0.3;
+        if (k > 1) continue;
+        x += (px - x) * k; gap = Math.max(gap, 0.2); y = fr.player.y + 0.8 + k * 0.6; alpha = 1 - k; grow = 1 + k * 0.6;
+      } else if (fr.magnet && p.kind === 'treat' && gap < 9 && gap > -1) {
+        // the magnet pulls treats in from every lane
+        const k = 1 - Math.max(0, gap) / 9;
+        x += (px - x) * k * k; y += (fr.player.y + 0.5 - y) * k * k;
+      }
+      const sp = p.kind === 'treat' ? this.sp.bone : p.kind === 'board' ? this.sp.boardItem : this.sp.magnet;
+      const spin = p.kind === 'treat' ? Math.cos(fr.t * 3 + p.id * 0.7) : 1;
+      items.push({
+        gap,
+        fn: () => {
+          const pt = this.P(x, y, gap);
+          if (pt.s < 1) return;
+          g.save();
+          g.globalAlpha = alpha;
+          // glow ring under power-ups, soft shadow under everything
+          const sh = this.P(x, p.roof ? ROOF_H : 0, gap);
+          g.fillStyle = 'rgba(50,30,10,0.22)';
+          g.beginPath(); g.ellipse(sh.x, sh.y, sh.s * 0.22, sh.s * 0.05, 0, 0, Math.PI * 2); g.fill();
+          if (p.kind !== 'treat') {
+            const rg = g.createRadialGradient(pt.x, pt.y - pt.s * 0.25, 0, pt.x, pt.y - pt.s * 0.25, pt.s * 0.6);
+            rg.addColorStop(0, 'rgba(255,240,170,0.75)');
+            rg.addColorStop(1, 'rgba(255,240,170,0)');
+            g.fillStyle = rg;
+            g.fillRect(pt.x - pt.s * 0.6, pt.y - pt.s * 0.85, pt.s * 1.2, pt.s * 1.2);
+          }
+          g.translate(pt.x, pt.y);
+          g.scale(Math.max(0.25, Math.abs(spin)) * grow * 1.2, grow * 1.2);
+          this.sprite(g, sp, { x: 0, y: 0, s: pt.s }, gap, 0);
+          g.restore();
+        },
+      });
     }
   }
 

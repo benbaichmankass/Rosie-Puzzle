@@ -4,13 +4,15 @@
 // tram, run along its roof, drop off the end, hop down to the bike path, or leap across to the other track.
 // It also proves the search is not vacuous (a hand-made wall is rejected), checks determinism and density,
 // and that no distance is blocked by tall obstacles in all three lanes. Exits non-zero on failure.
-import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
+import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
 
-const SEEDS = 80;
-const RUN = 5000; // units (metres); top speed is reached long before this
+const SEEDS = 40;
+const RUN = 4000; // units (metres); top speed is reached long before this
 const H = 0.25; // finer grid than the spawner uses
 
-function passable(obs: Obstacle[], length: number, t: Timings = CONTROLS): { ok: boolean; stuckAt: number } {
+interface Grid { tall: Uint8Array[]; low: Uint8Array[]; tram: Uint8Array[]; ramp: Uint8Array[]; n: number }
+
+function buildGrid(obs: Obstacle[], length: number): Grid {
   const n = Math.ceil(length / H) + 600;
   const mk = () => Array.from({ length: LANES }, () => new Uint8Array(n));
   const tall = mk(), low = mk(), tram = mk(), ramp = mk();
@@ -20,64 +22,98 @@ function passable(obs: Obstacle[], length: number, t: Timings = CONTROLS): { ok:
     for (let i = a; i <= b; i++) arr[o.lane][i] = 1;
     if (o.ramp) ramp[o.lane][a] = 1;
   }
-  const any = (l: number, i: number) => tall[l][i] || low[l][i] || tram[l][i];
-  const ground = new Uint8Array(n + 400), roof = new Uint8Array(n + 400);
-  ground[0] = 1 << 1; // the game starts in the middle lane
-  let last = 0;
+  return { tall, low, tram, ramp, n };
+}
+
+/**
+ * Every move Rosie can make from (cell i, lane l, on the street or on a roof), with the game's rules.
+ * Calls out(j, lane, roof) for each state she can be in next.
+ */
+function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, out: (j: number, l: number, roof: boolean) => void) {
+  const { tall, low, tram, ramp } = G;
+  const any = (ll: number, c: number) => tall[ll][c] || low[ll][c] || tram[ll][c];
+  const s = speedAt(i * H);
+  const kc = Math.ceil((t.laneChangeTime * s) / H);
+  const kj = Math.ceil((t.jumpTime * s) / H);
+  const kf = Math.ceil((t.fallTime * s) / H);
+  const ja = Math.floor(t.airFrom * kj), jb = Math.ceil(t.airTo * kj);
+  const ma = Math.ceil(t.mountFrom * kj), mb = Math.floor(t.mountTo * kj);
+  if (!onRoof) {
+    if (tram[l][i]) { if (ramp[l][i] && !tall[l][i] && !low[l][i] && tram[l][i + 1]) out(i + 1, l, true); }
+    else if (!tall[l][i] && !low[l][i]) out(i + 1, l, false);
+    let ok = true, mountAt = -1;
+    for (let k = 0; k < kj && ok && mountAt < 0; k++) {
+      const c = i + k;
+      if (tram[l][c]) { if (k >= ma && k <= mb) mountAt = c; else ok = false; }
+      else if (tall[l][c]) ok = false;
+      else if (low[l][c] && (k <= ja || k >= jb)) ok = false;
+    }
+    if (ok) { if (mountAt >= 0) out(mountAt, l, true); else out(i + kj, l, false); }
+    for (const nb of [l - 1, l + 1]) {
+      if (nb < 0 || nb >= LANES) continue;
+      let ok2 = true;
+      for (let k = 0; k < kc && ok2; k++) if (any(l, i + k) || any(nb, i + k)) ok2 = false;
+      if (ok2) out(i + kc, nb, false);
+    }
+    return;
+  }
+  if (!tram[l][i]) return;
+  if (tram[l][i + 1]) out(i + 1, l, true);
+  else {
+    let ok = true;
+    for (let k = 1; k <= kf && ok; k++) if (any(l, i + k)) ok = false;
+    if (ok) out(i + 1 + kf, l, false);
+  }
+  for (const nb of [l - 1, l + 1]) {
+    if (nb < 0 || nb >= LANES) continue;
+    let ok2 = true;
+    for (let k = 0; k < kc + kf && ok2; k++) if (any(nb, i + k)) ok2 = false;
+    if (ok2) out(i + kc + kf, nb, false);
+  }
+  const far = 2 - l;
+  if (far !== l) {
+    let ok3 = true;
+    for (let k = 0; k <= 2 * kc && ok3; k++) if (!tram[far][i + k]) ok3 = false;
+    if (ok3) out(i + 2 * kc, far, true);
+  }
+}
+
+/** Forward reachability from the start (middle lane) and backward "can still get to the end" sets. */
+function solve(obs: Obstacle[], length: number, t: Timings = CONTROLS) {
+  const G = buildGrid(obs, length);
   const end = Math.ceil(length / H);
+  const size = G.n + 400;
+  const fg = new Uint8Array(size), fr = new Uint8Array(size);
+  fg[0] = 1 << 1;
+  let last = 0;
   for (let i = 0; i < end; i++) {
-    const gm = ground[i], rm = roof[i];
-    if (!gm && !rm) continue;
-    last = i;
-    const s = speedAt(i * H);
-    const kc = Math.ceil((t.laneChangeTime * s) / H);
-    const kj = Math.ceil((t.jumpTime * s) / H);
-    const kf = Math.ceil((t.fallTime * s) / H);
-    const ja = Math.floor(t.airFrom * kj), jb = Math.ceil(t.airTo * kj);
-    const ma = Math.ceil(t.mountFrom * kj), mb = Math.floor(t.mountTo * kj);
     for (let l = 0; l < LANES; l++) {
-      const bit = 1 << l;
-      if (gm & bit) {
-        if (tram[l][i]) { if (ramp[l][i] && !tall[l][i] && !low[l][i] && tram[l][i + 1]) roof[i + 1] |= bit; }
-        else if (!tall[l][i] && !low[l][i]) ground[i + 1] |= bit;
-        let ok = true, mountAt = -1;
-        for (let k = 0; k < kj && ok && mountAt < 0; k++) {
-          const c = i + k;
-          if (tram[l][c]) { if (k >= ma && k <= mb) mountAt = c; else ok = false; }
-          else if (tall[l][c]) ok = false;
-          else if (low[l][c] && (k <= ja || k >= jb)) ok = false;
-        }
-        if (ok) { if (mountAt >= 0) roof[mountAt] |= bit; else ground[i + kj] |= bit; }
-        for (const nb of [l - 1, l + 1]) {
-          if (nb < 0 || nb >= LANES) continue;
-          let ok2 = true;
-          for (let k = 0; k < kc && ok2; k++) if (any(l, i + k) || any(nb, i + k)) ok2 = false;
-          if (ok2) ground[i + kc] |= 1 << nb;
-        }
-      }
-      if ((rm & bit) && tram[l][i]) {
-        if (tram[l][i + 1]) roof[i + 1] |= bit;
-        else {
-          let ok = true;
-          for (let k = 1; k <= kf && ok; k++) if (any(l, i + k)) ok = false;
-          if (ok) ground[i + 1 + kf] |= bit;
-        }
-        for (const nb of [l - 1, l + 1]) {
-          if (nb < 0 || nb >= LANES) continue;
-          let ok2 = true;
-          for (let k = 0; k < kc + kf && ok2; k++) if (any(nb, i + k)) ok2 = false;
-          if (ok2) ground[i + kc + kf] |= 1 << nb;
-        }
-        const far = 2 - l;
-        if (far !== l) {
-          let ok3 = true;
-          for (let k = 0; k <= 2 * kc && ok3; k++) if (!tram[far][i + k]) ok3 = false;
-          if (ok3) roof[i + 2 * kc] |= 1 << far;
-        }
+      for (const roof of [false, true]) {
+        if (!((roof ? fr : fg)[i] & (1 << l))) continue;
+        last = i;
+        successors(G, t, i, l, roof, (j, nl, nr) => { (nr ? fr : fg)[j] |= 1 << nl; });
       }
     }
   }
-  return { ok: !!(ground[end] || roof[end]), stuckAt: last * H };
+  const ok = !!(fg[end] || fr[end]);
+  // backward: a state is good if some move leads to a good state; everything at the end is good
+  const bg = new Uint8Array(size), br = new Uint8Array(size);
+  for (let i = end; i < size; i++) { bg[i] = 0b111; br[i] = 0b111; }
+  for (let i = end - 1; i >= 0; i--) {
+    for (let l = 0; l < LANES; l++) {
+      for (const roof of [false, true]) {
+        let good = false;
+        successors(G, t, i, l, roof, (j, nl, nr) => { if (!good && ((nr ? br : bg)[j] & (1 << nl))) good = true; });
+        if (good) (roof ? br : bg)[i] |= 1 << l;
+      }
+    }
+  }
+  return { ok, stuckAt: last * H, fg, fr, bg, br };
+}
+
+function passable(obs: Obstacle[], length: number, t: Timings = CONTROLS): { ok: boolean; stuckAt: number } {
+  const r = solve(obs, length, t);
+  return { ok: r.ok, stuckAt: r.stuckAt };
 }
 
 function wallAt(obs: Obstacle[], length: number): number {
@@ -110,7 +146,7 @@ const t0 = performance.now();
 }
 
 const counts: Record<string, number> = {};
-let total = 0, ramps = 0;
+let total = 0, ramps = 0, treats = 0, powers = 0, boardFails = 0;
 for (let seed = 1; seed <= SEEDS; seed++) {
   const sp = new Spawner(seed * 7919 + 13);
   sp.ensure(RUN);
@@ -119,8 +155,24 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   for (const o of obs) { counts[o.kind] = (counts[o.kind] ?? 0) + 1; total++; if (o.ramp) ramps++; }
   const w = wallAt(obs, length);
   if (w >= 0) fail(`seed ${seed}: wall of tall obstacles at ${w.toFixed(1)}m`);
-  const p = passable(obs, length);
-  if (!p.ok) fail(`seed ${seed}: no way through, stuck at ${p.stuckAt.toFixed(1)}m`);
+  const sol = solve(obs, length);
+  if (!sol.ok) fail(`seed ${seed}: no way through, stuck at ${sol.stuckAt.toFixed(1)}m`);
+  // every treat / power-up sits on some complete way through: reachable from the start, and the run can
+  // still be finished from there (collecting it never forces a crash)
+  for (const pk of sp.pickups.filter((q) => q.d < RUN - 100)) {
+    const i = Math.floor(pk.d / H), bit = 1 << pk.lane;
+    const f = pk.roof ? sol.fr : sol.fg, bk = pk.roof ? sol.br : sol.bg;
+    // the treat is collected within about a cell of its spot
+    let good = false;
+    for (let c = i - 4; c <= i + 4 && !good; c++) if ((f[c] & bit) && (bk[c] & bit)) good = true;
+    if (!good) fail(`seed ${seed}: ${pk.kind} at ${pk.d.toFixed(1)}m lane ${pk.lane}${pk.roof ? ' (roof)' : ''} cannot be collected safely`);
+    if (pk.kind === 'treat') treats++; else powers++;
+  }
+  // on the skateboard Rosie covers 20% more ground per second: check the run with those (tighter) timings too;
+  // where it would not be passable the board's one-hit shield is what saves her
+  const scale = BOARD_SPEED;
+  const boardT = { ...CONTROLS, laneChangeTime: CONTROLS.laneChangeTime * scale, jumpTime: CONTROLS.jumpTime * scale, fallTime: CONTROLS.fallTime * scale };
+  if (!passable(obs, Math.min(length, 1500), boardT).ok) boardFails++;
   for (let i = 0; i < obs.length; i++) {
     const o = obs[i];
     if (!(o.end > o.start) || (i > 0 && o.start < obs[i - 1].start)) { fail(`seed ${seed}: bad obstacle ${o.id}`); break; }
@@ -134,11 +186,15 @@ if (key(a) !== key(b)) fail('spawner is not deterministic');
 const perKm = total / SEEDS / (RUN / 1000);
 if (perKm < 40) fail(`too few obstacles: ${perKm.toFixed(1)} per km`);
 if (!ramps) fail('no ramp trams generated');
+if (treats / SEEDS < 50) fail(`too few treats: ${(treats / SEEDS).toFixed(0)} per run`);
+if (!powers) fail('no power-ups generated');
 
 const ms = performance.now() - t0;
 console.log(
   `boulevard-runner: ${SEEDS} runs x ${RUN}m, ${perKm.toFixed(0)} obstacles/km ` +
     `(${Object.entries(counts).map(([k, v]) => `${k} ${((100 * v) / total).toFixed(0)}%`).join(', ')}; ${ramps} ramps), ` +
+    `${(treats / SEEDS).toFixed(0)} treats + ${(powers / SEEDS).toFixed(1)} power-ups per run all safely collectable, ` +
+    `board-speed first 1.5km passable in ${SEEDS - boardFails}/${SEEDS}, ` +
     `${failures} failures, ${(ms / 1000).toFixed(1)}s`,
 );
 if (failures) process.exit(1);

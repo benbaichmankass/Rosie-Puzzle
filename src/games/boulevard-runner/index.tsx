@@ -46,10 +46,16 @@ export default function Game({ onExit }: GameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef<HTMLDivElement>(null);
+  const subRef = useRef<HTMLDivElement>(null);
+  const powerRef = useRef<HTMLDivElement>(null);
+  const powerBarRef = useRef<HTMLDivElement>(null);
+  const powerLabelRef = useRef<HTMLSpanElement>(null);
   const [screen, setScreen] = useState<Screen>('start');
   const screenRef = useRef<Screen>('start');
   const [best, setBest] = useState(() => getHighScore(meta.id));
-  const [last, setLast] = useState({ score: 0, newBest: false, why: '' });
+  const bestRef = useRef(best);
+  bestRef.current = best;
+  const [last, setLast] = useState({ score: 0, newBest: false, why: '', metres: 0, treats: 0 });
   const [hint, setHint] = useState(false);
   const [muted, setMuted] = useState(() => load<boolean>(meta.id, 'muted', false));
 
@@ -178,20 +184,33 @@ export default function Game({ onExit }: GameProps) {
           else if (e === 'crash') { sfx.current.bonk(); a.shake = 1; a.crashT = 0; }
           else if (e === 'mount') sfx.current.mount();
           else if (e === 'land') sfx.current.land();
+          else if (e === 'treat') sfx.current.treat();
+          else if (e === 'power') sfx.current.power();
+          else if (e === 'shield') { sfx.current.shield(); a.shake = 0.6; }
         }
         if (run.crashed) {
           a.crashT += dt;
           if (a.crashT > 0.9) {
             const nb = submitScore(meta.id, run.score);
             setBest(getHighScore(meta.id));
-            setLast({ score: run.score, newBest: nb, why: hitLine(run.hit) });
+            setLast({ score: run.score, newBest: nb, why: hitLine(run.hit), metres: Math.floor(run.d), treats: run.treats });
             go('over');
           }
         }
         hudTimer += dt;
         if (hudTimer > 0.08 && scoreRef.current) {
           hudTimer = 0;
-          scoreRef.current.textContent = `${run.score} m`;
+          scoreRef.current.textContent = `${run.score}`;
+          if (subRef.current) subRef.current.textContent = `🦴 ${run.treats} · ${Math.floor(run.d)} m · BEST ${bestRef.current}`;
+          const pw = powerRef.current;
+          if (pw) {
+            const p = run.power;
+            pw.style.display = p ? 'flex' : 'none';
+            if (p) {
+              if (powerLabelRef.current) powerLabelRef.current.textContent = p.kind === 'board' ? '🛹 Skateboard' : '🧲 Treat magnet';
+              if (powerBarRef.current) powerBarRef.current.style.width = `${Math.max(0, (100 * (p.until - run.t)) / p.total)}%`;
+            }
+          }
           // "next stop" banner as a station comes up and while passing its platform
           const el = stopRef.current;
           if (el) {
@@ -227,6 +246,9 @@ export default function Game({ onExit }: GameProps) {
         showObstacles: !!useRun,
         shake: a.shake,
         camLift: a.camLift,
+        pickups: useRun ? run.spawner.pickups : [],
+        taken: useRun ? run.taken : new Map(),
+        magnet: !!(useRun && run.power?.kind === 'magnet'),
         player: {
           lanePos: useRun ? run.lanePos : 1,
           y: useRun ? run.y : 0,
@@ -239,6 +261,8 @@ export default function Game({ onExit }: GameProps) {
           crashed: !!(useRun && run.crashed),
           crashT: useRun && run.crashed ? a.crashT : -1,
           landT: useRun ? run.t - run.landedAt : -1,
+          board: !!(useRun && run.power?.kind === 'board'),
+          ghost: !!(useRun && run.ghost),
         },
       });
     };
@@ -267,8 +291,12 @@ export default function Game({ onExit }: GameProps) {
         </div>
         {screen !== 'start' && (
           <div className="text-center text-white br-hud">
-            <div ref={scoreRef} className="font-black text-[30px] leading-none">0 m</div>
-            <div className="font-bold text-[12px] opacity-90 mt-1">BEST {best} m</div>
+            <div ref={scoreRef} className="font-black text-[30px] leading-none">0</div>
+            <div ref={subRef} className="font-bold text-[12px] opacity-90 mt-1 whitespace-nowrap">🦴 0 · 0 m · BEST {best}</div>
+            <div ref={powerRef} className="mt-2 mx-auto w-[150px] flex-col items-stretch gap-1 px-3 py-1.5 rounded-xl bg-[rgba(255,248,236,0.9)] text-[#5a2f17] text-[12px] font-black" style={{ display: 'none', textShadow: 'none' }}>
+              <span ref={powerLabelRef} />
+              <div className="h-[6px] rounded-full bg-[#e6d7bf] overflow-hidden"><div ref={powerBarRef} className="h-full bg-[#1f9aa6]" style={{ width: '100%' }} /></div>
+            </div>
             <div ref={stopRef} className="mt-2 px-3 py-1 rounded-full bg-[#d22e2e] text-white text-[12px] font-bold whitespace-nowrap transition-opacity duration-300" style={{ opacity: 0, textShadow: 'none' }} />
           </div>
         )}
@@ -288,10 +316,10 @@ export default function Game({ onExit }: GameProps) {
             <div className="text-[13px] font-bold tracking-[0.2em] text-[#c0602e]">YAFO · JAFFA</div>
             <div className="text-[28px] font-black leading-[1.05] mt-1">Jerusalem Boulevard Runner</div>
             <div className="text-[15px] font-medium mt-3 leading-snug">
-              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump. Dodge walkers and bikes, and hop onto the light rail's roof.
+              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump. Dodge walkers and bikes, hop onto the light rail's roof and grab treats (🛹 skateboard, 🧲 magnet).
             </div>
             <button className="br-btn w-full mt-4 py-3 text-[20px]" onClick={start}>PLAY</button>
-            <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best} m</div>
+            <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best}</div>
           </div>
         </div>
       )}
@@ -320,11 +348,12 @@ export default function Game({ onExit }: GameProps) {
         <div className="absolute inset-0 flex items-center justify-center bg-[rgba(60,25,10,0.35)] p-4" onPointerDown={(e) => e.stopPropagation()}>
           <div className="br-card br-pop w-full max-w-[340px] p-6 text-center text-[#5a2f17]">
             <div className="text-[15px] font-medium leading-snug">{last.why}</div>
-            <div className="text-[56px] font-black leading-none mt-3">{last.score}<span className="text-[26px]"> m</span></div>
+            <div className="text-[56px] font-black leading-none mt-3">{last.score}</div>
+            <div className="text-[14px] font-bold opacity-80 mt-1">{last.metres} m walked + 🦴 {last.treats} treats</div>
             {last.newBest ? (
               <div className="inline-block mt-2 px-3 py-1 rounded-full bg-[#f2c14e] text-[#5a2f17] text-[13px] font-black">NEW BEST!</div>
             ) : (
-              <div className="text-[15px] font-bold mt-2 opacity-80">BEST {best} m</div>
+              <div className="text-[15px] font-bold mt-2 opacity-80">BEST {best}</div>
             )}
             <button className="br-btn w-full mt-5 py-3 text-[20px]" onClick={start}>RETRY</button>
             <button className="br-btn alt w-full mt-3 py-3 text-[17px]" onClick={onExit}>MAP</button>

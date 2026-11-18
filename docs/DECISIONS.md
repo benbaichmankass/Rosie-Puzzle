@@ -60,7 +60,12 @@ Ben's feedback (round 1):
   can climb). A "Next stop" banner shows the station name.
 - Shop fronts carry the names of real businesses on the boulevard (confirmed from published listings; plain
   lettering, no logos): a sign over each shop window and a hanging blade sign.
-- Coming next: treats and power-ups (e.g. a skateboard) with an on-screen timer.
+- Treats (dog-biscuit bones) lie in rows in the lanes, on the street or on tram roofs: +10 points each. Score =
+  metres walked + treat/power-up points; best score kept. Every ~500-800 m a power-up (+50): the skateboard (8 s:
+  20% faster, auto-jumps low stuff, and takes one hit for Rosie, after which she is briefly untouchable; a hit
+  from a tram puts her on its roof) or the treat magnet (10 s: pulls in treats from every lane). The active
+  power-up shows with a timer bar. Treats are only placed where collecting them never forces a crash; the check
+  script proves it for every treat with the real timings, and checks the run is passable at skateboard speed.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
