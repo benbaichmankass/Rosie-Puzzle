@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'bathroom',
   spot: 'bathroom-floor',
   blurb: 'Squeegee the flood back to the drain. Keep the shelves dry!',
-  status: 'coming-soon',
+  status: 'ready',
 };
