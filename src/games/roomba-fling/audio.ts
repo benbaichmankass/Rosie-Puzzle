@@ -95,13 +95,46 @@ export class Sfx {
     const v = Math.min(1, intensity);
     if (v < 0.04) return;
     if (kind === 'pillow') { this.tone(300, 0.16, 'sine', 0.35 * v + 0.1, 720); return; }
-    if (kind === 'rosie') { this.tone(520, 0.08, 'square', 0.08, 640); this.tone(700, 0.1, 'square', 0.07, 900, 0.09); return; }
+    if (kind === 'rosie') { this.burst(0.1, 300, 0.2 * v + 0.05, 1); return; }
     if (kind === 'ball') { this.tone(600, 0.07, 'sine', 0.25 * v, 300); return; }
     if (kind === 'glass') { this.tone(1900, 0.18, 'sine', 0.12 * v + 0.03); this.tone(2850, 0.12, 'sine', 0.06 * v); }
     if (kind === 'gate') { this.tone(1100, 0.12, 'triangle', 0.1 * v + 0.03, 900); }
     const soft = kind === 'soft';
     this.burst(soft ? 0.12 : 0.09, soft ? 350 : 900, (soft ? 0.25 : 0.35) * v + 0.03, 1);
     this.tone(soft ? 90 : 140, 0.1, 'sine', 0.35 * v, soft ? 60 : 80);
+  }
+
+  /** Grumpy dog growl + short huff when Rosie is woken. */
+  growl() {
+    if (!this.ac || !this.master) return;
+    const t = this.ac.currentTime;
+    const o = this.ac.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(95, t);
+    o.frequency.linearRampToValueAtTime(120, t + 0.25);
+    o.frequency.linearRampToValueAtTime(85, t + 0.55);
+    // rough "rrr" flutter
+    const lfo = this.ac.createOscillator();
+    lfo.frequency.value = 28;
+    const lfoGain = this.ac.createGain();
+    lfoGain.gain.value = 0.5;
+    const g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.05);
+    g.gain.setValueAtTime(0.22, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    const amp = this.ac.createGain();
+    amp.gain.value = 0.5;
+    lfo.connect(lfoGain).connect(amp.gain);
+    const f = this.ac.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 700;
+    o.connect(f).connect(amp).connect(g).connect(this.master);
+    o.start(t); lfo.start(t);
+    o.stop(t + 0.65); lfo.stop(t + 0.65);
+    // annoyed single bark at the end
+    this.tone(420, 0.09, 'square', 0.1, 300, 0.6);
+    this.burst(0.08, 900, 0.12, 2, 'bandpass');
   }
 
   dock() {

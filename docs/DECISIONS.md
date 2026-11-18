@@ -26,6 +26,10 @@ bounces off walls and furniture (pinball feel). Start at one end, goal dock at t
 the Roomba's path cleans it. Score per level rewards few flings and high % cleaned. Rosie lies somewhere each level
 (floor, couch or her bed) as an obstacle. Layouts randomly generated each time, always reachable (check script).
 Later levels add more furniture and new obstacles (e.g. a moving obstacle, narrow gaps, rugs that slow you).
+Waking Rosie costs points (Ben's call): every time the Roomba bumps her (on the floor, her bed, or the sofa right
+where she sleeps) she wakes up grumpy (growl, "Grr!", annoyed mark, open eyes), a floating "-150" shows and the
+level-clear tally lists "Woke Rosie xN". A short cooldown makes one collision count once; she settles back to
+sleep after a moment. A level's score never drops below 0. The start screen says "Don't bump Rosie, she's napping!".
 
 ## Gas Leak (living room)
 Top-down grid of the living room. Gas enters from the kitchen side (right). The left wall has, top to bottom: a

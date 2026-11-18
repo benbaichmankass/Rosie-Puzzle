@@ -2,7 +2,7 @@
 // start to the dock (C-space BFS proof), keeps start/dock clear, always has Rosie, and generates fast.
 import {
   generateLevel, reachable, makeCleanGrid, distToShape, step, flingVelocity, atDock,
-  levelScore, R, W, H, type Level, type Body,
+  levelScore, ROSIE_PENALTY, R, W, H, type Level, type Body,
 } from '../src/games/roomba-fling/sim';
 
 const LEVELS = 16;
@@ -22,6 +22,7 @@ function checkLevel(l: Level, tag: string) {
   if (l.rosie.where === 'bed' && !l.pieces.some((p) => p.type === 'dogbed')) fail(`${tag}: Rosie in bed but no bed`);
   if (l.rosie.where === 'couch' && !l.pieces.some((p) => p.type === 'sofa')) fail(`${tag}: Rosie on couch but no couch`);
   if (!l.pieces.some((p) => p.type === 'sofa')) fail(`${tag}: no sofa`);
+  if (l.rosie.where !== 'couch' && !l.solids.some((s) => s.tag === 'rosie')) fail(`${tag}: Rosie (${l.rosie.where}) cannot be bumped`);
   for (const p of l.pieces) if (p.x < -0.01 || p.y < -0.01 || p.x + p.w > W + 0.01 || p.y + p.h > H + 0.01) fail(`${tag}: ${p.type} outside room`);
   const g = makeCleanGrid(l);
   if (g.total < 1000) fail(`${tag}: too little floor (${g.total})`);
@@ -67,6 +68,10 @@ if (fallbacks > total * 0.05) fail(`too many fallback layouts: ${fallbacks}`);
   }
   const s = levelScore(3, 0.25, 8);
   if (s.total !== 25 * 12 + 500) fail('score formula changed unexpectedly');
+  // waking Rosie costs ROSIE_PENALTY per bump, and a level score never goes below 0
+  const s2 = levelScore(3, 0.25, 8, 2);
+  if (s2.rosiePts !== 2 * ROSIE_PENALTY || s2.total !== 25 * 12 + 500 - 2 * ROSIE_PENALTY) fail('Rosie penalty not applied');
+  if (levelScore(8, 0.01, 8, 5).total !== 0) fail('level score went negative');
 }
 
 console.log(`roomba-fling: ${total} levels, ${seen.size} distinct, ${fallbacks} fallbacks, slowest ${worst.toFixed(1)}ms, failures ${failures}`);
