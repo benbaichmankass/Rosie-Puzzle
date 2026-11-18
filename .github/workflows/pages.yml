@@ -24,9 +24,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npx tsx scripts/check-random.ts
-      - run: npx tsx scripts/check-levels.ts
-      - run: npx tsx scripts/check-items.ts
+      - name: Game checks (every scripts/check-*.ts)
+        run: for f in scripts/check-*.ts; do echo "== $f"; npx tsx "$f" || exit 1; done
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
 

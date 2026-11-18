@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
+import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, Maximize, Minimize, Map as MapIcon } from 'lucide-react';
 import { AvatarProfiles } from '../types';
 import { sound } from '../utils/audio';
 
@@ -21,6 +21,8 @@ interface MobileFrameProps {
   onToggleFullscreen?: () => void;
   onPrevLevel: () => void;
   onNextLevel: () => void;
+  /** Back to the Game House map. */
+  onExit?: () => void;
 }
 
 function IconBtn({ onClick, label, children, className = 'btn-dark' }: { onClick?: () => void; label: string; children: React.ReactNode; className?: string }) {
@@ -48,6 +50,7 @@ export function MobileFrame({
   onToggleFullscreen,
   onPrevLevel,
   onNextLevel,
+  onExit,
 }: MobileFrameProps) {
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
@@ -96,6 +99,11 @@ export function MobileFrame({
         <div className="retro-stripes mx-3 mb-2" aria-hidden />
         {/* Stage switcher */}
         <div className="px-3 flex items-center gap-2">
+          {onExit && (
+            <IconBtn onClick={onExit} label="Back to the map" className="btn-dark">
+              <MapIcon className="w-4 h-4" />
+            </IconBtn>
+          )}
           <IconBtn onClick={onPrevLevel} label="Previous night" className="btn-cyan">
             <ChevronLeft className="w-5 h-5" />
           </IconBtn>
