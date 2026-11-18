@@ -7,6 +7,7 @@ import { Run } from './sim';
 import { Scene } from './scene';
 import { Sfx } from './audio';
 import type { Obstacle } from './spawner';
+import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN } from './street';
 
 type Screen = 'start' | 'play' | 'paused' | 'over';
 
@@ -33,6 +34,7 @@ function hitLine(o: Obstacle | null): string {
   switch (o.kind) {
     case 'tramIn': return 'Head-on with the light rail! Jump just as it reaches you to land on its roof.';
     case 'tramOut': return 'Ran into the back of a tram! Jump, or take the yellow ramp, to get on the roof.';
+    case 'tramStop': return 'Bumped into a tram waiting at the station. Jump up onto its roof!';
     case 'bike': return 'Bonk! A bike rider on the promenade.';
     case 'walker': return 'Bumped into someone out for a walk.';
     default: return 'Tripped! Swipe up to jump the low stuff.';
@@ -43,6 +45,7 @@ export default function Game({ onExit }: GameProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
+  const stopRef = useRef<HTMLDivElement>(null);
   const [screen, setScreen] = useState<Screen>('start');
   const screenRef = useRef<Screen>('start');
   const [best, setBest] = useState(() => getHighScore(meta.id));
@@ -186,7 +189,23 @@ export default function Game({ onExit }: GameProps) {
           }
         }
         hudTimer += dt;
-        if (hudTimer > 0.08 && scoreRef.current) { hudTimer = 0; scoreRef.current.textContent = `${run.score} m`; }
+        if (hudTimer > 0.08 && scoreRef.current) {
+          hudTimer = 0;
+          scoreRef.current.textContent = `${run.score} m`;
+          // "next stop" banner as a station comes up and while passing its platform
+          const el = stopRef.current;
+          if (el) {
+            const k = Math.max(0, Math.ceil((run.d - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
+            const ahead = stationStart(k) - run.d;
+            const show = ahead < 70 && ahead > -PLATFORM_LEN;
+            if (show) {
+              const n = stationName(k);
+              const label = `${ahead > 0 ? 'Next stop' : 'Station'}: ${n.en} · ${n.he}`;
+              if (el.textContent !== label) el.textContent = label;
+            }
+            el.style.opacity = show ? '1' : '0';
+          }
+        }
       } else if (s === 'start') {
         a.idleD += dt * speed;
       }
@@ -250,6 +269,7 @@ export default function Game({ onExit }: GameProps) {
           <div className="text-center text-white br-hud">
             <div ref={scoreRef} className="font-black text-[30px] leading-none">0 m</div>
             <div className="font-bold text-[12px] opacity-90 mt-1">BEST {best} m</div>
+            <div ref={stopRef} className="mt-2 px-3 py-1 rounded-full bg-[#d22e2e] text-white text-[12px] font-bold whitespace-nowrap transition-opacity duration-300" style={{ opacity: 0, textShadow: 'none' }} />
           </div>
         )}
         <div className="flex gap-2 pointer-events-auto" onPointerDown={(e) => e.stopPropagation()}>

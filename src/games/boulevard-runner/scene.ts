@@ -3,6 +3,7 @@
  * (x across, y up, gap = distance ahead of Rosie) onto the canvas. Painter's algorithm, far to near.
  */
 import { type Obstacle, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
+import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN, SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
 import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, fogc, shade, HAZE } from './art';
 
 export const LANE_W = 1.9;
@@ -53,6 +54,11 @@ function hash2(a: number, b: number): number {
 const BUILDING_COLORS = ['#ead9b8', '#e3c79a', '#efe6d4', '#e6bf91', '#e9c9b4', '#d9cdb5', '#f0dcc0'];
 const SHUTTERS = ['#5d7f8f', '#7a8f6a', '#8a6f55', '#6c7a8a', '#b9b2a2'];
 const AWNINGS = ['#c8462f', '#2f7f8a', '#e0a63a', '#3f6b45', '#b8563a'];
+/** Shop sign colour pairs (board, lettering). */
+const SIGN_COLORS: [string, string][] = [
+  ['#1f4e79', '#ffffff'], ['#f4efe2', '#b3261e'], ['#2e6b3a', '#fff6d6'], ['#f2c14e', '#3a2614'],
+  ['#8c1c13', '#fff3e0'], ['#ffffff', '#1d3557'], ['#3d2b1f', '#f7d08a'], ['#0f7c80', '#ffffff'],
+];
 
 export class Scene {
   W = 390;
@@ -153,13 +159,16 @@ export class Scene {
     g.fillStyle = '#d9b27c';
     g.fillRect(0, this.horizon, W, H - this.horizon + 10);
 
+    // ground first: its far haze band must not cover the shop fronts
+    this.drawGround(g, fr);
     this.drawBuildings(g, fr.d, -1);
     this.drawBuildings(g, fr.d, 1);
-    this.drawGround(g, fr);
+    this.drawPlatforms(g, fr.d);
 
     // collect sprites
     const items: { gap: number; fn: () => void }[] = [];
     this.collectScenery(fr.d, items);
+    this.collectStations(g, fr.d, items);
     if (fr.showObstacles) for (const o of fr.obstacles) this.collectObstacle(g, o, fr, items);
     const hop = Math.max(0, pl.y - pl.base);
     items.push({
@@ -289,8 +298,8 @@ export class Scene {
     const gN = NEAR_Z - CAM_BACK + 0.01, gF = FAR - CAM_BACK;
     // haze gradient on the far ground is painted at the end
     for (const side of [-1, 1]) {
-      this.strip(g, side * 8.8, side * 11, gN, gF, '#d6cab5'); // sidewalk
-      this.strip(g, side * 2.95, side * 8.8, gN, gF, '#d9b27c'); // sandy park strip
+      this.strip(g, side * 8.1, side * 9.7, gN, gF, '#d6cab5'); // sidewalk
+      this.strip(g, side * 2.95, side * 8.1, gN, gF, '#d9b27c'); // sandy park strip
       this.strip(g, side * 2.62, side * 2.95, gN, gF, '#c4b9a6'); // concrete edge
       this.strip(g, side * 1.18, side * 2.62, gN, gF, '#958f86'); // track bed
       this.strip(g, side * 0.85, side * 1.1, gN, gF, '#cdbca2'); // pavers beside the bike path
@@ -304,7 +313,7 @@ export class Scene {
       if (gap + CAM_BACK < NEAR_Z + 0.2) continue;
       for (let j = 0; j < 6; j++) {
         const side = j % 2 ? 1 : -1;
-        const x = side * (3.1 + hash2(k, j) * 5.6);
+        const x = side * (3.1 + hash2(k, j) * 4.9);
         const p = this.P(x, 0, gap + hash2(j, k) * 1.4);
         const r = Math.max(0.8, p.s * 0.05);
         g.fillStyle = j % 3 ? 'rgba(150,105,60,0.35)' : 'rgba(255,240,210,0.45)';
@@ -396,7 +405,7 @@ export class Scene {
     const BL = 13;
     const k0 = Math.floor((d - CAM_BACK) / BL);
     const kEnd = Math.floor((d + FAR) / BL);
-    const X = side * 11;
+    const X = side * 9.6;
     for (let k = kEnd; k >= k0; k--) {
       const r = hash2(k, side + 5);
       const alley = r < 0.12;
@@ -407,7 +416,7 @@ export class Scene {
       const floors = 3 + Math.floor(hash2(k, side + 11) * 3);
       const h = 3.6 + floors * 3.1;
       const col = BUILDING_COLORS[Math.floor(hash2(k, side + 21) * BUILDING_COLORS.length)];
-      const fg = this.fog(Math.max(0, g0));
+      const fg = this.fog(Math.max(0, g0)) * 0.65;
       const n0 = Math.max(g0, NEAR_Z - CAM_BACK + 0.05);
       // end wall facing the camera (seen when taller than the next building)
       if (g0 + CAM_BACK > NEAR_Z + 0.1) {
@@ -425,11 +434,20 @@ export class Scene {
         if (b + CAM_BACK < NEAR_Z) continue;
         const a2 = Math.max(a, NEAR_Z - CAM_BACK + 0.05);
         if (b <= a2) continue;
-        this.quad(g, this.P(X, 0.2, a2), this.P(X, 2.7, a2), this.P(X, 2.7, b), this.P(X, 0.2, b), fogc('#3d4650', fg));
-        this.quad(g, this.P(X, 1.6, a2), this.P(X, 2.6, a2), this.P(X, 2.6, b), this.P(X, 1.6, b), fogc('#6f8193', fg));
+        this.quad(g, this.P(X, 0.2, a2), this.P(X, 2.2, a2), this.P(X, 2.2, b), this.P(X, 0.2, b), fogc('#3d4650', fg));
+        this.quad(g, this.P(X, 1.3, a2), this.P(X, 2.1, a2), this.P(X, 2.1, b), this.P(X, 1.3, b), fogc('#6f8193', fg));
+        // shop sign above the window (real shops on the boulevard), below the tree canopies
+        if (a2 === a && a + CAM_BACK < 80) {
+          const list = side < 0 ? SHOPS_EVEN : SHOPS_ODD;
+          const n = k * 3 + s;
+          const shop = list[((n % list.length) + list.length) % list.length];
+          this.shopSign(g, X, side, a - 0.2, b + 0.2, shop, fg);
+          // hanging blade sign sticking out from the wall, facing the street
+          if (a + CAM_BACK > NEAR_Z + 1) this.bladeSign(g, X - side * 0.12, X - side * 2.5, a + 0.15, shop, fg);
+        }
         // awning sticks out toward the street
-        this.quad(g, this.P(X, 3.1, a2), this.P(X - side * 1.1, 2.6, a2), this.P(X - side * 1.1, 2.6, b), this.P(X, 3.1, b), fogc(aw, fg));
-        this.quad(g, this.P(X - side * 1.1, 2.6, a2), this.P(X - side * 1.1, 2.35, a2), this.P(X - side * 1.1, 2.35, b), this.P(X - side * 1.1, 2.6, b), fogc(shade(aw, -0.25), fg));
+        this.quad(g, this.P(X, 2.25, a2), this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.95, b), this.P(X, 2.25, b), fogc(aw, fg));
+        this.quad(g, this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.75, a2), this.P(X - side * 0.9, 1.75, b), this.P(X - side * 0.9, 1.95, b), fogc(shade(aw, -0.25), fg));
       }
       // upper floors: windows with shutters and balconies
       const sh = SHUTTERS[Math.floor(hash2(k, side + 41) * SHUTTERS.length)];
@@ -460,6 +478,174 @@ export class Scene {
         this.sprite(g, this.sp.solar, p, gp, 0);
       }
     }
+  }
+
+  // ---------- shop signs ----------
+  private signCache = new Map<string, HTMLCanvasElement>();
+  private fontsHooked = false;
+  private signCanvas(shop: Shop): HTMLCanvasElement {
+    if (!this.fontsHooked && typeof document !== 'undefined' && document.fonts) {
+      this.fontsHooked = true;
+      // re-letter the signs once Rubik (with Hebrew) has loaded
+      void document.fonts.load('800 60px Rubik', 'אבג').then(() => this.signCache.clear()).catch(() => {});
+    }
+    const key = shop.en;
+    let c = this.signCache.get(key);
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const g = c.getContext('2d')!;
+    const h = Math.floor(hash2(shop.no * 31 + shop.en.length, 3) * SIGN_COLORS.length);
+    const [bg, fgc2] = SIGN_COLORS[h];
+    g.fillStyle = bg; g.fillRect(0, 0, 512, 128);
+    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 8; g.strokeRect(4, 4, 504, 120);
+    g.fillStyle = fgc2;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.direction = 'rtl';
+    let size = 64;
+    g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`;
+    while (g.measureText(shop.he).width > 470 && size > 30) { size -= 4; g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`; }
+    g.fillText(shop.he, 256, 52);
+    g.direction = 'ltr';
+    g.font = `600 26px Rubik, Arial, sans-serif`;
+    g.fillText(shop.en.toUpperCase(), 256, 104);
+    this.signCache.set(key, c);
+    return c;
+  }
+  /** Sign board on the facade above a shop, mapped onto the wall in vertical slices (close to true perspective). */
+  private shopSign(g: CanvasRenderingContext2D, X: number, side: number, a: number, b: number, shop: Shop, fg: number) {
+    const img = this.signCanvas(shop);
+    const yB = 2.3, yT = 3.4;
+    const N = 8;
+    // left wall reads near -> far, right wall far -> near (both left to right on screen)
+    const zAt = (u: number) => (side < 0 ? a + (b - a) * u : b - (b - a) * u);
+    const sw = img.width / N;
+    for (let i = 0; i < N; i++) {
+      const z0 = zAt(i / N), z1 = zAt((i + 1) / N);
+      const T0 = this.P(X, yT, z0), T1 = this.P(X, yT, z1), B0 = this.P(X, yB, z0);
+      g.save();
+      g.transform((T1.x - T0.x) / sw, (T1.y - T0.y) / sw, (B0.x - T0.x) / img.height, (B0.y - T0.y) / img.height, T0.x, T0.y);
+      g.drawImage(img, i * sw, 0, sw + 0.6, img.height, 0, 0, sw + 0.6, img.height);
+      g.restore();
+    }
+    if (fg > 0.15) {
+      g.globalAlpha = Math.min(0.6, fg - 0.15);
+      this.quad(g, this.P(X, yB, a), this.P(X, yT, a), this.P(X, yT, b), this.P(X, yB, b), HAZE);
+      g.globalAlpha = 1;
+    }
+  }
+
+  private bladeSign(g: CanvasRenderingContext2D, x1: number, x2: number, gap: number, shop: Shop, fg: number) {
+    const A = this.P(Math.min(x1, x2), 4.2, gap), B = this.P(Math.max(x1, x2), 3.6, gap);
+    const w = B.x - A.x, h = B.y - A.y;
+    if (w < 4) return;
+    const bracket = this.P(x1, 4.3, gap), bracket2 = this.P(x2, 4.3, gap);
+    g.strokeStyle = fogc('#3a3a3a', fg); g.lineWidth = Math.max(1, A.s * 0.04);
+    g.beginPath(); g.moveTo(bracket.x, bracket.y); g.lineTo(bracket2.x, bracket2.y); g.stroke();
+    g.drawImage(this.signCanvas(shop), A.x, A.y, w, h);
+    if (fg > 0.15) { g.globalAlpha = Math.min(0.6, fg - 0.15); g.fillStyle = HAZE; g.fillRect(A.x, A.y, w, h); g.globalAlpha = 1; }
+  }
+
+  // ---------- light rail stations ----------
+  private drawPlatforms(g: CanvasRenderingContext2D, d: number) {
+    const minGap = NEAR_Z - CAM_BACK + 0.05;
+    const k0 = Math.max(0, Math.floor((d - CAM_BACK - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
+    for (let k = k0 + 1; k >= k0; k--) {
+      const g0 = stationStart(k) - d, g1 = g0 + PLATFORM_LEN;
+      if (g1 < minGap || g0 + CAM_BACK > FAR) continue;
+      const n0 = Math.max(g0, minGap);
+      const fg = this.fog(Math.max(0, n0));
+      for (const side of [-1, 1]) {
+        const xi = side * 2.64, xo = side * 3.95, top = 0.32;
+        // face toward the track, then the deck, then the yellow safety strip
+        this.quad(g, this.P(xi, 0, n0), this.P(xi, top, n0), this.P(xi, top, g1), this.P(xi, 0, g1), fogc('#8f8a82', fg));
+        this.quad(g, this.P(xi, top, n0), this.P(xo, top, n0), this.P(xo, top, g1), this.P(xi, top, g1), fogc('#d3cdc2', fg));
+        this.quad(g, this.P(xi, top, n0), this.P(xi + side * 0.16, top, n0), this.P(xi + side * 0.16, top, g1), this.P(xi, top, g1), fogc('#f0c43a', fg));
+        if (g0 > minGap) this.quad(g, this.P(xi, 0, g0), this.P(xo, 0, g0), this.P(xo, top, g0), this.P(xi, top, g0), fogc('#a39d93', fg));
+      }
+    }
+  }
+
+  private collectStations(g: CanvasRenderingContext2D, d: number, items: { gap: number; fn: () => void }[]) {
+    const k0 = Math.max(0, Math.floor((d - CAM_BACK - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
+    for (let k = k0; k <= k0 + 1; k++) {
+      const g0 = stationStart(k) - d;
+      if (g0 + PLATFORM_LEN + CAM_BACK < NEAR_Z || g0 + CAM_BACK > FAR) continue;
+      const name = stationName(k);
+      for (const side of [-1, 1]) {
+        const c = g0 + PLATFORM_LEN * 0.55;
+        // shelter: posts, glass back wall, canopy with a red fascia
+        items.push({ gap: c, fn: () => this.shelter(g, side, c) });
+        // hanging name sign at the shelter's near end, and a totem at the platform's near end
+        items.push({ gap: c - 6.2, fn: () => this.nameSign(g, side * 2.98, side * 3.82, 2.02, 2.5, c - 6.2, name) });
+        items.push({ gap: g0 + 1.5, fn: () => this.totem(g, side * 3.45, g0 + 1.5, name) });
+      }
+    }
+  }
+
+  private shelter(g: CanvasRenderingContext2D, side: number, c: number) {
+    const minGap = NEAR_Z - CAM_BACK + 0.05;
+    const a = c - 6, b = c + 6;
+    if (b < minGap) return;
+    const a2 = Math.max(a, minGap);
+    const fg = this.fog(Math.max(0, a2));
+    const xi = side * 2.95, xo = side * 3.85;
+    // glass back wall
+    g.globalAlpha = 0.45;
+    this.quad(g, this.P(xo, 0.32, a2), this.P(xo, 2.6, a2), this.P(xo, 2.6, b), this.P(xo, 0.32, b), fogc('#9fc3cf', fg));
+    g.globalAlpha = 1;
+    // posts
+    g.strokeStyle = fogc('#5c5f66', fg);
+    for (const z of [a, c, b]) {
+      if (z < minGap) continue;
+      for (const x of [xi + side * 0.08, xo]) {
+        const p1 = this.P(x, 0.32, z), p2 = this.P(x, 2.72, z);
+        g.lineWidth = Math.max(1, p1.s * 0.07);
+        g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
+      }
+    }
+    // bench along the back
+    this.quad(g, this.P(xo - side * 0.35, 0.78, a2 + 2), this.P(xo, 0.78, a2 + 2), this.P(xo, 0.78, b - 2), this.P(xo - side * 0.35, 0.78, b - 2), fogc('#a8743f', fg));
+    // canopy (seen from below, it is above the camera only when Rosie is up on a roof)
+    this.quad(g, this.P(xi, 2.75, a2), this.P(xo + side * 0.1, 2.75, a2), this.P(xo + side * 0.1, 2.75, b), this.P(xi, 2.75, b), fogc('#e8e4dc', fg));
+    this.quad(g, this.P(xi, 2.55, a2), this.P(xi, 2.8, a2), this.P(xi, 2.8, b), this.P(xi, 2.55, b), fogc('#d22e2e', fg));
+    if (a > minGap) this.quad(g, this.P(xi, 2.55, a), this.P(xo + side * 0.1, 2.55, a), this.P(xo + side * 0.1, 2.8, a), this.P(xi, 2.8, a), fogc('#b82626', fg));
+  }
+
+  /** A camera-facing sign: white board, red band, station name in Hebrew and English. */
+  private nameSign(g: CanvasRenderingContext2D, x1: number, x2: number, y0: number, y1: number, gap: number, name: { en: string; he: string }) {
+    if (gap + CAM_BACK < NEAR_Z + 0.3) return;
+    const A = this.P(Math.min(x1, x2), y1, gap), B = this.P(Math.max(x1, x2), y0, gap);
+    const w = B.x - A.x, h = B.y - A.y;
+    if (w < 3) return;
+    const fg = this.fog(gap);
+    g.fillStyle = fogc('#fbfaf6', fg);
+    g.beginPath(); g.roundRect(A.x, A.y, w, h, h * 0.12); g.fill();
+    g.fillStyle = fogc('#d22e2e', fg);
+    g.fillRect(A.x, A.y, w, h * 0.2);
+    if (h < 9) return;
+    g.fillStyle = fogc('#23262c', fg);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.direction = 'rtl';
+    let fs = h * 0.38;
+    g.font = `800 ${fs}px Rubik, Arial, sans-serif`;
+    while (g.measureText(name.he).width > w * 0.9 && fs > 4) { fs *= 0.9; g.font = `800 ${fs}px Rubik, Arial, sans-serif`; }
+    g.fillText(name.he, A.x + w / 2, A.y + h * 0.47);
+    g.direction = 'ltr';
+    fs = h * 0.22;
+    g.font = `600 ${fs}px Rubik, Arial, sans-serif`;
+    while (g.measureText(name.en).width > w * 0.9 && fs > 3) { fs *= 0.9; g.font = `600 ${fs}px Rubik, Arial, sans-serif`; }
+    g.fillText(name.en, A.x + w / 2, A.y + h * 0.8);
+  }
+
+  private totem(g: CanvasRenderingContext2D, x: number, gap: number, name: { en: string; he: string }) {
+    if (gap + CAM_BACK < NEAR_Z + 0.3) return;
+    const fg = this.fog(gap);
+    const p1 = this.P(x, 0.32, gap), p2 = this.P(x, 2.9, gap);
+    g.strokeStyle = fogc('#4a4c52', fg); g.lineWidth = Math.max(1, p1.s * 0.08);
+    g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
+    this.nameSign(g, x - 0.62, x + 0.62, 2.9, 3.75, gap, name);
   }
 
   // ---------- scenery ----------
@@ -504,8 +690,8 @@ export class Scene {
       // outer row: tall palms
       add(12, side * 3 + 2, (k, gap) => {
         if (hash2(k, side * 11) < 0.25) return;
-        const x = side * (7.4 + hash2(k, 19) * 0.8);
-        const sp = hash2(k, side * 13) < 0.7 ? this.sp.palms[Math.abs(k + 1) % 3] : this.sp.ficus[Math.abs(k) % 3];
+        const x = side * (7.0 + hash2(k, 19) * 0.5);
+        const sp = this.sp.palms[Math.abs(k + 1) % 3];
         items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 5) < 0.5, Math.sin(this.t * 1.1 + k * 2.3) * 0.03) });
       });
       // benches and picnic tables in the park strip
@@ -521,7 +707,7 @@ export class Scene {
       });
       // street lamps on the sidewalk
       add(16, side * 3 + 4, (_k, gap) => {
-        const x = side * 9.0;
+        const x = side * 8.3;
         items.push({ gap, fn: () => this.sprite(g, this.sp.lamp, this.P(x, 0, gap), gap, 0, side > 0) });
       });
     }
@@ -570,7 +756,7 @@ export class Scene {
     const { near, far } = obstacleGap(o, fr.d);
     if (far + CAM_BACK < NEAR_Z || near + CAM_BACK > FAR) return;
     const x = (o.lane - 1) * LANE_W;
-    if (o.kind === 'tramIn' || o.kind === 'tramOut') {
+    if (o.tram) {
       items.push({ gap: Math.max(near, NEAR_Z - CAM_BACK) + 0.4, fn: () => this.drawTram(g, o, x, near, far, fr) });
       return;
     }
@@ -699,10 +885,10 @@ export class Scene {
       // destination display
       g.fillStyle = '#1a1a1a';
       g.fillRect(L + w * 0.25, T + h * 0.03, w * 0.5, h * 0.06);
-      g.fillStyle = o.kind === 'tramIn' ? '#ffb43a' : '#ff6a3a';
+      g.fillStyle = o.lane === 0 ? '#ffb43a' : '#ff6a3a';
       for (let i = 0; i < 6; i++) g.fillRect(L + w * (0.29 + i * 0.07), T + h * 0.045, w * 0.04, h * 0.03);
       // lights
-      const lit = o.kind === 'tramIn' ? '#fff6cf' : '#ff3b2f';
+      const lit = o.lane === 0 ? (o.kind === 'tramStop' ? '#f3e7c0' : '#fff6cf') : '#ff3b2f';
       for (const lx of [0.16, 0.84]) {
         g.fillStyle = lit;
         g.beginPath(); g.ellipse(L + w * lx, T + h * 0.72, w * 0.07, h * 0.035, 0, 0, Math.PI * 2); g.fill();

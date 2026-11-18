@@ -54,8 +54,13 @@ Ben's feedback (round 1):
   on the roof. She runs along it and drops off its end; she can hop down to the bike path, or leap across the bike
   path onto a tram on the other track if one is alongside. Running into a tram on the ground (front or rear) is a
   crash. The spawner and `scripts/check-boulevard-runner.ts` model roofs and prove every run stays passable.
-- Coming next: light rail stations with real Red Line station names, real shop names on Sderot Yerushalayim,
-  treats and power-ups (e.g. a skateboard) with an on-screen timer.
+- Light rail stations along the boulevard with the real Red Line station names on Sderot Yerushalayim (north to
+  south: Shalma, Bloomfield Stadium, Ehrlich, Isakov, HaBesht, Machrozet, repeating). Side platforms with shelters,
+  a hanging name sign and a totem sign (Hebrew + English); a tram often waits at the platform (a still obstacle you
+  can climb). A "Next stop" banner shows the station name.
+- Shop fronts carry the names of real businesses on the boulevard (confirmed from published listings; plain
+  lettering, no logos): a sign over each shop window and a hanging blade sign.
+- Coming next: treats and power-ups (e.g. a skateboard) with an on-screen timer.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
