@@ -61,6 +61,7 @@ export const CSS = `
 .g-gas-leak .gl-zzz { animation: gl-zzz 2.6s ease-in-out infinite; }
 .g-gas-leak .gl-hiss { animation: gl-hiss 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .g-gas-leak .gl-hiss-text { animation: gl-hisst 0.8s steps(2) infinite; }
+.g-gas-leak .gl-exitpuff { animation: gl-exitpuff 0.9s ease-out infinite; }
 .g-gas-leak .gl-boom { animation: gl-boom 0.5s cubic-bezier(.2,1.6,.4,1) both; }
 .g-gas-leak .gl-boom > * { transform-box: view-box; }
 .g-gas-leak .gl-wind { animation: gl-wind 1.2s linear infinite; }
@@ -73,6 +74,7 @@ export const CSS = `
 @keyframes gl-ember { 50% { fill: #ffb347; } }
 @keyframes gl-smoke { 0% { opacity: 0; transform: translateY(4px); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(-6px); } }
 @keyframes gl-zzz { 0% { opacity: 0; transform: translate(0, 2px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -6px); } }
+@keyframes gl-exitpuff { from { transform: translateX(0) scale(1); opacity: 0.9; } to { transform: translateX(-26px) scale(1.6); opacity: 0; } }
 @keyframes gl-hisst { 50% { opacity: 0.2; } }
 @keyframes gl-hiss { 50% { transform: scale(1.5); opacity: 0.5; } }
 @keyframes gl-boom { from { opacity: 0; transform: scale(0.2); } }

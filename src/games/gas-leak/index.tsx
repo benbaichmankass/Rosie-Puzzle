@@ -21,7 +21,7 @@ import {
   type SimResult,
   type Strength,
 } from './sim';
-import { Bentzi, Boom, CELL, CeilingFan, Defs, DirIcon, FanSprite, FurniturePiece, GasPuff, Room, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
+import { Bentzi, Boom, ExitWhoosh, CELL, CeilingFan, Defs, DirIcon, FanSprite, FurniturePiece, GasPuff, Room, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
 import { sfx, setMuted, startHiss, stopHiss } from './sound';
 import { CSS } from './styles';
 
@@ -235,6 +235,7 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
     } else if (result.outcome === 'boom' && step >= last) {
       stopHiss();
       sfx.boom();
+      buzz();
       setPhase('boom');
     } else if ((result.outcome === 'stuck' || result.outcome === 'loop') && step >= last + 1) {
       setPool(poolRings(result.path, solid, danger));
@@ -256,6 +257,7 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
     if (phase === 'pooling' && poolStep >= pool.length) {
       stopHiss();
       sfx.boom();
+      buzz();
       setPhase('boom');
     }
   }, [phase, poolStep, pool.length]);
@@ -360,7 +362,7 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
   // Rosie naps on the sofa cell furthest from Bentzi (when the sofa is big enough).
   const rosie = useMemo(() => {
     let bestCell: Cell | null = null;
-    let bestD = 1;
+    let bestD = 0;
     for (const f of level.furniture)
       if (f.kind === 'sofa')
         for (let r = f.r; r < f.r + f.h; r++)
@@ -425,7 +427,7 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
               <FanSprite {...f} selected={i === sel && phase === 'edit'} spinning={phase === 'running' || phase === 'pooling'} />
             </g>
           ))}
-          {exiting && head && <GasPuff r={head.r} c={-1 - Math.min(1, step - result!.path.length)} k={0} />}
+          {exiting && head && <ExitWhoosh r={head.r} />}
           {level.ceilingFans.map((f, i) => (
             <g key={i}>
               <CeilingFan r={f.r} c={f.c} />
@@ -547,6 +549,13 @@ function Play({ levelIdx, best, muted, toggleMute, onExit, onCleared, onNext, on
       </div>
     </div>
   );
+}
+
+/** Short rumble on phones that support it. */
+function buzz() {
+  try {
+    navigator.vibrate?.([80, 40, 160]);
+  } catch {}
 }
 
 /** Rings of cells the pooled gas spreads over (breadth-first from where it got stuck) until it reaches Bentzi. */
