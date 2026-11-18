@@ -364,7 +364,7 @@ export default function Game({ onExit }: GameProps) {
         <div className="hs-vignette absolute inset-0 pointer-events-none" />
 
         {/* HUD */}
-        <div className="absolute top-0 left-0 right-0 flex items-start justify-between gap-2 p-2 pointer-events-none" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-start justify-between gap-2 p-2 pointer-events-none" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
           <div className="pointer-events-auto">
             <ExitButton onExit={onExit} className="hs-exit" />
           </div>
