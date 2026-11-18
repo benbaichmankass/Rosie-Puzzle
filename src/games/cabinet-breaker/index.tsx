@@ -22,7 +22,7 @@ const CSS = `
   box-shadow: 0 4px 0 #2b1d14; transition: transform .06s, box-shadow .06s;
 }
 .g-cabinet-breaker .cb-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #2b1d14; }
-.g-cabinet-breaker .cb-hud { text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.g-cabinet-breaker .cb-hud { text-shadow: 0 2px 0 rgba(0,0,0,.7), 0 0 6px rgba(0,0,0,.8); }
 @keyframes cb-pop { 0% { transform: scale(.7); opacity: 0 } 70% { transform: scale(1.04) } 100% { transform: scale(1); opacity: 1 } }
 .g-cabinet-breaker .cb-pop { animation: cb-pop .28s ease-out both; }
 `;
@@ -170,7 +170,7 @@ export default function Game({ onExit }: GameProps) {
     <div
       className="g-cabinet-breaker fixed inset-0 select-none overflow-hidden"
       style={{
-        background: 'repeating-linear-gradient(0deg,#e9dcc2 0 14px,#dccbab 14px 15px), #e9dcc2',
+        background: '#1b1b1e',
         touchAction: 'none',
       }}
     >
@@ -228,11 +228,11 @@ export default function Game({ onExit }: GameProps) {
 
           {screen === 'start' && (
             <Overlay>
-              <div className="text-[13px] font-semibold tracking-wide text-[#2c7c78]">ROSIE'S KITCHEN</div>
+              <div className="text-[13px] font-semibold tracking-wide text-[#9a7432]">BENTZI &amp; SHAI'S KITCHEN</div>
               <h1 className="text-[34px] font-bold leading-none mt-1">Cabinet Breaker</h1>
               <p className="text-[16px] mt-3 leading-snug">
-                Drag the cutting board, bounce the lemon and smash every dish, can, pot and pan off the shelves.
-                Squish a slug or a speedy cockroach for a bonus!
+                Drag the bamboo board along the counter, bounce the lemon and smash everything off the shelves: the pink French
+                press, the clay pot, the air fryer… Squish a slug or a speedy cockroach for a bonus!
               </p>
               <div className="text-[15px] mt-3">
                 Best: <b>{best}</b>
@@ -248,7 +248,7 @@ export default function Game({ onExit }: GameProps) {
 
           {screen === 'clear' && (
             <Overlay>
-              <div className="text-[13px] font-semibold tracking-wide text-[#2c7c78]">LEVEL {hud.level + 1} CLEARED</div>
+              <div className="text-[13px] font-semibold tracking-wide text-[#9a7432]">LEVEL {hud.level + 1} CLEARED</div>
               <h2 className="text-[30px] font-bold leading-none mt-1">Shelves empty!</h2>
               <div className="text-[15px] mt-2 opacity-80">“{level.name}” is in pieces.</div>
               <Stats score={hud.score} best={best} newBest={newBest} extra={`Clear bonus +${bonus}`} />
@@ -300,7 +300,7 @@ function Stats({ score, best, newBest, extra }: { score: number; best: number; n
         <div className="text-[12px] font-semibold opacity-70">{newBest ? 'NEW BEST!' : 'BEST'}</div>
         <div className={`text-[26px] font-bold tabular-nums leading-tight ${newBest ? 'text-[#c0463a]' : ''}`}>{best}</div>
       </div>
-      {extra && <div className="col-span-2 text-[14px] font-semibold text-[#2c7c78]">{extra}</div>}
+      {extra && <div className="col-span-2 text-[14px] font-semibold text-[#9a7432]">{extra}</div>}
     </div>
   );
 }

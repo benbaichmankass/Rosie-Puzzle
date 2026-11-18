@@ -25,7 +25,27 @@ export const ROWS_TOP = WALL_T + 6;
 /** Bottom edge of the upper cabinet (below the last possible shelf). */
 export const CABINET_BOTTOM = ROWS_TOP + MAX_ROWS * ROW_H + 8;
 
-export type ItemKind = 'plates' | 'bowls' | 'glasses' | 'box' | 'cans' | 'pot' | 'pan';
+/** The items from Ben and Shai's real kitchen. */
+export type ItemKind =
+  | 'rackPlates'
+  | 'glasses'
+  | 'steelBowls'
+  | 'colander'
+  | 'soap'
+  | 'frenchPress'
+  | 'paperTowels'
+  | 'filterJug'
+  | 'pickles'
+  | 'kettle'
+  | 'tomatoes'
+  | 'crock'
+  | 'sodaStream'
+  | 'pot'
+  | 'clayPot'
+  | 'airFryer'
+  | 'pan';
+
+export type Material = 'ceramic' | 'glass' | 'metal' | 'tin' | 'iron' | 'plastic' | 'paper' | 'wood' | 'clay';
 
 export interface ItemDef {
   kind: ItemKind;
@@ -33,17 +53,30 @@ export interface ItemDef {
   hits: number;
   /** Points when it smashes (each non-final hit is worth 10). */
   points: number;
-  /** Sound family. */
-  material: 'ceramic' | 'glass' | 'cardboard' | 'tin' | 'metal' | 'iron';
+  /** Sound and debris family. */
+  material: Material;
 }
 
 export const ITEMS: Record<string, ItemDef> = {
-  P: { kind: 'plates', hits: 1, points: 50, material: 'ceramic' },
-  B: { kind: 'bowls', hits: 1, points: 50, material: 'ceramic' },
+  // 1 hit
+  P: { kind: 'rackPlates', hits: 1, points: 50, material: 'ceramic' },
   G: { kind: 'glasses', hits: 1, points: 60, material: 'glass' },
-  C: { kind: 'box', hits: 1, points: 40, material: 'cardboard' },
-  T: { kind: 'cans', hits: 2, points: 90, material: 'tin' },
+  B: { kind: 'steelBowls', hits: 1, points: 50, material: 'metal' },
+  L: { kind: 'colander', hits: 1, points: 50, material: 'plastic' },
+  S: { kind: 'soap', hits: 1, points: 50, material: 'plastic' },
+  F: { kind: 'frenchPress', hits: 1, points: 70, material: 'glass' },
+  W: { kind: 'paperTowels', hits: 1, points: 40, material: 'paper' },
+  H: { kind: 'filterJug', hits: 1, points: 50, material: 'plastic' },
+  J: { kind: 'pickles', hits: 1, points: 60, material: 'glass' },
+  // 2 hits
+  K: { kind: 'kettle', hits: 2, points: 110, material: 'metal' },
+  T: { kind: 'tomatoes', hits: 2, points: 90, material: 'tin' },
+  U: { kind: 'crock', hits: 2, points: 90, material: 'wood' },
+  D: { kind: 'sodaStream', hits: 2, points: 110, material: 'plastic' },
   O: { kind: 'pot', hits: 2, points: 120, material: 'metal' },
+  // 3 hits
+  C: { kind: 'clayPot', hits: 3, points: 180, material: 'clay' },
+  A: { kind: 'airFryer', hits: 3, points: 200, material: 'plastic' },
   N: { kind: 'pan', hits: 3, points: 180, material: 'iron' },
 };
 
@@ -55,30 +88,30 @@ export interface LevelDef {
 
 /** Ordered roughly by difficulty: heavier items and trickier shapes come later. */
 export const LEVELS: LevelDef[] = [
-  { name: 'Clean Dishes', rows: ['PPPPPPPP', 'BBBBBBBB', 'GGGGGGGG', '........', 'CCCCCCCC'] },
-  { name: 'Stacked Up', rows: ['...PP...', '..BBBB..', '.GGGGGG.', 'PPPPPPPP', 'CCTCCTCC'] },
-  { name: 'Two Cupboards', rows: ['PPP..BBB', 'GGG..GGG', 'TCT..TCT', 'BBB..PPP', 'CCC..CCC', 'OPO..OPO'] },
-  { name: 'Pantry Check', rows: ['C.C.C.C.', '.T.T.T.T', 'B.B.B.B.', '.G.G.G.G', 'P.P.P.P.', '.C.C.C.C'] },
-  { name: 'Dinner for Two', rows: ['.BB..BB.', 'BPPBBPPB', 'BPPGGPPB', '.BPGGPB.', '..BPPB..', '...BB...'] },
-  { name: 'Soup Night', rows: ['O.O..O.O', 'BBBBBBBB', '.PPPPPP.', 'GG.GG.GG', 'TTTTTTTT', '..BBBB..'] },
-  { name: 'Spice Rack', rows: ['TCTCTCTC', '........', 'CTCTCTCT', '........', 'GGGGGGGG', 'OBOBOBOB'] },
+  { name: 'Clean Dishes', rows: ['PPPPPPPP', 'LLLLLLLL', 'GGGGSSSS', '........', 'WWWWWWWW'] },
+  { name: 'Stacked Up', rows: ['...PP...', '..LLLL..', '.GGGSSS.', 'JJJJJJJJ', 'WWTWWTWW'] },
+  { name: 'Two Cupboards', rows: ['PPP..BBB', 'FFF..GGG', 'UWU..UWU', 'LLL..JJJ', 'WWW..WWW', 'KHK..KHK'] },
+  { name: 'Pantry Check', rows: ['W.W.W.W.', '.K.K.K.K', 'B.B.B.B.', '.S.S.G.G', 'P.P.P.P.', '.S.S.S.S'] },
+  { name: 'Dinner for Two', rows: ['.BB..BB.', 'LHHLLHHL', 'BPPGSPPB', '.LJSGJL.', '..BPPB..', '...LL...'] },
+  { name: 'Soup Night', rows: ['O.O..O.O', 'LLLLLLLL', '.PPPPPP.', 'SS.SG.GG', 'TTTTTTTT', '..LLLL..'] },
+  { name: 'Coffee Corner', rows: ['TWTWTWTW', '........', 'WUWUWUWU', '........', 'GGGGFFFF', 'KLKLKLKL'] },
   {
     name: 'Good Morning',
-    rows: ['.PP..PP.', 'PGGPPGGP', 'PGGPPGGP', '.PP..PP.', '........', 'C......C', '.CTTTTC.', '..BBBB..'],
+    rows: ['.PP..PP.', 'HFFHHGGH', 'PGGPPSSP', '.JJ..JJ.', '........', 'S......S', '.WUUUUW.', '..LLLL..'],
   },
-  { name: 'Diamond Dinnerware', rows: ['...GG...', '..PBBP..', '.PTOOTP.', 'GBONNOBG', '.PTOOTP.', '..PBBP..', '...GG...'] },
-  { name: 'The Valley', rows: ['P......P', 'BP....PB', 'GBP..PBG', 'TGBPPBGT', '.TGBBGT.', '..TGGT..', '...OO...'] },
+  { name: 'Diamond Dinnerware', rows: ['...GF...', '..HLLH..', '.PUOOUP.', 'SLKAAKLG', '.PTOOTP.', '..HLLH..', '...GS...'] },
+  { name: 'The Valley', rows: ['P......P', 'LH....HL', 'GBP..PBS', 'DSLJJLGD', '.TGBBFT.', '..KFGK..', '...OO...'] },
   {
     name: 'Zig Zag Shelves',
-    rows: ['PPPP....', '.BBBB...', '..GGGG..', '...TTTT.', '....OOOO', '...CCCC.', '..PPPP..', '.BBBB...'],
+    rows: ['PPPP....', '.LLLL...', '..GGSS..', '...DDDD.', '....OOOO', '...SSSS.', '..PPPP..', '.LLLL...'],
   },
-  { name: 'Hourglass', rows: ['TTTTTTTT', '.PPPPPP.', '..GGGG..', '...NN...', '..GGGG..', '.BBBBBB.', 'CCCCCCCC'] },
-  { name: 'Up the Shelf', rows: ['...NN...', '..OGGO..', '.OGPPGO.', 'OGPBBPGO', '...TT...', '...TT...', '...CC...'] },
-  { name: 'Heavy Metal', rows: ['NNNNNNNN', 'O.O..O.O', 'GGGGGGGG', 'TBTBTBTB', 'PPPPPPPP', '.O.OO.O.'] },
-  { name: 'Fortress', rows: ['NNNNNNNN', 'N.GGGG.N', 'N.GPPG.N', 'N.GGGG.N', 'O......O', 'OTTTTTTO'] },
+  { name: 'Hourglass', rows: ['TTTTTTTT', '.HHHHHH.', '..GGSS..', '...AA...', '..GGFF..', '.LLLLLL.', 'WWWWWWWW'] },
+  { name: 'Up the Shelf', rows: ['...AA...', '..KFGK..', '.OGPPSO.', 'KSJLLJGK', '...TT...', '...KK...', '...WW...'] },
+  { name: 'Heavy Metal', rows: ['NNCCCCNN', 'K.K..K.K', 'GGGGSSSS', 'DLDLDLDL', 'PPPPPPPP', '.K.KK.K.'] },
+  { name: 'Fortress', rows: ['AAAAAAAA', 'C.FFGG.C', 'N.GPPS.N', 'A.SSGG.A', 'O......O', 'KKKKKKKK'] },
   {
     name: 'Full Kitchen',
-    rows: ['NOOGGOON', 'TPPBBPPT', 'CGGTTGGC', 'BBOPPOBB', 'PPPNNPPP', 'GCTCCTCG', 'BBBBBBBB', 'PPPPPPPP'],
+    rows: ['AOOGFOOA', 'KHHLLHHK', 'WGGUUSSW', 'LLKJJKLL', 'PPPCCPPP', 'FSKSSKSG', 'BBBBBBBB', 'JJJJJJJJ'],
   },
 ];
 

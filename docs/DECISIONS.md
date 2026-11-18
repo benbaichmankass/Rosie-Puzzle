@@ -88,9 +88,15 @@ the hedges. Result screen: win/lose, time, hedges saved; best = most hedges save
 wins in about 2-3 minutes. Look: Japanese watercolor with paper-puppet (jointed cut-paper) animation.
 
 ## Cabinet Breaker (kitchen)
-Classic brick-breaker in portrait. Board = open kitchen cabinets; bricks = stacks of dishes, food, pots and pans
-(some take more hits). Paddle at the bottom (drag). Multiple level shapes, ball speeds up. A slug (slow, bonus) or a
-cockroach (fast, bigger bonus) sometimes crawls across the shelves; hit it with the ball. 3 lives.
+Classic brick-breaker in portrait. Paddle at the bottom (drag). Multiple level shapes, ball speeds up. A slug (slow,
+bonus) or a cockroach (fast, bigger bonus) sometimes crawls across the shelves; hit it with the ball. 3 lives.
+Look (Ben's call: based on his photos of the real kitchen): the board is the run of white flat-panel upper cabinets
+with their doors swung open (antique-brass bow handles), white shelves inside, the light wood ledge on top with
+boards, the copper-handled pan and a trailing fern, and the glossy black marble backsplash behind the play area.
+The bamboo cutting-board paddle runs along the black speckled granite counter (white base cabinets with a drawer
+stack, gooseneck tap, white stove at the end). Bricks are that kitchen's things: dish-rack plates, glasses of water,
+steel bowls, the green colander, Spark soap + pump, the pink French press, paper towels, the filter jug, pickles
+(1 hit); kettle, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
 
 ## Getting Ready for Shabbos (kitchen counter)
 Shabbat candle-lighting time for Tel Aviv from Hebcal (no key, CORS ok):
