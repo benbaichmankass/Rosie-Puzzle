@@ -66,6 +66,8 @@ export interface Level {
   ac: { dir: Dir; s: Strength } | null;
   /** A known winning fan setup (verified by scripts/check-gas-leak.ts). */
   solution: Fan[];
+  /** Real-time leak speed (defaults from the level number, see paceOf). */
+  pace?: { startMs: number; minMs: number };
 }
 
 export type Outcome = 'win' | 'boom' | 'stuck' | 'loop';
@@ -249,4 +251,127 @@ export function solve(level: Level, maxFans: number, budget = 200000): Fan[] | n
     if (got) return got;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Real-time play. The leak starts on its own and the gas head advances one cell per tick while
+// the player keeps editing fans; every tick reads the CURRENT fans. Ticks start slow and speed up.
+// If the gas can't reach new floor (blocked, or circling over its own trail) pressure builds;
+// at PRESSURE_LIMIT the room fills up and the joint lights it ('burst' -> BOOM).
+// ---------------------------------------------------------------------------------------------
+
+/** Seconds of countdown before the leak starts (fans can already be placed). */
+export const COUNTDOWN_S = 3;
+export const PRESSURE_LIMIT = 6;
+
+export interface Pace {
+  /** Milliseconds for the first tick. */
+  startMs: number;
+  /** Fastest tick, reached as the leak builds up. */
+  minMs: number;
+}
+const SPEEDUP = 0.92;
+/** Ticks the gas spends seeping and building up at the kitchen doorway before it starts to travel. */
+export const SEEP_TICKS = 2;
+
+export function paceOf(level: Level): Pace {
+  return level.pace ?? { startMs: 1700 - level.id * 30, minMs: 720 - level.id * 22 };
+}
+
+/** Duration of tick n (0-based) in ms: slow seepage first, building up to the level's top speed. */
+export function tickMs(level: Level, n: number): number {
+  const p = paceOf(level);
+  return Math.max(p.minMs, p.startMs * Math.pow(SPEEDUP, n));
+}
+
+export type LiveOutcome = 'flowing' | 'win' | 'boom' | 'burst';
+export interface LiveState {
+  head: Cell;
+  dir: Dir;
+  /** Every cell the gas has filled, in order (cells can repeat when it crosses its own trail). */
+  trail: Cell[];
+  ticks: number;
+  pressure: number;
+  outcome: LiveOutcome;
+  exit?: ExitId;
+}
+
+export function startLive(level: Level): LiveState {
+  const head = sourceCell(level);
+  return { head, dir: W, trail: [head], ticks: 0, pressure: 0, outcome: 'flowing' };
+}
+
+/** Advance the leak by one tick with the fans as they are right now. */
+export function stepLive(level: Level, fans: Fan[], st: LiveState, solid = solidGrid(level)): LiveState {
+  if (st.outcome !== 'flowing') return st;
+  if (st.ticks < SEEP_TICKS) return { ...st, ticks: st.ticks + 1 };
+  const wind = windField(level, fans, solid);
+  const { r, c } = st.head;
+  const nd = nextDir(wind[r][c], st.dir);
+  const nr = r + DR[nd];
+  const nc = c + DC[nd];
+  const ticks = st.ticks + 1;
+  if (nc < 0) {
+    const exit = EXITS.find((e) => EXIT_ROW[e] === r && level.open[e]);
+    if (exit) return { ...st, ticks, dir: nd, outcome: 'win', exit };
+  }
+  if (!inBounds(nr, nc) || solid[nr][nc]) {
+    const pressure = st.pressure + 1;
+    // Keep the old heading: the gas presses on in the way it was going.
+    return { ...st, ticks, pressure, outcome: pressure >= PRESSURE_LIMIT ? 'burst' : 'flowing' };
+  }
+  const head = { r: nr, c: nc };
+  const revisit = st.trail.some((p) => p.r === nr && p.c === nc);
+  const pressure = revisit ? st.pressure + 1 : 0;
+  const trail = [...st.trail, head];
+  const danger = dangerCells(level, solid).some((d) => d.r === nr && d.c === nc);
+  const outcome: LiveOutcome = danger ? 'boom' : pressure >= PRESSURE_LIMIT ? 'burst' : 'flowing';
+  return { head, dir: nd, trail, ticks, pressure, outcome };
+}
+
+export interface TimedFan {
+  fan: Fan;
+  /** Seconds after the leak starts when the fan is in place (negative = during the countdown). */
+  at: number;
+}
+export interface LiveRun {
+  state: LiveState;
+  /** Seconds from leak start to the end of the run. */
+  seconds: number;
+}
+
+/** Play a whole level in game time with fans appearing on a schedule (used by the check script). */
+export function runLive(level: Level, schedule: TimedFan[], maxTicks = 300): LiveRun {
+  const solid = solidGrid(level);
+  let st = startLive(level);
+  let t = 0;
+  while (st.outcome === 'flowing' && st.ticks < maxTicks) {
+    t += tickMs(level, st.ticks) / 1000;
+    const fans = schedule.filter((s) => s.at <= t).map((s) => s.fan);
+    st = stepLive(level, fans, st, solid);
+  }
+  return { state: st, seconds: t };
+}
+
+/** Par time: the stored solution in place before the leak starts. */
+export function parSeconds(level: Level): number {
+  return runLive(
+    level,
+    level.solution.map((fan) => ({ fan, at: -1 })),
+  ).seconds;
+}
+
+/**
+ * Order a solution the way a player would build it: fans the gas meets first come first
+ * (by the first point on the winning path their wind touches).
+ */
+export function orderByNeed(level: Level, fans: Fan[]): Fan[] {
+  const solid = solidGrid(level);
+  const path = simulate(level, fans).path;
+  const firstTouch = (f: Fan) => {
+    const beam = beamCells(f.r, f.c, f.dir, f.s, solid);
+    const i = path.findIndex((p) => beam.some((b) => b.r === p.r && b.c === p.c));
+    return i < 0 ? path.length : i;
+  };
+  return [...fans].sort((a, b) => firstTouch(a) - firstTouch(b));
 }
