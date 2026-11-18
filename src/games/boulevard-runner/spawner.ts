@@ -18,11 +18,14 @@
  * So by construction it never builds an unavoidable wall.
  */
 
+import { stationStart } from './street';
+
 export const LANES = 3;
 export type Lane = 0 | 1 | 2;
 /** 0 = left track (oncoming trams), 1 = bike path (walkers, bikes, low stuff), 2 = right track (trams going our way). */
 
-export type Kind = 'walker' | 'bike' | 'low' | 'tramIn' | 'tramOut';
+/** tramStop = a tram standing at a station platform (either track). */
+export type Kind = 'walker' | 'bike' | 'low' | 'tramIn' | 'tramOut' | 'tramStop';
 
 export interface Obstacle {
   id: number;
@@ -126,7 +129,7 @@ export function mulberry32(seed: number): () => number {
 }
 
 /** Build an obstacle with its occupancy interval. */
-export function makeObstacle(id: number, kind: Kind, D: number, variant: number, ramp = false): Obstacle {
+export function makeObstacle(id: number, kind: Kind, D: number, variant: number, ramp = false, stopLane: Lane = 0): Obstacle {
   const sD = speedAt(D);
   let lane: Lane = 1;
   let len = 0.6;
@@ -160,8 +163,15 @@ export function makeObstacle(id: number, kind: Kind, D: number, variant: number,
       v = -TRAM_OUT_FRAC * sD;
       tram = true;
       break;
+    case 'tramStop':
+      lane = stopLane;
+      ramp = ramp && lane === 2; // only a tram facing away shows us its rear
+      len = TRAM_LEN + (ramp ? RAMP_LEN : 0);
+      v = 0;
+      tram = true;
+      break;
   }
-  if (kind !== 'tramOut') ramp = false;
+  if (kind !== 'tramOut' && kind !== 'tramStop') ramp = false;
   // Closing speed relative to Rosie, and the player distance it takes the obstacle to pass her.
   const closing = sD + v;
   const pass = (len * sD) / closing;
@@ -169,7 +179,7 @@ export function makeObstacle(id: number, kind: Kind, D: number, variant: number,
     id, kind, lane, D, len, v, sD, tall, tram, ramp,
     start: D,
     end: D + pass,
-    warnFrom: tram ? D - TRAM_WARN_TIME * sD : D,
+    warnFrom: tram && kind !== 'tramStop' ? D - TRAM_WARN_TIME * sD : D,
     variant,
   };
 }
@@ -322,6 +332,7 @@ export class Spawner {
   private reach = new Reach(COMFORT);
   private maxEnd = 0;
   private laneFree: number[] = [0, 0, 0];
+  private nextStation = 0;
 
   constructor(seed: number, startClear = 45) {
     this.rand = mulberry32(seed);
@@ -355,6 +366,22 @@ export class Spawner {
     // Time between events shrinks as the run goes on.
     const gapT = (1.25 - 0.62 * diff) * (0.75 + r() * 0.6);
     let D = this.cursor + gapT * s;
+    // A station platform comes up: park a tram at it on one or both tracks (if that stays passable).
+    const st = stationStart(this.nextStation) + 2;
+    if (st <= D) {
+      this.nextStation++;
+      if (st >= this.cursor) {
+        const pickLanes = r();
+        const lanes: Lane[] = pickLanes < 0.42 ? [0] : pickLanes < 0.84 ? [2] : [0, 2];
+        for (const lane of lanes) {
+          const o = makeObstacle(this.nextId, 'tramStop', st, Math.floor(r() * 1000), r() < 0.7, lane);
+          if (o.start < this.laneFree[lane] + 14) continue;
+          if (this.reach.try(o, Math.max(this.maxEnd, o.end) + 25)) this.accept(o);
+        }
+        this.cursor = st;
+        return;
+      }
+    }
     for (let attempt = 0; attempt < 12; attempt++) {
       const kind = this.pick(diff);
       const o = makeObstacle(this.nextId, kind, D, Math.floor(r() * 1000), r() < 0.6);
@@ -362,10 +389,7 @@ export class Spawner {
       const spacing = o.lane === 1 ? 1.5 : 14;
       if (o.start < this.laneFree[o.lane] + spacing) { if (attempt % 3 === 2) D += 4; continue; }
       if (this.reach.try(o, Math.max(this.maxEnd, o.end) + 25)) {
-        this.obstacles.push(o);
-        this.nextId++;
-        this.laneFree[o.lane] = Math.max(this.laneFree[o.lane], o.end);
-        this.maxEnd = Math.max(this.maxEnd, o.end);
+        this.accept(o);
         this.cursor = D;
         return;
       }
@@ -373,6 +397,13 @@ export class Spawner {
     }
     // Nothing fit here: leave a breather.
     this.cursor = D + 6;
+  }
+
+  private accept(o: Obstacle) {
+    this.obstacles.push(o);
+    this.nextId++;
+    this.laneFree[o.lane] = Math.max(this.laneFree[o.lane], o.end);
+    this.maxEnd = Math.max(this.maxEnd, o.end);
   }
 
   /** Drop obstacles Rosie has fully passed (keeps arrays small in long runs). */

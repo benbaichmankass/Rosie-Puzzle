@@ -155,7 +155,7 @@ export class Run {
     // --- warnings, bells and street obstacles ---
     for (const o of this.spawner.obstacles) {
       if (o.start > this.d + 200) break;
-      if (o.tram && this.d >= o.warnFrom && !this.warned.has(o.id)) {
+      if (o.tram && o.kind !== 'tramStop' && this.d >= o.warnFrom && !this.warned.has(o.id)) {
         this.warned.add(o.id);
         ev.push('tramWarn');
       }
