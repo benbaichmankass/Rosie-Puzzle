@@ -16,7 +16,7 @@ These are defaults chosen to keep moving; Ben may change them. Lanes follow them
 The existing bedtime puzzle IS this game. Unchanged apart from a map button.
 
 ## Map (lane: map)
-Game Boy look: 4-shade green palette, pixel tiles, pixel font. Bentzi walks around the plan (Rosie follows),
+Game Boy Color look (Ben's call: GBC colours, not green monochrome): limited per-tile 4-colour palettes, pixel tiles, pixel font. Bentzi walks around the plan (Rosie follows),
 with an on-screen D-pad and tap-to-walk. Walking onto a game spot (door/wall/furniture) shows a prompt to play.
 Keep the room list under the map so every game is two taps away.
 

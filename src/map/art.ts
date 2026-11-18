@@ -1,16 +1,47 @@
 /**
- * Draws the house map in the strict 4-shade Game Boy palette onto canvases.
+ * Draws the house map Game Boy Color style: every tile, prop and sprite uses its own small
+ * 4-colour palette (shade 0 darkest .. 3 lightest), like real GBC background/sprite palettes.
  * The static map is painted once into an offscreen canvas; sprites and a few animated bits
  * (pool shimmer, bunnies, spot arrows, tree canopy) are drawn every frame by HouseMap.
  */
-import { GB } from '../shared/characters';
 import {
   COLS, ROWS, TILE, GRID, PROPS, ROOM_AT, isWall, type Kind, type Prop, type Dir,
 } from './layout';
 import { BENTZI, ROSIE, BUNNY, TURTLE, ARROW, ARROW_SOON, type Frame } from './sprites';
 
-export const SHADES = [GB.darkest, GB.dark, GB.light, GB.lightest] as const;
 type S = 0 | 1 | 2 | 3;
+type Pal = readonly [string, string, string, string];
+
+/** GBC-style palettes, darkest to lightest. */
+export const PAL = {
+  grass: ['#183818', '#2f6a2a', '#58a038', '#8fcc58'],
+  leaf: ['#142c14', '#2c6428', '#56a03c', '#a0d868'],
+  dirt: ['#3a2410', '#7a4e28', '#b07e48', '#dab27a'],
+  walk: ['#34343c', '#686870', '#a8a8a8', '#d8d6cc'],
+  rail: ['#202028', '#5a5a62', '#9a9088', '#e4e4e4'],
+  wood: ['#4a2a10', '#8a5428', '#c48444', '#e6ae66'],
+  darkwood: ['#2a1608', '#5e3618', '#9a6030', '#cc9050'],
+  carpet: ['#1c2448', '#3a4a8a', '#6a7cc4', '#9cacE4'],
+  ktile: ['#402018', '#a04830', '#d89a72', '#f8eedc'],
+  btile: ['#203040', '#4878a0', '#9cc8dc', '#eaf6fa'],
+  house: ['#3a2a2a', '#6a5048', '#c8b8a0', '#f4ecdc'],
+  stucco: ['#5a4a38', '#a89878', '#d8c8a6', '#f2e6ca'],
+  glass: ['#283048', '#506080', '#90c8f0', '#dcf2ff'],
+  steel: ['#202028', '#585868', '#a0a0b0', '#e8e8f0'],
+  teal: ['#0c2c30', '#1a7a80', '#40b8b8', '#a8ece4'],
+  water: ['#102850', '#2858a8', '#5a92d8', '#a8d2f8'],
+  stone: ['#303034', '#68686c', '#a4a49c', '#d4d4c8'],
+  turtle: ['#1c2410', '#4c5a24', '#6c9a34', '#e8d040'],
+  rug: ['#401018', '#802838', '#c45450', '#eca88a'],
+  sofa: ['#18181c', '#3a3a46', '#6c6c7a', '#f0e8d8'],
+  cream: ['#4a3a28', '#a08868', '#e0d0b0', '#faf4e4'],
+  duvet: ['#1c2c50', '#3860a0', '#6c9cd4', '#f4f4f0'],
+  books: ['#281818', '#b03030', '#3870c0', '#e8c040'],
+  pot: ['#3a1c10', '#9a4a28', '#d07a48', '#f0b080'],
+  brass: ['#3a2a08', '#8a6a18', '#e0b838', '#fff0a0'],
+  pink: ['#402030', '#a04870', '#e090b0', '#fae0ec'],
+  red: ['#301010', '#c03030', '#e86848', '#f8c0a0'],
+} satisfies Record<string, Pal>;
 
 /** Deterministic per-position noise in [0, 1). */
 export function hash(x: number, y: number, salt = 0): number {
@@ -21,11 +52,18 @@ export function hash(x: number, y: number, salt = 0): number {
 }
 
 export class Painter {
+  pal: Pal = PAL.house;
   constructor(public ctx: CanvasRenderingContext2D) {}
+  use(pal: Pal) { this.pal = pal; return this; }
   rect(x: number, y: number, w: number, h: number, s: S) {
-    this.ctx.fillStyle = SHADES[s];
+    this.ctx.fillStyle = this.pal[s];
     this.ctx.fillRect(x, y, w, h);
   }
+  fill(x: number, y: number, w: number, h: number, color: string) {
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(x, y, w, h);
+  }
+
   px(x: number, y: number, s: S) { this.rect(x, y, 1, 1, s); }
   hline(x: number, y: number, w: number, s: S) { this.rect(x, y, w, 1, s); }
   vline(x: number, y: number, h: number, s: S) { this.rect(x, y, 1, h, s); }
@@ -34,12 +72,14 @@ export class Painter {
     this.rect(x, y, w, h, b);
     this.rect(x + 1, y + 1, w - 2, h - 2, f);
   }
-  bmp(x: number, y: number, rows: string[], flip = false) {
+  /** Draws a pixel string bitmap; '0'-'3' use the current palette, other letters use `extra`. */
+  bmp(x: number, y: number, rows: string[], flip = false, extra: Record<string, string> = {}) {
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
       for (let c = 0; c < row.length; c++) {
         const ch = row[flip ? row.length - 1 - c : c];
         if (ch >= '0' && ch <= '3') this.px(x + c, y + r, Number(ch) as S);
+        else if (extra[ch]) this.fill(x + c, y + r, 1, 1, extra[ch]);
       }
     }
   }
@@ -59,6 +99,7 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
   const n = (x: number, y: number, salt = 0) => hash(tx * TILE + x, ty * TILE + y, salt);
   switch (k) {
     case 'grass': {
+      p.use(PAL.grass);
       // neighbours' gardens outside the house: darker, so the house reads clearly
       p.rect(X, Y, TILE, TILE, 1);
       for (let i = 0; i < 4; i++) {
@@ -69,8 +110,9 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       }
       if (hash(tx, ty, 7) < 0.07) { // bush
         const x = X + 8, y = Y + 8;
-        p.rect(x - 5, y - 4, 10, 8, 0); p.rect(x - 4, y - 5, 8, 10, 0);
-        p.rect(x - 4, y - 4, 8, 7, 2); p.rect(x - 3, y - 3, 3, 2, 3); p.px(x + 2, y + 1, 1); p.px(x - 1, y + 2, 1);
+        p.use(PAL.leaf);
+        disc(p, x, y, 6, 0); disc(p, x, y, 5, 1); disc(p, x - 1, y - 1, 4, 2);
+        p.rect(x - 3, y - 3, 2, 2, 3); p.px(x + 1, y - 2, 3); p.px(x + 2, y + 2, 1); p.px(x - 2, y + 1, 1);
       } else if (hash(tx, ty, 8) < 0.06) { // flower
         const x = X + 6, y = Y + 6;
         p.px(x, y - 1, 3); p.px(x - 1, y, 3); p.px(x + 1, y, 3); p.px(x, y + 1, 3); p.px(x, y, 0);
@@ -78,6 +120,7 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'walk': {
+      p.use(PAL.walk);
       p.rect(X, Y, TILE, TILE, 3);
       p.hline(X, Y + 7, TILE, 2);
       p.hline(X, Y + 15, TILE, 2);
@@ -86,6 +129,7 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'rail': {
+      p.use(PAL.rail);
       p.rect(X, Y, TILE, TILE, 2);
       for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) if (n(x, y) < 0.12) p.px(X + x, Y + y, 1);
       for (let y = 1; y < TILE; y += 4) p.rect(X + 1, Y + y, 14, 2, 1); // sleepers
@@ -94,6 +138,7 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'dirt': {
+      p.use(PAL.dirt);
       p.rect(X, Y, TILE, TILE, 2);
       for (let y = 0; y < TILE; y++)
         for (let x = 0; x < TILE; x++) {
@@ -116,6 +161,7 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'wood': {
+      p.use(PAL.wood);
       p.rect(X, Y, TILE, TILE, 3);
       for (let r = 0; r < 4; r++) {
         const y = Y + r * 4;
@@ -127,12 +173,14 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'carpet': {
+      p.use(PAL.carpet);
       p.rect(X, Y, TILE, TILE, 2);
       for (let y = 0; y < TILE; y++)
         for (let x = 0; x < TILE; x++) if ((x + 2 * y) % 4 === 0 && (y % 2 === 0)) p.px(X + x, Y + y, 3);
       break;
     }
     case 'ktile': {
+      p.use(PAL.ktile);
       for (let y = 0; y < 2; y++)
         for (let x = 0; x < 2; x++) {
           const dark = (tx * 2 + x + ty * 2 + y) % 2 === 0;
@@ -142,12 +190,13 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       break;
     }
     case 'btile': {
+      p.use(PAL.btile);
       p.rect(X, Y, TILE, TILE, 3);
       for (let i = 0; i < 4; i++) { p.hline(X, Y + i * 4 + 3, TILE, 2); p.vline(X + i * 4 + 3, Y, TILE, 2); }
       break;
     }
     default:
-      p.rect(X, Y, TILE, TILE, 3);
+      p.use(PAL.wood).rect(X, Y, TILE, TILE, 3);
   }
 }
 
@@ -174,7 +223,7 @@ function wall(p: Painter, tx: number, ty: number) {
   const X = tx * TILE, Y = ty * TILE;
   const house = houseWall(tx, ty);
   const top: S = house ? 0 : 1;
-  p.rect(X, Y, TILE, TILE, top);
+  p.use(house ? PAL.house : PAL.stucco).rect(X, Y, TILE, TILE, top);
   if (house) {
     // subtle brick texture on the cap
     for (let y = 2; y < TILE; y += 4) p.hline(X + ((y >> 2) % 2 ? 2 : 6), Y + y, 4, 1);
@@ -207,6 +256,7 @@ function wall(p: Painter, tx: number, ty: number) {
 function door(p: Painter, tx: number, ty: number) {
   const X = tx * TILE, Y = ty * TILE;
   floor(p, floorUnder(tx, ty), tx, ty);
+  p.use(PAL.darkwood);
   const vertical = isWall(tx, ty - 1) || isWall(tx, ty + 1) || GRID[ty - 1]?.[tx] === 'door';
   if (vertical) {
     // doorway in a left/right wall: threshold strip and frame
@@ -227,6 +277,7 @@ function door(p: Painter, tx: number, ty: number) {
 function windowTile(p: Painter, tx: number, ty: number, ac: boolean) {
   const X = tx * TILE, Y = ty * TILE;
   wall(p, tx, ty);
+  p.use(PAL.glass);
   const vertical = isWall(tx, ty - 1) || isWall(tx, ty + 1);
   if (vertical) {
     p.rect(X + 4, Y, 8, TILE, 0);
@@ -235,7 +286,7 @@ function windowTile(p: Painter, tx: number, ty: number, ac: boolean) {
     p.px(X + 5, Y + 3, 2); p.px(X + 6, Y + 4, 2); p.px(X + 9, Y + 9, 2); p.px(X + 10, Y + 10, 2);
     if (ac) {
       // AC box hanging on the yard side of the wall
-      p.box(X - 7, Y + 1, 9, 12, 0, 2);
+      p.use(PAL.steel).box(X - 7, Y + 1, 9, 12, 0, 3);
       for (let y = 3; y < 12; y += 2) p.hline(X - 5, Y + y, 5, 1);
       p.px(X - 6, Y + 13, 1); p.px(X - 6, Y + 14, 1); // drip pipe
     }
@@ -251,11 +302,12 @@ function streetDoor(p: Painter, tx: number, ty: number) {
   const X = tx * TILE, Y = ty * TILE;
   wall(p, tx, ty);
   const topHalf = GRID[ty + 1]?.[tx] === 'streetdoor';
+  p.use(PAL.darkwood);
   // a heavy wooden gate seen edge-on in the left wall, swinging into the yard
   p.rect(X + 3, Y, 10, TILE, 0);
   p.rect(X + 4, Y + (topHalf ? 1 : 0), 8, topHalf ? 15 : 15, 1);
   for (let y = topHalf ? 3 : 1; y < TILE; y += 3) p.hline(X + 5, Y + y, 6, 0);
-  if (!topHalf) { p.rect(X + 9, Y + 2, 2, 2, 3); p.hline(X + 4, Y + 15, 8, 0); }
+  if (!topHalf) { p.use(PAL.brass).rect(X + 9, Y + 2, 2, 2, 3); p.use(PAL.darkwood); p.hline(X + 4, Y + 15, 8, 0); }
   else p.hline(X + 4, Y, 8, 0);
 }
 
@@ -265,21 +317,24 @@ function prop(p: Painter, o: Prop) {
   const X = o.x * TILE, Y = o.y * TILE, W = o.w * TILE, H = o.h * TILE;
   switch (o.kind) {
     case 'streettree': {
+      p.use(PAL.darkwood);
       // ficus on the boulevard sidewalk
       p.rect(X + 6, Y + 9, 4, 6, 0);
       p.rect(X + 7, Y + 9, 1, 6, 1);
-      p.box(X + 1, Y - 6, 14, 15, 0, 1);
+      p.use(PAL.leaf).box(X + 1, Y - 6, 14, 15, 0, 1);
       for (let i = 0; i < 18; i++) p.px(X + 2 + Math.floor(hash(o.y, i, 1) * 12), Y - 5 + Math.floor(hash(o.y, i, 2) * 13), i % 3 ? 2 : 0);
       p.rect(X + 3, Y - 4, 4, 2, 2);
       break;
     }
     case 'tree': break; // trunk + colander here, canopy drawn on top of the sprites
     case 'pallets': {
+      p.use(PAL.wood);
       for (let i = 0; i < 3; i++) {
         const x = X + i * 16;
-        p.box(x + 1, Y + 3, 14, 12, 0, 2);
+        p.use(PAL.wood).box(x + 1, Y + 3, 14, 12, 0, 2);
         for (let y = 5; y < 14; y += 3) p.hline(x + 2, Y + y, 12, 1);
         // herbs growing out of the planter
+        p.use(PAL.leaf);
         for (let k = 0; k < 5; k++) {
           const lx = x + 2 + k * 3, h = 3 + Math.floor(hash(i, k, 3) * 4);
           p.vline(lx, Y + 3 - h, h, 1);
@@ -289,9 +344,11 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'herbs': {
+      p.use(PAL.pot);
       p.rect(X + 4, Y + 9, 8, 6, 0);
       p.rect(X + 5, Y + 10, 6, 4, 1);
       p.hline(X + 3, Y + 9, 10, 0);
+      p.use(PAL.leaf);
       for (let k = 0; k < 7; k++) {
         const a = (k / 7) * Math.PI;
         const lx = X + 8 + Math.round(Math.cos(a) * 6), ly = Y + 8 - Math.round(Math.sin(a) * 6);
@@ -301,6 +358,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'spool': {
+      p.use(PAL.wood);
       // big wooden cable-spool table, seen from above
       const cx = X + W / 2, cy = Y + H / 2;
       for (let y = 0; y < H; y++)
@@ -310,10 +368,11 @@ function prop(p: Painter, o: Prop) {
         }
       p.rect(cx - 3, cy - 3, 6, 6, 0); p.rect(cx - 2, cy - 2, 4, 4, 1);
       // a mug and the watering can spout on the table
-      p.box(cx + 5, cy - 8, 4, 4, 0, 3);
+      p.use(PAL.red).box(cx + 5, cy - 8, 4, 4, 0, 3);
       break;
     }
     case 'reel': {
+      p.use(PAL.teal);
       p.rect(X + 2, Y + 2, 12, 12, 0);
       p.rect(X + 3, Y + 3, 10, 10, 1);
       for (let r = 0; r < 3; r++) p.box(X + 4 + r, Y + 4 + r, 8 - 2 * r, 8 - 2 * r, 0, 1);
@@ -321,9 +380,11 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'gardenbed': {
+      p.use(PAL.dirt);
       p.rect(X, Y, W, H, 1);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (hash(X + x, Y + y, 9) < 0.12) p.px(X + x, Y + y, 0);
       // leafy lettuce-like plants
+      p.use(PAL.leaf);
       for (let i = 0; i < 9; i++) {
         if (i === 1 || i === 7) continue; // gaps where the bunnies sit
         const py = Y + 8 + i * 16, px = X + 6 + (i % 2);
@@ -341,6 +402,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'can': {
+      p.use(PAL.leaf);
       // green watering can
       p.box(X + 3, Y + 6, 8, 8, 0, 1);
       p.hline(X + 4, Y + 7, 6, 2);
@@ -352,6 +414,7 @@ function prop(p: Painter, o: Prop) {
     case 'pool':
       break; // animated, drawn each frame
     case 'rug': {
+      p.use(PAL.rug);
       p.box(X + 2, Y + 2, W - 4, H - 4, 0, 2);
       p.box(X + 4, Y + 4, W - 8, H - 8, 1, 2);
       for (let y = Y + 6; y < Y + H - 6; y++)
@@ -360,6 +423,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'shelf': {
+      p.use(PAL.darkwood);
       // wall shelf with books (against the top wall)
       p.box(X, Y - 6, W, 14, 0, 1);
       p.hline(X + 1, Y + 1, W - 2, 0);
@@ -367,7 +431,8 @@ function prop(p: Painter, o: Prop) {
       let i = 0;
       while (x < X + W - 3) {
         const w = 2 + Math.floor(hash(i, 1, 4) * 2), h = 4 + Math.floor(hash(i, 2, 4) * 3);
-        p.rect(x, Y + 1 - h, w, h, i % 3 === 0 ? 3 : i % 3 === 1 ? 2 : 0);
+        p.use(PAL.books).rect(x, Y + 1 - h, w, h, ((i % 3) + 1) as S);
+        p.use(PAL.darkwood);
         x += w + (i % 4 === 3 ? 2 : 0);
         i++;
       }
@@ -376,6 +441,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'lamp': {
+      p.use(PAL.brass);
       p.rect(X + 7, Y - 4, 2, 6, 0);
       p.box(X + 4, Y + 1, 8, 5, 0, 3);
       p.hline(X + 5, Y + 2, 6, 3);
@@ -383,6 +449,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'sofaV': {
+      p.use(PAL.sofa);
       // dark grey L-sofa, the long side against the right wall
       p.box(X, Y, W, H, 0, 1);
       p.rect(X + 9, Y + 1, 6, H - 2, 0); // backrest
@@ -395,36 +462,42 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'sofaH': {
+      p.use(PAL.sofa);
       p.box(X, Y, W, H, 0, 1);
       p.rect(X + 1, Y + 9, W - 2, 6, 0); // backrest toward the bottom
       p.rect(X + 2, Y + 10, W - 4, 4, 1);
       p.rect(X, Y, 5, H, 0); p.rect(X + 1, Y + 1, 3, H - 2, 1); // arm
       for (let x = X + 18; x < X + W - 2; x += 16) p.vline(x, Y + 2, 7, 0);
       // Rosie's favourite blanket
-      p.box(X + 22, Y + 2, 14, 7, 0, 3);
+      p.use(PAL.cream).box(X + 22, Y + 2, 14, 7, 0, 3);
       for (let x = X + 24; x < X + 35; x += 3) p.vline(x, Y + 3, 5, 2);
       break;
     }
     case 'coffee': {
+      p.use(PAL.glass);
       // glass coffee table
       p.box(X + 1, Y + 2, W - 2, H - 4, 0, 3);
       p.box(X + 2, Y + 3, W - 4, H - 6, 2, 3);
       for (let i = 0; i < 6; i++) { p.px(X + 5 + i, Y + 6 + i, 2); p.px(X + 9 + i, Y + 6 + i, 2); }
       // a mug and a book
-      p.box(X + 20, Y + 7, 5, 5, 0, 2);
-      p.box(X + 6, Y + 18, 9, 6, 0, 1);
+      p.use(PAL.red).box(X + 20, Y + 7, 5, 5, 0, 3);
+      p.use(PAL.books).box(X + 6, Y + 18, 9, 6, 0, 2);
       p.vline(X + 10, Y + 18, 6, 0);
       break;
     }
     case 'plant': {
+      p.use(PAL.pot);
       p.rect(X + 4, Y + 9, 8, 6, 0); p.rect(X + 5, Y + 10, 6, 4, 2);
+      p.use(PAL.leaf);
       for (const [dx, dy] of [[0, 0], [-4, 2], [4, 2], [-3, -3], [3, -3], [0, -5]]) {
         p.rect(X + 7 + dx - 1, Y + 6 + dy - 1, 4, 3, 0);
-        p.rect(X + 7 + dx, Y + 6 + dy, 2, 1, 1);
+        p.rect(X + 7 + dx - 1, Y + 6 + dy - 1, 3, 2, 2);
+        p.px(X + 7 + dx, Y + 6 + dy - 1, 3);
       }
       break;
     }
     case 'roomba': {
+      p.use(PAL.steel);
       for (let y = 0; y < 16; y++)
         for (let x = 0; x < 16; x++) {
           const d = Math.hypot(x - 7.5, y - 8);
@@ -433,22 +506,24 @@ function prop(p: Painter, o: Prop) {
       p.rect(X + 6, Y + 5, 4, 2, 0); p.px(X + 7, Y + 5, 3); // button
       p.rect(X + 5, Y + 9, 6, 1, 3);
       // dock behind it, against the wall
-      p.rect(X + 13, Y + 3, 3, 10, 0); p.px(X + 14, Y + 5, 3);
+      p.rect(X + 13, Y + 3, 3, 10, 0); p.fill(X + 14, Y + 5, 1, 1, '#60e060'); p.fill(X + 7, Y + 5, 1, 1, '#60e060');
       break;
     }
     case 'bedrug': {
+      p.use(PAL.cream);
       p.box(X + 1, Y + 2, W - 2, H - 4, 0, 3);
       for (let y = Y + 4; y < Y + H - 4; y += 4) for (let x = X + 3; x < X + W - 3; x += 4) p.rect(x, y, 2, 2, 2);
       for (let y = Y + 3; y < Y + H - 3; y += 2) { p.px(X, y, 1); p.px(X + W - 1, y, 1); }
       break;
     }
     case 'bed': {
+      p.use(PAL.darkwood);
       // double bed, headboard against the top wall, two pillows, rumpled duvet
       p.box(X, Y - 4, W, 8, 0, 1); // headboard
-      p.box(X, Y + 2, W, H - 2, 0, 3);
-      p.box(X + 3, Y + 4, 11, 7, 0, 3); p.box(X + 18, Y + 4, 11, 7, 0, 3);
+      p.use(PAL.cream).box(X, Y + 2, W, H - 2, 0, 3);
+      p.box(X + 3, Y + 4, 11, 7, 1, 3); p.box(X + 18, Y + 4, 11, 7, 1, 3);
       p.hline(X + 5, Y + 9, 7, 2); p.hline(X + 20, Y + 9, 7, 2);
-      p.rect(X + 1, Y + 14, W - 2, H - 15, 2); // duvet
+      p.use(PAL.duvet).rect(X + 1, Y + 14, W - 2, H - 15, 2); // duvet
       p.hline(X + 1, Y + 14, W - 2, 0);
       for (let y = Y + 18; y < Y + H - 2; y += 6) for (let x = X + 3 + ((y >> 1) % 2) * 3; x < X + W - 3; x += 6) p.rect(x, y, 2, 2, 3);
       p.hline(X + 1, Y + H - 4, W - 2, 1);
@@ -457,13 +532,15 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'nightstand': {
+      p.use(PAL.wood);
       p.box(X + 2, Y - 2, 12, 14, 0, 1);
       p.hline(X + 3, Y + 4, 10, 0);
       p.px(X + 8, Y + 7, 3);
-      p.box(X + 4, Y - 1, 4, 4, 0, 3); // little lamp / phone
+      p.use(PAL.brass).box(X + 4, Y - 1, 4, 4, 0, 3); // little lamp
       break;
     }
     case 'wardrobe': {
+      p.use(PAL.wood);
       p.box(X, Y - 8, W, H + 6, 0, 2);
       p.vline(X + W / 2, Y - 7, H + 4, 0);
       p.rect(X + W / 2 - 3, Y + 6, 2, 4, 0); p.rect(X + W / 2 + 2, Y + 6, 2, 4, 0);
@@ -472,6 +549,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'fridge': {
+      p.use(PAL.steel);
       p.box(X, Y - 6, W, H + 5, 0, 3);
       p.hline(X + 1, Y + 8, W - 2, 0);
       p.rect(X + 12, Y - 2, 2, 6, 0); p.rect(X + 12, Y + 12, 2, 8, 0);
@@ -480,36 +558,39 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'counterTop': {
+      p.use(PAL.wood);
       // upper and lower cabinets along the top wall
       p.rect(X, Y - 8, W, 7, 0);
       for (let x = X; x < X + W; x += 16) { p.box(x, Y - 8, 16, 7, 0, 2); p.rect(x + 7, Y - 4, 2, 1, 0); }
       p.rect(X, Y, W, H, 0);
-      p.rect(X, Y + 1, W, 4, 3); // worktop
-      p.hline(X, Y + 5, W, 0);
+      p.use(PAL.stone).rect(X, Y + 1, W, 4, 3); // worktop
+      p.use(PAL.wood).hline(X, Y + 5, W, 0);
       for (let x = X; x < X + W; x += 16) {
         p.rect(x + 1, Y + 6, 14, 9, 1);
         p.vline(x + 8, Y + 6, 9, 0);
         p.px(x + 6, Y + 9, 3); p.px(x + 10, Y + 9, 3);
       }
       // jars and a dish stack on the worktop
-      p.box(X + 3, Y - 2, 4, 5, 0, 2); p.box(X + 8, Y - 1, 4, 4, 0, 3);
-      p.box(X + 34, Y - 1, 8, 3, 0, 3); p.hline(X + 35, Y - 3, 6, 0); p.hline(X + 35, Y - 2, 6, 3);
-      p.box(X + 126, Y - 3, 5, 6, 0, 1);
+      p.use(PAL.books).box(X + 3, Y - 2, 4, 5, 0, 3); p.use(PAL.red).box(X + 8, Y - 1, 4, 4, 0, 2);
+      p.use(PAL.steel).box(X + 34, Y - 1, 8, 3, 0, 3); p.hline(X + 35, Y - 3, 6, 0); p.hline(X + 35, Y - 2, 6, 3);
+      p.use(PAL.leaf).box(X + 126, Y - 3, 5, 6, 0, 2);
       break;
     }
     case 'stove': {
+      p.use(PAL.steel);
       p.rect(X, Y + 1, W, 4, 1);
       for (const cx of [X + 7, X + 23]) {
         p.box(cx - 4, Y + 1, 9, 4, 0, 1);
         p.hline(cx - 2, Y + 2, 5, 3);
       }
       // pot on the left burner
-      p.box(X + 3, Y - 5, 9, 7, 0, 1); p.hline(X + 4, Y - 4, 7, 2); p.px(X + 2, Y - 2, 0); p.px(X + 12, Y - 2, 0);
-      p.rect(X + 6, Y + 8, 20, 6, 0); p.rect(X + 7, Y + 9, 18, 4, 2); // oven door
+      p.use(PAL.red).box(X + 3, Y - 5, 9, 7, 0, 1); p.hline(X + 4, Y - 4, 7, 2); p.px(X + 2, Y - 2, 0); p.px(X + 12, Y - 2, 0);
+      p.use(PAL.steel).rect(X + 6, Y + 8, 20, 6, 0); p.rect(X + 7, Y + 9, 18, 4, 2); // oven door
       p.hline(X + 9, Y + 7, 14, 0);
       break;
     }
     case 'sink': {
+      p.use(PAL.steel);
       p.box(X + 3, Y, 26, 6, 0, 2);
       p.rect(X + 5, Y + 1, 22, 4, 1);
       p.rect(X + 15, Y - 4, 2, 4, 0); p.rect(X + 15, Y - 4, 5, 1, 0);
@@ -517,6 +598,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'counterLow': {
+      p.use(PAL.wood);
       // counter against the bottom wall: worktop toward us
       p.rect(X, Y, W, H, 0);
       p.rect(X, Y + 1, W, 7, 3);
@@ -525,6 +607,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'urn': {
+      p.use(PAL.steel);
       // coffee urn for Shabbos
       p.box(X + 3, Y - 6, 10, 13, 0, 3);
       p.hline(X + 4, Y - 4, 8, 2); p.hline(X + 4, Y + 2, 8, 2);
@@ -534,21 +617,24 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'plata': {
+      p.use(PAL.steel);
       // hot plate with a pot and a challah
       p.box(X + 1, Y + 1, W - 2, 7, 0, 1);
       p.hline(X + 3, Y + 3, W - 6, 2);
-      p.box(X + 4, Y - 6, 10, 9, 0, 2); p.hline(X + 5, Y - 5, 8, 3); p.px(X + 3, Y - 3, 0); p.px(X + 14, Y - 3, 0);
+      p.use(PAL.red).box(X + 4, Y - 6, 10, 9, 0, 1); p.hline(X + 5, Y - 5, 8, 3); p.px(X + 3, Y - 3, 0); p.px(X + 14, Y - 3, 0);
       // challah: braided loaf
-      p.box(X + 17, Y - 3, 12, 6, 0, 2);
+      p.use(PAL.brass).box(X + 17, Y - 3, 12, 6, 0, 2);
       for (let x = X + 19; x < X + 28; x += 3) { p.px(x, Y - 2, 3); p.px(x + 1, Y - 1, 1); p.px(x, Y, 3); }
       break;
     }
     case 'mat': {
+      p.use(PAL.pink);
       p.box(X + 2, Y + 3, W - 4, H - 6, 0, 2);
       for (let y = Y + 5; y < Y + H - 5; y += 2) p.hline(X + 4, y, W - 8, y % 4 === 1 ? 3 : 2);
       break;
     }
     case 'toilet': {
+      p.use(PAL.steel);
       p.box(X + 3, Y - 6, 10, 7, 0, 3); // tank
       p.hline(X + 4, Y - 4, 8, 2);
       for (let y = 0; y < 12; y++)
@@ -559,6 +645,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'basin': {
+      p.use(PAL.steel);
       // sink with the shelf cabinet underneath
       p.box(X + 1, Y - 4, W - 2, 16, 0, 2);
       p.hline(X + 2, Y + 4, W - 4, 0);
@@ -571,6 +658,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'shower': {
+      p.use(PAL.glass);
       // glass shower corner with a drain
       p.rect(X, Y, W, H, 3);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ((x + y) % 8 === 0) p.px(X + x, Y + y, 2);
@@ -583,6 +671,7 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'puddle': {
+      p.use(PAL.water);
       const cx = X + 15, cy = Y + 14;
       for (let y = -9; y <= 9; y++)
         for (let x = -13; x <= 13; x++) {
@@ -591,7 +680,7 @@ function prop(p: Painter, o: Prop) {
         }
       p.hline(cx - 6, cy - 3, 4, 3); p.hline(cx + 2, cy + 2, 5, 3);
       // squeegee lying by the puddle
-      p.rect(cx + 6, cy - 12, 2, 10, 0); p.rect(cx + 2, cy - 3, 10, 2, 0);
+      p.use(PAL.steel).rect(cx + 6, cy - 12, 2, 10, 0); p.rect(cx + 2, cy - 3, 10, 2, 0);
       break;
     }
   }
@@ -627,6 +716,7 @@ export function renderStatic(): HTMLCanvasElement {
 function hose(p: Painter) {
   const reel = PROPS.find((o) => o.kind === 'reel')!;
   const sx = reel.x * TILE + 4, sy = reel.y * TILE + 10;
+  p.use(PAL.teal);
   let prev: [number, number] | null = null;
   for (let t = 0; t <= 1; t += 0.002) {
     const x = Math.round(sx - t * 78 + Math.sin(t * 9) * 10);
@@ -639,7 +729,7 @@ function hose(p: Painter) {
   for (let t = 0; t <= 1; t += 0.002) {
     const x = Math.round(sx - t * 78 + Math.sin(t * 9) * 10);
     const y = Math.round(sy + t * 70 + Math.sin(t * 5 + 1) * 8);
-    p.px(x, y, 1);
+    p.px(x, y, 2);
   }
   // nozzle
   const ex = Math.round(sx - 78 + Math.sin(9) * 10), ey = Math.round(sy + 70 + Math.sin(6) * 8);
@@ -647,12 +737,14 @@ function hose(p: Painter) {
 }
 
 function trunk(p: Painter, X: number, Y: number) {
+  p.use(PAL.darkwood);
   p.rect(X + 12, Y + 14, 8, 18, 0);
   p.rect(X + 14, Y + 14, 3, 17, 1);
   p.rect(X + 9, Y + 29, 14, 3, 0); // roots
   // branch reaching right with the hanging colander
   p.rect(X + 18, Y + 18, 14, 2, 0);
   p.vline(X + 30, Y + 20, 3, 0);
+  p.use(PAL.steel);
   for (let y = 0; y < 5; y++) p.hline(X + 26 + y / 2, Y + 23 + y, 9 - y, y === 0 ? 0 : 3);
   p.hline(X + 27, Y + 28, 7, 0);
   p.px(X + 28, Y + 25, 1); p.px(X + 31, Y + 25, 1); p.px(X + 29, Y + 26, 1); p.px(X + 32, Y + 27, 1);
@@ -664,6 +756,7 @@ export function drawCanopy(p: Painter, ox: number, oy: number, t: number) {
   const tree = PROPS.find((o) => o.kind === 'tree')!;
   const X = tree.x * TILE - ox, Y = tree.y * TILE - oy;
   const sway = Math.round(Math.sin(t / 900));
+  p.use(PAL.leaf);
   const blobs: [number, number, number][] = [[12, 4, 11], [24, 8, 9], [6, 12, 8], [18, 16, 8], [28, 0, 6]];
   for (const [bx, by, r] of blobs) disc(p, X + bx + sway, Y + by - 8, r + 1, 0);
   for (const [bx, by, r] of blobs) disc(p, X + bx + sway, Y + by - 8, r, 1);
@@ -684,19 +777,21 @@ function disc(p: Painter, cx: number, cy: number, r: number, s: S) {
 export function drawPool(p: Painter, ox: number, oy: number, t: number) {
   const o = PROPS.find((q) => q.kind === 'pool')!;
   const X = o.x * TILE - ox, Y = o.y * TILE - oy, W = o.w * TILE, H = o.h * TILE;
-  p.box(X, Y, W, H, 0, 2); // stone rim
-  p.box(X + 3, Y + 3, W - 6, H - 6, 0, 1);
+  p.use(PAL.stone).box(X, Y, W, H, 0, 2); // stone rim
+  p.use(PAL.water).box(X + 3, Y + 3, W - 6, H - 6, 0, 1);
   const f = Math.floor(t / 500) % 2;
   for (let y = Y + 6; y < Y + H - 4; y += 5)
     for (let x = X + 6 + ((y + f * 3) % 7); x < X + W - 8; x += 11) p.hline(x, y, 3, 2);
+  p.use(PAL.stone);
   for (let x = X + 2; x < X + W - 2; x += 4) { p.px(x, Y + 1, 3); p.px(x + 2, Y + H - 2, 1); }
   // flat stone with turtles stacked on it
   const sx = X + 38, sy = Y + 28;
   p.box(sx, sy, 24, 14, 0, 2);
   p.hline(sx + 2, sy + 2, 16, 3);
-  p.bmp(sx + 2, sy + 1, TURTLE);
-  p.bmp(sx + 9, sy - 3 - f, TURTLE, true);
+  p.use(PAL.turtle).bmp(sx + 2, sy + 1, TURTLE, false, { r: '#d03828' });
+  p.bmp(sx + 9, sy - 3 - f, TURTLE, true, { r: '#d03828' });
   // a lily pad
+  p.use(PAL.leaf);
   disc(p, X + 18, Y + 18, 5, 0); disc(p, X + 18, Y + 18, 4, 2); p.hline(X + 18, Y + 18, 4, 1);
 }
 
@@ -710,7 +805,7 @@ export function drawBunnies(p: Painter, ox: number, oy: number, t: number) {
     const hop = Math.floor(t / 300 + i * 7) % 11 === 0 ? -2 : 0;
     const flip = i === 2;
     const bx = X + dx, by = Y + dy + hop;
-    p.bmp(bx, by, BUNNY, flip);
+    p.use(BUNNY_PALS[i]).bmp(bx, by, BUNNY, flip);
     const at = (x: number, y: number, w: number, h: number, s: S) => p.rect(flip ? bx + 10 - x - w : bx + x, by + y, w, h, s);
     if (i === 0) { at(8, 4, 1, 1, 1); at(6, 1, 1, 2, 2); at(8, 1, 1, 2, 2); } // red eye, pink ears
     if (i === 1) { at(5, 1, 5, 4, 0); at(7, 3, 1, 2, 3); at(1, 4, 3, 3, 0); at(6, 1, 1, 2, 0); at(8, 1, 1, 2, 0); }
@@ -718,32 +813,41 @@ export function drawBunnies(p: Painter, ox: number, oy: number, t: number) {
   });
 }
 
+const BUNNY_PALS: Pal[] = [
+  ['#3a2c30', '#c82840', '#f0a0b4', '#fafaf6'], // white: red eye, pink ears
+  ['#181818', '#303030', '#e0d8d0', '#fafaf6'], // Dutch black-and-white
+  ['#2c2c34', '#7c808a', '#c8c8cc', '#f6f6f2'], // grey-and-white
+];
 export function drawArrow(p: Painter, x: number, y: number, ready: boolean) {
-  p.bmp(x, y, ready ? ARROW : ARROW_SOON);
+  p.use(ready ? PAL.red : PAL.steel).bmp(x, y, ready ? ARROW : ARROW_SOON);
 }
 
 // ---------------------------------------------------------------- characters
 
 const spriteCache = new Map<string, HTMLCanvasElement>();
-function spriteCanvas(key: string, rows: string[], flip: boolean) {
+/** Sprite palettes: shade 0 outline, plus up to three colours, like GBC OBJ palettes. */
+const BENTZI_PAL: Pal = ['#1e1612', '#6a4028', '#c8865c', '#f2c49a'];
+const BENTZI_EXTRA = { b: '#38508c', g: '#3a3a44' }; // jean shorts, t-shirt shading
+const ROSIE_PAL: Pal = ['#161616', '#1f9aa6', '#a8a8a8', '#fafaf4'];
+function spriteCanvas(key: string, rows: string[], flip: boolean, pal: Pal, extra: Record<string, string> = {}) {
   let c = spriteCache.get(key);
   if (!c) {
     c = makeCanvas(16, 16);
-    new Painter(c.getContext('2d')!).bmp(0, 0, rows, flip);
+    new Painter(c.getContext('2d')!).use(pal).bmp(0, 0, rows, flip, extra);
     spriteCache.set(key, c);
   }
   return c;
 }
 export function bentziSprite(dir: Dir, frame: Frame) {
   const d = dir === 'left' ? 'right' : dir;
-  return spriteCanvas(`b-${dir}-${frame}`, BENTZI[d][frame], dir === 'left');
+  return spriteCanvas(`b-${dir}-${frame}`, BENTZI[d][frame], dir === 'left', BENTZI_PAL, BENTZI_EXTRA);
 }
 export function rosieSprite(dir: Dir, frame: 'a' | 'b') {
   const d = dir === 'left' ? 'right' : dir;
-  return spriteCanvas(`r-${dir}-${frame}`, ROSIE[d][frame], dir === 'left');
+  return spriteCanvas(`r-${dir}-${frame}`, ROSIE[d][frame], dir === 'left', ROSIE_PAL);
 }
 /** Soft oval shadow under a character. */
 export function shadow(p: Painter, x: number, y: number) {
-  p.hline(x + 4, y + 15, 8, 1);
-  p.hline(x + 5, y + 16, 6, 1);
+  p.fill(x + 4, y + 15, 8, 1, 'rgba(0,0,0,0.28)');
+  p.fill(x + 5, y + 16, 6, 1, 'rgba(0,0,0,0.28)');
 }

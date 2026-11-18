@@ -9,7 +9,7 @@ export function ExitButton({ onExit, className = '', label = 'MAP' }: { onExit: 
     <button
       onClick={onExit}
       aria-label="Back to the map"
-      className={`font-arcade text-[9px] px-2 py-1.5 bg-[#0f380f] text-[#9bbc0f] border-2 border-[#9bbc0f] active:translate-y-[1px] ${className}`}
+      className={`font-arcade text-[9px] px-2 py-1.5 bg-[#2a3570] text-[#faf6e6] border-2 border-[#faf6e6] active:translate-y-[1px] ${className}`}
     >
       ◀ {label}
     </button>
