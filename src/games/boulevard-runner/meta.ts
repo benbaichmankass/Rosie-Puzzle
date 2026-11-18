@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'yard',
   spot: 'street-door',
   blurb: 'Walk Rosie down Jerusalem Boulevard. Dodge bikes and the light rail.',
-  status: 'coming-soon',
+  status: 'ready',
 };

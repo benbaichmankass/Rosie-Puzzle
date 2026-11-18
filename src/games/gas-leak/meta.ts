@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'living-room',
   spot: 'living-windows',
   blurb: 'Aim the fans and blow the gas out before it reaches Bentzi.',
-  status: 'coming-soon',
+  status: 'ready',
 };
