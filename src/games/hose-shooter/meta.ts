@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'yard',
   spot: 'fps-wall',
   blurb: 'Hose the cats, bonus for the chicken. Spare the bunnies and turtles!',
-  status: 'coming-soon',
+  status: 'ready',
 };
