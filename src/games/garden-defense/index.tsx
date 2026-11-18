@@ -287,7 +287,8 @@ export default function Game({ onExit }: GameProps) {
       g.plants.forEach((p, i) => {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
-        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob);
+        const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
+        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob, eaten && p.leaves <= 4 ? 1 : 0);
       });
 
       const hopH = 16 * s;
@@ -382,7 +383,7 @@ export default function Game({ onExit }: GameProps) {
   return (
     <div
       className="g-garden-defense fixed inset-0 overflow-hidden select-none"
-      style={{ background: '#f2ead9', fontFamily: FONT, color: ink, touchAction: 'none' }}
+      style={{ background: '#d8cab0', fontFamily: FONT, color: ink, touchAction: 'none' }}
     >
       <style>{`
         .g-garden-defense .gd-card { background: rgba(248,242,228,0.94); box-shadow: 2px 3px 0 rgba(60,40,20,0.18), 0 10px 30px rgba(60,40,20,0.18); }
@@ -392,100 +393,105 @@ export default function Game({ onExit }: GameProps) {
         .g-garden-defense .gd-seal { background: #b73a2e; color: #fbefe0; border-radius: 4px; transform: rotate(-4deg); box-shadow: inset 0 0 0 2px rgba(251,239,224,0.5); }
       `}</style>
       <div
-        ref={wrapRef}
-        className="absolute inset-0"
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onLostPointerCapture={onUp}
+        className="relative h-full w-full max-w-[520px] mx-auto overflow-hidden"
+        style={{ background: '#f2ead9', boxShadow: '0 0 40px rgba(60,40,20,0.25)' }}
       >
-        <canvas ref={canvasRef} className="block" />
-      </div>
-
-      {/* HUD */}
-      <div
-        className="absolute top-0 left-0 right-0 flex items-start justify-between px-3 pointer-events-none"
-        style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
-      >
-        <div className="pointer-events-auto">
-          <ExitButton onExit={onExit} className="!bg-[#f7f0df] !text-[#2b2420] !border-[#2b2420] shadow-[2px_2px_0_rgba(43,36,32,0.3)]" />
-        </div>
-        <div className="text-center" style={{ visibility: phase === 'play' ? 'visible' : 'hidden' }}>
-          <div ref={timeRef} className="text-[34px] leading-none font-extrabold" style={{ textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
-            0:00
-          </div>
-          <div className="text-[11px] tracking-[0.2em] opacity-70 mt-1">BEST {fmt(best)}</div>
-        </div>
-        <button
-          className="pointer-events-auto w-9 h-9 rounded-full border-2 flex items-center justify-center text-[16px] bg-[#f7f0df]"
-          style={{ borderColor: ink, boxShadow: '2px 2px 0 rgba(43,36,32,0.3)' }}
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          onClick={() => {
-            sfx.current.unlock();
-            setMuted((m) => !m);
-          }}
-        >
-          {muted ? '🔇' : '🔊'}
-        </button>
-      </div>
-
-      {phase === 'play' && (
         <div
-          ref={hintRef}
-          className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
-          style={{ top: '30%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+          ref={wrapRef}
+          className="absolute inset-0"
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onLostPointerCapture={onUp}
         >
-          Tap &amp; hold a plant to water it
+          <canvas ref={canvasRef} className="block" />
         </div>
-      )}
 
-      {phase === 'start' && (
-        <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '12%' }}>
-          <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
-            <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
-            <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
-            <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
-            <p className="text-[15px] mt-3 leading-snug">Water the plants faster than the bunnies can eat them.</p>
-            <p className="text-[13px] mt-2 opacity-75 leading-snug">
-              Tap or hold a plant to water it. Watered plants grow leaves faster. A plant with no leaves left is gone.
-            </p>
-            {best > 0 && <p className="text-[13px] mt-3 tracking-[0.15em]">BEST {fmt(best)}</p>}
-            <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
-              PLAY
-            </button>
+        {/* HUD */}
+        <div
+          className="absolute top-0 left-0 right-0 flex items-start justify-between px-3 pointer-events-none"
+          style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
+        >
+          <div className="pointer-events-auto">
+            <ExitButton onExit={onExit} className="!bg-[#f7f0df] !text-[#2b2420] !border-[#2b2420] shadow-[2px_2px_0_rgba(43,36,32,0.3)]" />
           </div>
+          <div className="text-center" style={{ visibility: phase === 'play' ? 'visible' : 'hidden' }}>
+            <div ref={timeRef} className="text-[34px] leading-none font-extrabold" style={{ textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
+              0:00
+            </div>
+            <div className="text-[11px] tracking-[0.2em] opacity-70 mt-1">BEST {fmt(best)}</div>
+          </div>
+          <button
+            className="pointer-events-auto w-9 h-9 rounded-full border-2 flex items-center justify-center text-[16px] bg-[#f7f0df]"
+            style={{ borderColor: ink, boxShadow: '2px 2px 0 rgba(43,36,32,0.3)' }}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            onClick={() => {
+              sfx.current.unlock();
+              setMuted((m) => !m);
+            }}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
         </div>
-      )}
 
-      {phase === 'over' && (
-        <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '14%' }}>
-          <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
-            <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">兎</div>
-            <h2 className="text-[28px] font-extrabold leading-tight">The bunnies won</h2>
-            <p className="text-[14px] mt-2 opacity-75">You kept the garden alive for</p>
-            <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
-            <p className="text-[13px] mt-2 tracking-[0.15em]">{result.newBest ? 'NEW BEST!' : `BEST ${fmt(best)}`}</p>
-            <div className="flex justify-center gap-3 mt-4">
-              <button className="gd-btn primary text-[16px]" onClick={startGame}>
-                RETRY
-              </button>
-              <button className="gd-btn text-[16px]" onClick={onExit}>
-                MAP
+        {phase === 'play' && (
+          <div
+            ref={hintRef}
+            className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
+            style={{ top: '30%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+          >
+            Tap &amp; hold a plant to water it
+          </div>
+        )}
+
+        {phase === 'start' && (
+          <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '12%' }}>
+            <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
+              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
+              <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
+              <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
+              <p className="text-[15px] mt-3 leading-snug">Water the plants faster than the bunnies can eat them.</p>
+              <p className="text-[13px] mt-2 opacity-75 leading-snug">
+                Tap or hold a plant to water it. Watered plants grow leaves faster. A plant with no leaves left is gone.
+              </p>
+              {best > 0 && <p className="text-[13px] mt-3 tracking-[0.15em]">BEST {fmt(best)}</p>}
+              <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
+                PLAY
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {paused && phase === 'play' && (
-        <button className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(242,234,217,0.6)' }} onClick={resume}>
-          <div className="gd-card px-8 py-6 text-center">
-            <div className="text-[26px] font-extrabold">Paused</div>
-            <div className="text-[14px] mt-1 opacity-75">Tap to continue</div>
+        {phase === 'over' && (
+          <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '14%' }}>
+            <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
+              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">兎</div>
+              <h2 className="text-[28px] font-extrabold leading-tight">The bunnies won</h2>
+              <p className="text-[14px] mt-2 opacity-75">You kept the garden alive for</p>
+              <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
+              <p className="text-[13px] mt-2 tracking-[0.15em]">{result.newBest ? 'NEW BEST!' : `BEST ${fmt(best)}`}</p>
+              <div className="flex justify-center gap-3 mt-4">
+                <button className="gd-btn primary text-[16px]" onClick={startGame}>
+                  RETRY
+                </button>
+                <button className="gd-btn text-[16px]" onClick={onExit}>
+                  MAP
+                </button>
+              </div>
+            </div>
           </div>
-        </button>
-      )}
+        )}
+
+        {paused && phase === 'play' && (
+          <button className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(242,234,217,0.6)' }} onClick={resume}>
+            <div className="gd-card px-8 py-6 text-center">
+              <div className="text-[26px] font-extrabold">Paused</div>
+              <div className="text-[14px] mt-1 opacity-75">Tap to continue</div>
+            </div>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

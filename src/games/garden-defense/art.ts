@@ -454,7 +454,7 @@ export function plantTop(L: Layout, p: Plant, shape: PlantShape) {
   return { x: p.x * L.W, y: L.plantBaseY - t * L.plantMaxH * 0.95 - 20 * L.s };
 }
 
-export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, shape: PlantShape, appear: number[], now: number, wobble: number) {
+export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, shape: PlantShape, appear: number[], now: number, wobble: number, danger = 0) {
   const bx = p.x * L.W;
   const by = L.plantBaseY;
   const H = L.plantMaxH;
@@ -468,6 +468,16 @@ export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, sh
     ctx.fill();
   }
 
+  if (danger > 0 && p.alive) {
+    // A pulsing red wash behind a plant that is about to be eaten bare.
+    const r = 52 * s;
+    const g = ctx.createRadialGradient(bx, by - 26 * s, 0, bx, by - 26 * s, r);
+    const al = danger * (0.16 + 0.1 * Math.sin(now * 8));
+    g.addColorStop(0, `rgba(196,64,44,${al})`);
+    g.addColorStop(1, 'rgba(196,64,44,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(bx - r, by - 26 * s - r, r * 2, r * 2);
+  }
   if (!p.alive) {
     drawDeadPlant(ctx, L, bx, by, shape, now - p.diedAt);
     return;
@@ -781,7 +791,22 @@ export function bunnyPose(b: Bunny, now: number, biteAge: number, hopHeight: num
       squash: 1,
     };
   }
-  // Resting: breathing, the odd ear twitch.
+  // Resting: breathing, the odd ear twitch, and now and then a paw-wash.
+  const groomCycle = (now * 0.23 + b.id * 0.37) % 1;
+  const groom = groomCycle < 0.18 ? Math.sin((groomCycle / 0.18) * Math.PI) : 0;
+  if (groom > 0) {
+    const scrub = Math.sin(now * 16) * 0.12 * groom;
+    return {
+      bodyRot: -0.18 * groom,
+      hindRot: -0.1 * groom,
+      frontRot: (-1.6 + scrub * 2) * groom + 0.05,
+      headRot: 0.15 + 0.45 * groom + scrub,
+      earRot: 0.1 + 0.35 * groom,
+      earFarRot: 0.2 + 0.3 * groom,
+      lift: 0,
+      squash: 1,
+    };
+  }
   return {
     bodyRot: 0.02 * ph,
     hindRot: 0,
@@ -1008,7 +1033,7 @@ export function drawCan(ctx: CanvasRenderingContext2D, can: CanPuppet, x: number
 // ---------------------------------------------------------------- particles
 
 export interface Particle {
-  kind: 'drop' | 'leaf' | 'dust';
+  kind: 'drop' | 'leaf' | 'dust' | 'splash';
   x: number;
   y: number;
   vx: number;
@@ -1038,6 +1063,12 @@ export function drawParticles(ctx: CanvasRenderingContext2D, ps: Particle[], s: 
       ctx.fillStyle = p.color;
       ctx.fill();
       ctx.restore();
+    } else if (p.kind === 'splash') {
+      ctx.strokeStyle = `rgba(86,146,196,${0.55 * a})`;
+      ctx.lineWidth = 1 * s;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, (2 + (1 - a) * 6) * s, (0.8 + (1 - a) * 2) * s, 0, 0, TAU);
+      ctx.stroke();
     } else {
       ctx.fillStyle = `rgba(150,115,80,${0.4 * a})`;
       ctx.beginPath();
@@ -1065,9 +1096,12 @@ export function stepParticles(ps: Particle[], dt: number) {
     }
     p.y += p.vy * dt;
     p.rot += p.vr * dt;
-    if (p.kind !== 'dust' && p.y > p.floor) {
-      if (p.kind === 'drop') p.life = 0;
-      else {
+    if ((p.kind === 'drop' || p.kind === 'leaf') && p.y > p.floor) {
+      if (p.kind === 'drop') {
+        p.kind = 'splash';
+        p.life = p.max = 0.35;
+        p.vx = p.vy = 0;
+      } else {
         p.y = p.floor;
         p.vx = 0;
         p.vy = 0;
