@@ -20,6 +20,10 @@ export interface Player {
   lean: number;
   airborne: boolean;
   crashed: boolean;
+  /** Seconds since the crash (-1 = no crash). */
+  crashT: number;
+  /** Seconds since the last landing. */
+  landT: number;
 }
 
 export interface Frame {
@@ -156,7 +160,44 @@ export class Scene {
         const ps = this.P(px, 0, 0);
         g.fillStyle = `rgba(50,30,10,${0.32 - pl.jumpY * 0.12})`;
         g.beginPath(); g.ellipse(ps.x, ps.y, ps.s * (0.36 - pl.jumpY * 0.07), ps.s * 0.08, 0, 0, Math.PI * 2); g.fill();
-        drawRosie(g, p.x, p.y, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
+        // landing dust
+        if (pl.landT >= 0 && pl.landT < 0.4) {
+          const k = pl.landT / 0.4;
+          g.fillStyle = `rgba(235,215,180,${0.7 * (1 - k)})`;
+          for (let i = -2; i <= 2; i++) {
+            if (i === 0) continue;
+            const r = ps.s * (0.06 + k * 0.08);
+            g.beginPath(); g.ellipse(ps.x + i * ps.s * (0.16 + k * 0.22), ps.y - ps.s * k * 0.08, r, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+          }
+        }
+        if (pl.crashT >= 0) {
+          // bonk: squash, tip over a little, stars circling her head
+          const c = Math.min(1, pl.crashT / 0.25);
+          g.save();
+          g.translate(p.x, p.y);
+          g.rotate(Math.sin(pl.crashT * 18) * 0.12 * (1 - c * 0.6));
+          g.scale(1 + 0.12 * Math.sin(Math.min(1, pl.crashT / 0.15) * Math.PI), 1 - 0.1 * Math.sin(Math.min(1, pl.crashT / 0.15) * Math.PI));
+          drawRosie(g, 0, 0, p.s * 1.45, 0.4, pl.wag, 0, false);
+          g.restore();
+          const hx = p.x, hy = p.y - p.s * 1.45 * 1.0;
+          for (let i = 0; i < 4; i++) {
+            const a = pl.crashT * 5 + (i * Math.PI) / 2;
+            this.star(g, hx + Math.cos(a) * p.s * 0.32, hy + Math.sin(a) * p.s * 0.08, p.s * 0.07, i % 2 ? '#ffd23f' : '#ffffff');
+          }
+          if (pl.crashT < 0.7) {
+            const k = Math.min(1, pl.crashT / 0.12);
+            g.save();
+            g.translate(hx, hy - p.s * 0.45);
+            g.scale(k, k);
+            g.rotate(-0.12);
+            g.font = `900 ${Math.round(p.s * 0.42)}px Rubik, system-ui, sans-serif`;
+            g.textAlign = 'center';
+            g.lineWidth = p.s * 0.08; g.strokeStyle = '#5a2f17'; g.lineJoin = 'round';
+            g.strokeText('BONK!', 0, 0);
+            g.fillStyle = '#ffd23f'; g.fillText('BONK!', 0, 0);
+            g.restore();
+          }
+        } else drawRosie(g, p.x, p.y, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
       },
     });
     items.sort((a, b) => b.gap - a.gap);
@@ -189,6 +230,18 @@ export class Scene {
     vg.addColorStop(1, 'rgba(60,25,10,0.28)');
     g.fillStyle = vg;
     g.fillRect(0, 0, W, H);
+  }
+
+  private star(g: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string) {
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const rr = i % 2 ? r * 0.45 : r;
+      g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.fillStyle = fill; g.fill();
+    g.lineWidth = Math.max(1, r * 0.18); g.strokeStyle = '#5a2f17'; g.stroke();
   }
 
   // ---------- ground ----------
