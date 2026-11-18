@@ -1,5 +1,9 @@
 /**
- * Garden Defense simulation: plain TS, no DOM, so scripts/check-garden-defense.ts can run it headless.
+ * Garden Defense simulation. Goal (Ben's rule): water the 5 hedges until they grow tall enough to hide the
+ * apartments across the street. Win when every hedge still alive reaches height 1; lose when the bunnies kill
+ * all of them.
+ *
+ * Plain TS, no DOM, so scripts/check-garden-defense.ts can run it headless.
  *
  * World units: x runs 0..1 across the plant bed (left to right). Bunnies also have a depth `d`:
  * d < 0 is up on the plant bed (behind the wire fence), 0..1 is the dirt yard in front, 1 = nearest the viewer.
@@ -18,8 +22,15 @@ export const TUNING = {
   /** Moisture lost per second. */
   moistureDecay: 0.9,
 
+  /** Hedge height: 1 = tall enough to hide the apartment windows across the street (the goal). */
+  startHeight: 0.2,
+  /** Height gained per second at full moisture and full foliage. Thin hedges grow slower. */
+  heightRate: 0.022,
+  /** Hedges stop growing a little above the target. */
+  heightCap: 1.06,
+
   /** Seconds for aggression to go from 0 to 1. It keeps rising after that. */
-  ramp: 165,
+  ramp: 150,
   /** Bunny travel speed (bed widths per second) at aggression 0, and how much it grows per unit aggression. */
   hopSpeed0: 0.2,
   hopSpeedK: 0.5,
@@ -57,6 +68,8 @@ export function mulberry32(seed: number): Rng {
 
 export interface Plant {
   x: number;
+  /** 0..heightCap; 1 = the target height. */
+  height: number;
   leaves: number;
   /** Progress towards the next leaf, 0..1. */
   growth: number;
@@ -94,13 +107,16 @@ export type SimEvent =
   | { type: 'grow'; plant: number }
   | { type: 'die'; plant: number }
   | { type: 'land'; bunny: number }
-  | { type: 'over' };
+  | { type: 'tall'; plant: number }
+  | { type: 'over'; won: boolean };
 
 export interface GameState {
   t: number;
   plants: Plant[];
   bunnies: Bunny[];
   over: boolean;
+  /** Set when the game ends with every surviving hedge at the target height. */
+  won: boolean;
   events: SimEvent[];
   rng: Rng;
 }
@@ -118,7 +134,15 @@ export function createGame(seed: number): GameState {
   const rng = mulberry32(seed);
   const plants: Plant[] = [];
   for (let i = 0; i < TUNING.plantCount; i++) {
-    plants.push({ x: plantX(i), leaves: TUNING.startLeaves, growth: rng() * 0.5, moisture: 0.3, alive: true, diedAt: 0 });
+    plants.push({
+      x: plantX(i),
+      height: TUNING.startHeight + (rng() - 0.5) * 0.04,
+      leaves: TUNING.startLeaves,
+      growth: rng() * 0.5,
+      moisture: 0.3,
+      alive: true,
+      diedAt: 0,
+    });
   }
   const restSpots = [
     { x: 0.2, d: 0.62 },
@@ -141,7 +165,7 @@ export function createGame(seed: number): GameState {
     hopHigh: false,
     face: id === 2 ? -1 : 1,
   }));
-  return { t: 0, plants, bunnies, over: false, events: [], rng };
+  return { t: 0, plants, bunnies, over: false, won: false, events: [], rng };
 }
 
 /** 0 at the start, 1 after `ramp` seconds, and still rising after. */
@@ -219,6 +243,11 @@ export function step(s: GameState, dt: number, watering: number) {
     const pour = i === watering ? T.waterRate : 0;
     p.moisture = Math.min(1, Math.max(0, p.moisture + (pour - T.moistureDecay) * dt));
     p.growth += (T.baseGrowth + T.waterGrowth * p.moisture) * dt;
+    if (p.height < T.heightCap) {
+      const before = p.height;
+      p.height = Math.min(T.heightCap, p.height + T.heightRate * p.moisture * (0.3 + (0.7 * p.leaves) / T.maxLeaves) * dt);
+      if (before < 1 && p.height >= 1) s.events.push({ type: 'tall', plant: i });
+    }
     while (p.growth >= 1) {
       if (p.leaves >= T.maxLeaves) {
         p.growth = 1;
@@ -317,8 +346,13 @@ export function step(s: GameState, dt: number, watering: number) {
     }
   }
 
-  if (alivePlants(s) === 0) {
+  const alive = alivePlants(s);
+  if (alive === 0) {
     s.over = true;
-    s.events.push({ type: 'over' });
+    s.events.push({ type: 'over', won: false });
+  } else if (s.plants.every((p) => !p.alive || p.height >= 1)) {
+    s.over = true;
+    s.won = true;
+    s.events.push({ type: 'over', won: true });
   }
 }

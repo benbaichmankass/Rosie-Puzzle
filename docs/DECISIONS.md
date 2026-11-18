@@ -53,11 +53,14 @@ best score kept. Look: cut-out construction-paper characters (South Park-like) o
 "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
 
 ## Garden Defense (yard, bunny wall)
-Side view of the bed along the yard's left wall. 5 plants, the 3 real bunnies. Tap/hold a plant to water it (watering
-can); watered plants grow leaves faster. Bunnies hop to plants and eat leaves; a plant with no leaves dies. Tapping a
-bunny does nothing (you can only water). Bunnies get faster/greedier over time; the same 3 bunnies move on to the
-remaining plants. Game over when all plants are dead. Score = survival time. Look: Japanese watercolor with
-paper-puppet (jointed cut-paper) animation.
+Side view of the bed along the yard's left wall, with the apartment block across the street (windows, nosy
+neighbours) showing over the wall. 5 hedges, the 3 real bunnies. Goal (Ben's call): grow the hedges tall enough to
+hide the apartments. Tap/hold a hedge to water it (watering can); watered hedges grow taller and fuller. Bunnies hop
+to hedges and eat leaves; a hedge with no leaves dies (it leaves a gap). Tapping a bunny does nothing (you can only
+water). Bunnies get faster/greedier over time; the same 3 bunnies move on to the remaining hedges. WIN when every
+hedge still alive reaches the red target line (hedges saved shown on the win screen); LOSE when the bunnies kill all
+the hedges. Result screen: win/lose, time, hedges saved; best = most hedges saved, then fastest win. A good player
+wins in about 2-3 minutes. Look: Japanese watercolor with paper-puppet (jointed cut-paper) animation.
 
 ## Cabinet Breaker (kitchen)
 Classic brick-breaker in portrait. Board = open kitchen cabinets; bricks = stacks of dishes, food, pots and pans

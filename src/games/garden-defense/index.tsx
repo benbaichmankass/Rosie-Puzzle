@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { GameProps } from '../../shared/types';
 import { ExitButton } from '../../shared/ExitButton';
-import { getHighScore, load, save, submitScore } from '../../shared/storage';
+import { load, save } from '../../shared/storage';
 import { meta } from './meta';
 import { createGame, step, alivePlants, type GameState } from './sim';
 import {
@@ -14,6 +14,7 @@ import {
   drawParticles,
   drawPlant,
   drawPlantTag,
+  drawTargetLine,
   leafPos,
   makeBunnyPuppet,
   makeCanPuppet,
@@ -29,7 +30,7 @@ import {
 import { Sfx } from './audio';
 
 const ID = meta.id;
-const HINT = 'Tap & hold a plant to water it';
+const HINT = 'Tap & hold a hedge to water it';
 const HUNGRIER = ['The bunnies are getting hungrier…', 'The bunnies are hopping faster!', 'Greedier and greedier!', 'The bunnies are ravenous!'];
 const STEP = 1 / 60;
 const FONT = '"Shippori Mincho B1", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif';
@@ -40,6 +41,14 @@ const fmt = (sec: number) => {
 };
 
 type Phase = 'start' | 'play' | 'over';
+
+/** Best result: most hedges saved, then fastest. Only wins count. */
+interface Best {
+  saved: number;
+  time: number;
+}
+const better = (a: Best, b: Best | null) => !b || a.saved > b.saved || (a.saved === b.saved && a.time < b.time);
+const fmtBest = (b: Best | null) => (b ? `${b.saved} hedge${b.saved === 1 ? '' : 's'} in ${fmt(b.time)}` : '');
 
 function useFont() {
   useEffect(() => {
@@ -65,7 +74,6 @@ interface Engine {
   bg: HTMLCanvasElement | null;
   fence: HTMLCanvasElement | null;
   pointer: { down: boolean; x: number; y: number };
-  appear: number[][];
   biteAt: number[];
   particles: Particle[];
   can: { x: number; y: number; tilt: number; init: boolean };
@@ -93,7 +101,6 @@ function newEngine(): Engine {
     bg: null,
     fence: null,
     pointer: { down: false, x: 0, y: 0 },
-    appear: shapes.map(() => []),
     biteAt: [-9, -9, -9],
     particles: [],
     can: { x: 0, y: 0, tilt: 0, init: false },
@@ -112,13 +119,14 @@ export default function Game({ onExit }: GameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timeRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
+  const tallRef = useRef<HTMLDivElement>(null);
   const eng = useRef<Engine>(newEngine());
   const sfx = useRef<Sfx>(new Sfx());
   const [phase, setPhase] = useState<Phase>('start');
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState<boolean>(() => load(ID, 'muted', false));
-  const [best, setBest] = useState<number>(() => getHighScore(ID));
-  const [result, setResult] = useState({ time: 0, newBest: false });
+  const [best, setBest] = useState<Best | null>(() => load<Best | null>(ID, 'best', null));
+  const [result, setResult] = useState({ won: false, time: 0, saved: 0, newBest: false });
 
   useEffect(() => {
     sfx.current.setMuted(muted);
@@ -130,7 +138,6 @@ export default function Game({ onExit }: GameProps) {
     sfx.current.unlock();
     sfx.current.start();
     e.game = createGame((Math.random() * 1e9) | 0);
-    e.appear = shapes.map(() => []);
     e.particles = [];
     e.acc = 0;
     e.phase = 'play';
@@ -210,8 +217,11 @@ export default function Game({ onExit }: GameProps) {
       const L = e.L!;
       for (const ev of g.events) {
         if (ev.type === 'grow') {
-          e.appear[ev.plant][g.plants[ev.plant].leaves - 1] = e.now;
           if (e.pouring) sfx.current.grow();
+        } else if (ev.type === 'tall') {
+          sfx.current.tall();
+          const tall = g.plants.filter((p) => p.alive && p.height >= 1).length;
+          say(`A hedge reached the line! (${tall} of ${alivePlants(g)})`);
         } else if (ev.type === 'bite') {
           const p = g.plants[ev.plant];
           const [x, y] = leafPos(L, p, shapes[ev.plant], p.leaves);
@@ -250,12 +260,13 @@ export default function Game({ onExit }: GameProps) {
           const left = alivePlants(g);
           if (left > 0) {
             sfx.current.die();
-            say(left === 1 ? 'Last plant! Save it!' : `Only ${left} plants left!`);
+            say(left === 1 ? 'Last hedge! Save it!' : `The bunnies ate a hedge! ${left} left`);
           }
         } else if (ev.type === 'over') {
           e.overAt = e.now;
           sfx.current.water(false);
-          sfx.current.over();
+          if (ev.won) sfx.current.win();
+          else sfx.current.over();
         }
       }
       g.events.length = 0;
@@ -288,6 +299,11 @@ export default function Game({ onExit }: GameProps) {
           handleEvents();
         }
         if (timeRef.current) timeRef.current.textContent = fmt(g.t);
+        if (tallRef.current) {
+          const tall = g.plants.filter((p) => p.alive && p.height >= 1).length;
+          const txt = `${tall} OF ${alivePlants(g)} HEDGES TALL`;
+          if (tallRef.current.textContent !== txt) tallRef.current.textContent = txt;
+        }
         // Every 40 s the bunnies step up a gear: say so.
         const ms = Math.floor(g.t / 40);
         if (ms > e.milestone) {
@@ -304,9 +320,13 @@ export default function Game({ onExit }: GameProps) {
       }
       if (e.phase === 'play' && g.over && e.overAt > 0 && e.now - e.overAt > 1.8) {
         e.phase = 'over';
-        const nb = submitScore(ID, Math.floor(g.t));
-        setBest(getHighScore(ID));
-        setResult({ time: g.t, newBest: nb });
+        const saved = alivePlants(g);
+        const res: Best = { saved, time: Math.floor(g.t) };
+        const prev = load<Best | null>(ID, 'best', null);
+        const nb = g.won && better(res, prev);
+        if (nb) save(ID, 'best', res);
+        setBest(nb ? res : prev);
+        setResult({ won: g.won, time: g.t, saved, newBest: nb });
         setPhase('over');
       }
       if (!e.paused || e.phase !== 'play') stepParticles(e.particles, dt);
@@ -321,8 +341,9 @@ export default function Game({ onExit }: GameProps) {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
         const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
-        drawPlant(ctx, L, p, shapes[i], e.appear[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
+        drawPlant(ctx, L, p, shapes[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
       });
+      drawTargetLine(ctx, L, now, FONT);
 
       const hopH = 16 * s;
       const drawB = (onBed: boolean) => {
@@ -349,7 +370,7 @@ export default function Game({ onExit }: GameProps) {
       if (col >= 0) {
         const top = plantTop(L, g.plants[col], shapes[col]);
         tx = top.x + 40 * s;
-        ty = Math.max(L.wallTop + 40 * s, Math.min(top.y - 22 * s, L.plantBaseY - 150 * s));
+        ty = Math.max(L.plantBaseY - 210 * s, Math.min(top.y - 22 * s, L.plantBaseY - 140 * s));
         tilt = -0.62;
       }
       if (!e.can.init) {
@@ -457,7 +478,7 @@ export default function Game({ onExit }: GameProps) {
             <div ref={timeRef} className="text-[34px] leading-none font-extrabold" style={{ textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
               0:00
             </div>
-            <div className="text-[11px] tracking-[0.2em] opacity-70 mt-1">BEST {fmt(best)}</div>
+            <div ref={tallRef} className="text-[11px] tracking-[0.18em] opacity-80 mt-1 font-extrabold" />
           </div>
           <button
             className="pointer-events-auto w-9 h-9 rounded-full border-2 flex items-center justify-center text-[16px] bg-[#f7f0df]"
@@ -475,8 +496,8 @@ export default function Game({ onExit }: GameProps) {
         {phase === 'play' && (
           <div
             ref={hintRef}
-            className="absolute left-0 right-0 text-center pointer-events-none text-[15px] font-extrabold"
-            style={{ top: '21%', transition: 'opacity 0.3s', textShadow: '0 1px 0 rgba(255,255,255,0.7)' }}
+            className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center pointer-events-none text-[15px] font-extrabold px-3 py-1 rounded"
+            style={{ top: '44%', transition: 'opacity 0.3s', background: 'rgba(248,242,228,0.88)', boxShadow: '1px 2px 0 rgba(60,40,20,0.15)' }}
           >
             {HINT}
           </div>
@@ -488,11 +509,13 @@ export default function Game({ onExit }: GameProps) {
               <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
               <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
               <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
-              <p className="text-[15px] mt-3 leading-snug">Water the plants faster than the bunnies can eat them.</p>
-              <p className="text-[13px] mt-2 opacity-75 leading-snug">
-                Tap or hold a plant to water it. Watered plants grow leaves faster. A plant with no leaves left is gone.
+              <p className="text-[15px] mt-3 leading-snug">
+                Grow the hedges tall enough to hide the nosy neighbours across the street, before the bunnies eat them.
               </p>
-              {best > 0 && <p className="text-[13px] mt-3 tracking-[0.15em]">BEST {fmt(best)}</p>}
+              <p className="text-[13px] mt-2 opacity-75 leading-snug">
+                Tap or hold a hedge to water it so it grows. Get every hedge up to the red line to win. A hedge the bunnies strip bare is gone.
+              </p>
+              {best && <p className="text-[13px] mt-3 tracking-[0.12em]">BEST: {fmtBest(best)}</p>}
               <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
                 PLAY
               </button>
@@ -503,11 +526,18 @@ export default function Game({ onExit }: GameProps) {
         {phase === 'over' && (
           <div className="absolute inset-x-0 flex justify-center px-4" style={{ top: '14%' }}>
             <div className="gd-card relative w-full max-w-[340px] px-6 pt-6 pb-5 text-center">
-              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">兎</div>
-              <h2 className="text-[28px] font-extrabold leading-tight">The bunnies won</h2>
-              <p className="text-[14px] mt-2 opacity-75">You kept the garden alive for</p>
+              <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">
+                {result.won ? '勝' : '兎'}
+              </div>
+              <h2 className="text-[28px] font-extrabold leading-tight">{result.won ? 'The view is hidden!' : 'The bunnies won'}</h2>
+              <p className="text-[14px] mt-2 opacity-75">{result.won ? 'You grew the hedges in' : 'They ate every hedge after'}</p>
               <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
-              <p className="text-[13px] mt-2 tracking-[0.15em]">{result.newBest ? 'NEW BEST!' : `BEST ${fmt(best)}`}</p>
+              {result.won && (
+                <p className="text-[16px] mt-2 font-extrabold">
+                  {result.saved} of 5 hedges saved {result.saved < 5 ? '(the gaps let them peek)' : ''}
+                </p>
+              )}
+              <p className="text-[13px] mt-2 tracking-[0.12em]">{result.newBest ? 'NEW BEST!' : best ? `BEST: ${fmtBest(best)}` : 'Win to set a best.'}</p>
               <div className="flex justify-center gap-3 mt-4">
                 <button className="gd-btn primary text-[16px]" onClick={startGame}>
                   RETRY
