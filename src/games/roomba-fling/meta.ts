@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'living-room',
   spot: 'living-floor',
   blurb: 'Fling the Roomba across the living room and clean the floor.',
-  status: 'coming-soon',
+  status: 'ready',
 };

@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'kitchen',
   spot: 'kitchen-counter',
   blurb: 'Challah, urn, plata and Mom, all before Shabbat comes in.',
-  status: 'coming-soon',
+  status: 'ready',
 };
