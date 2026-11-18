@@ -98,9 +98,8 @@ function floor(p: Painter, k: Kind, tx: number, ty: number) {
       for (let y = 0; y < TILE; y++)
         for (let x = 0; x < TILE; x++) {
           const v = n(x, y);
-          if (v < 0.035) p.px(X + x, Y + y, 1);
-          else if (v < 0.04) p.px(X + x, Y + y, 0);
-          else if (v > 0.95) p.px(X + x, Y + y, 3);
+          if (v < 0.018) p.px(X + x, Y + y, 1);
+          else if (v > 0.965) p.px(X + x, Y + y, 3);
         }
       const f = hash(tx, ty, 3);
       if (f < 0.28) { // dry leaf
@@ -324,16 +323,14 @@ function prop(p: Painter, o: Prop) {
     case 'gardenbed': {
       p.rect(X, Y, W, H, 1);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (hash(X + x, Y + y, 9) < 0.12) p.px(X + x, Y + y, 0);
-      // leafy plants
+      // leafy lettuce-like plants
       for (let i = 0; i < 9; i++) {
-        const py = Y + 8 + i * 16, px = X + 5 + (i % 2) * 3;
-        if (i === 3 || i === 6) continue; // gaps where the bunnies sit
-        for (const [dx, dy] of [[0, -4], [-3, -1], [3, -1], [-2, 2], [2, 2], [0, 0]]) {
-          p.rect(px + dx - 1, py + dy - 1, 3, 3, 0);
-        }
-        for (const [dx, dy] of [[0, -4], [-3, -1], [3, -1], [-2, 2], [2, 2], [0, 0]]) {
-          p.px(px + dx, py + dy, 3); p.px(px + dx + (dx > 0 ? -1 : 1), py + dy, 2);
-        }
+        if (i === 1 || i === 7) continue; // gaps where the bunnies sit
+        const py = Y + 8 + i * 16, px = X + 6 + (i % 2);
+        disc(p, px, py, 5, 0);
+        disc(p, px, py, 4, 2);
+        p.hline(px - 2, py - 3, 3, 3); p.px(px - 3, py - 2, 3); p.px(px + 2, py + 1, 3);
+        p.vline(px, py - 2, 5, 1); p.px(px - 2, py + 1, 1); p.px(px + 2, py - 1, 1);
       }
       // low green wire fence
       for (let y = Y; y < Y + H; y++) {
@@ -694,11 +691,11 @@ export function drawPool(p: Painter, ox: number, oy: number, t: number) {
     for (let x = X + 6 + ((y + f * 3) % 7); x < X + W - 8; x += 11) p.hline(x, y, 3, 2);
   for (let x = X + 2; x < X + W - 2; x += 4) { p.px(x, Y + 1, 3); p.px(x + 2, Y + H - 2, 1); }
   // flat stone with turtles stacked on it
-  const sx = X + 40, sy = Y + 30;
-  p.box(sx, sy, 22, 12, 0, 2);
+  const sx = X + 38, sy = Y + 28;
+  p.box(sx, sy, 24, 14, 0, 2);
   p.hline(sx + 2, sy + 2, 16, 3);
-  p.bmp(sx + 3, sy - 1, TURTLE);
-  p.bmp(sx + 8, sy - 5 + (f ? 0 : 0), TURTLE, true);
+  p.bmp(sx + 2, sy + 1, TURTLE);
+  p.bmp(sx + 9, sy - 3 - f, TURTLE, true);
   // a lily pad
   disc(p, X + 18, Y + 18, 5, 0); disc(p, X + 18, Y + 18, 4, 2); p.hline(X + 18, Y + 18, 4, 1);
 }
@@ -707,13 +704,17 @@ export function drawPool(p: Painter, ox: number, oy: number, t: number) {
 export function drawBunnies(p: Painter, ox: number, oy: number, t: number) {
   const bed = PROPS.find((q) => q.kind === 'gardenbed')!;
   const X = bed.x * TILE - ox, Y = bed.y * TILE - oy;
-  const spots: [number, number, number][] = [[3, 50, 0], [4, 100, 1], [12, 112, 2]];
-  spots.forEach(([dx, dy, i]) => {
-    const hop = Math.floor(t / 300 + i * 7) % 11 === 0 ? -1 : 0;
-    const bx = X + dx - (i === 2 ? 8 : 0), by = Y + dy + hop;
-    p.bmp(bx, by, BUNNY, i === 2);
-    if (i === 1) { p.rect(bx + 1, by + 2, 3, 2, 0); p.px(bx + 2, by + 3, 3); p.rect(bx + 5, by + 4, 2, 2, 0); } // Dutch: black head + rear
-    if (i === 2) { p.rect(bx + 4, by + 2, 3, 2, 1); p.px(bx + 5, by + 3, 3); p.rect(bx + 1, by + 4, 3, 1, 1); } // grey patches
+  // white (biggest), Dutch black-and-white, grey-and-white; they sit in the gaps of the bed
+  const spots: [number, number][] = [[2, 19], [3, 115], [17, 40]];
+  spots.forEach(([dx, dy], i) => {
+    const hop = Math.floor(t / 300 + i * 7) % 11 === 0 ? -2 : 0;
+    const flip = i === 2;
+    const bx = X + dx, by = Y + dy + hop;
+    p.bmp(bx, by, BUNNY, flip);
+    const at = (x: number, y: number, w: number, h: number, s: S) => p.rect(flip ? bx + 10 - x - w : bx + x, by + y, w, h, s);
+    if (i === 0) { at(8, 4, 1, 1, 1); at(6, 1, 1, 2, 2); at(8, 1, 1, 2, 2); } // red eye, pink ears
+    if (i === 1) { at(5, 1, 5, 4, 0); at(7, 3, 1, 2, 3); at(1, 4, 3, 3, 0); at(6, 1, 1, 2, 0); at(8, 1, 1, 2, 0); }
+    if (i === 2) { at(5, 1, 5, 3, 1); at(7, 3, 1, 1, 3); at(8, 4, 1, 1, 0); at(2, 4, 3, 2, 1); }
   });
 }
 
