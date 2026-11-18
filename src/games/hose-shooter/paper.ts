@@ -124,4 +124,4 @@ export function makeGrain(size = 160): HTMLCanvasElement {
   return c;
 }
 
-export const FONT = '"Luckiest Guy", "Pixelify Sans", system-ui, sans-serif';
+export const FONT = '"Rye", "Pixelify Sans", Georgia, serif';

@@ -10,8 +10,11 @@ import { meta } from './meta';
 const ID = meta.id;
 /** On touch, aim a little above the finger so it doesn't hide the target. */
 const TOUCH_OFFSET = 64;
+/** Length of the gunslinger nozzle spin (seconds). */
+const TWIRL = 0.55;
 
 type Phase = 'start' | 'play' | 'over';
+type Beat = 'ready' | 'steady' | 'draw' | null;
 
 /** Short vibration where supported (Android Chrome). */
 function buzz(pattern: number | number[]) {
@@ -29,43 +32,98 @@ interface Result {
   stats: Stats;
 }
 
+const WOOD =
+  'repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 7px, rgba(60,30,10,.18) 7px 8px), linear-gradient(180deg, #a8743f, #8a5a2e)';
+
 const CSS = `
-.g-hose-shooter { font-family: "Luckiest Guy", "Pixelify Sans", system-ui, sans-serif; letter-spacing: .02em; }
-.g-hose-shooter .hs-paper { background: #fffaf0; color: #2a1608; border-radius: 6px;
-  box-shadow: 3px 4px 0 rgba(45,25,5,.35); }
-.g-hose-shooter .hs-chip { background: #fffaf0; color: #2a1608; border-radius: 999px; padding: 4px 12px 2px;
-  box-shadow: 2px 3px 0 rgba(45,25,5,.35); line-height: 1.1; }
-.g-hose-shooter .hs-btn { background: #ffd23f; color: #2a1608; border-radius: 10px; padding: 12px 22px 8px;
-  font-size: 22px; box-shadow: 3px 4px 0 #2a1608; transform: rotate(-1.5deg); }
-.g-hose-shooter .hs-btn:active { transform: translate(2px,3px) rotate(-1.5deg); box-shadow: 1px 1px 0 #2a1608; }
-.g-hose-shooter .hs-btn.alt { background: #7fd9df; transform: rotate(1.5deg); }
+.g-hose-shooter { font-family: "Rye", Georgia, serif; letter-spacing: .02em; }
+.g-hose-shooter .hs-type { font-family: "Special Elite", "Courier New", monospace; letter-spacing: 0; }
+.g-hose-shooter .hs-poster { position: relative; color: #3a2210;
+  background: radial-gradient(ellipse at 50% 40%, #f6e3b4 0%, #ecd29a 60%, #d9b475 100%);
+  clip-path: polygon(0 2%, 4% 0, 12% 1.5%, 22% 0, 34% 1%, 47% 0, 60% 1.2%, 72% 0, 85% 1.5%, 96% 0, 100% 3%,
+    99% 15%, 100% 30%, 98.5% 47%, 100% 63%, 99% 80%, 100% 97%, 95% 100%, 82% 98.5%, 68% 100%, 55% 98.8%, 41% 100%,
+    27% 98.5%, 14% 100%, 3% 98.8%, 0 96%, 1% 80%, 0 64%, 1.4% 47%, 0 30%, 1% 15%);
+}
+.g-hose-shooter .hs-poster-inner { border: 3px double #6a4022; }
+.g-hose-shooter .hs-nail { position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #c8b8a0, #4a3a2c); }
+.g-hose-shooter .hs-wood { background: ${WOOD}; color: #fff1d0; text-shadow: 0 2px 0 #3a2210;
+  border-radius: 4px; box-shadow: inset 0 0 0 2px rgba(40,20,5,.35), 3px 4px 0 rgba(40,20,5,.5); }
+.g-hose-shooter .hs-btn { font-size: 22px; padding: 12px 26px 9px; transform: rotate(-1.5deg); }
+.g-hose-shooter .hs-btn:active { transform: translate(2px,3px) rotate(-1.5deg); box-shadow: inset 0 0 0 2px rgba(40,20,5,.35), 1px 1px 0 rgba(40,20,5,.5); }
+.g-hose-shooter .hs-btn.alt { transform: rotate(1.5deg); filter: hue-rotate(-12deg) brightness(.92); }
 .g-hose-shooter .hs-btn.alt:active { transform: translate(2px,3px) rotate(1.5deg); }
-.g-hose-shooter .hs-title span { display: inline-block; padding: 2px 6px 0; margin: 0 1px; border-radius: 4px;
-  box-shadow: 2px 3px 0 rgba(45,25,5,.4); }
-.g-hose-shooter .hs-exit { font-family: "Luckiest Guy", system-ui, sans-serif; font-size: 13px; background: #fffaf0;
-  color: #2a1608; border: 0; border-radius: 8px; box-shadow: 2px 3px 0 rgba(45,25,5,.4); padding: 6px 10px 3px; }
+.g-hose-shooter .hs-exit { font-family: "Rye", Georgia, serif; font-size: 12px; border: 0; padding: 7px 10px 5px;
+  background: ${WOOD}; color: #fff1d0; text-shadow: 0 1px 0 #3a2210; border-radius: 4px;
+  box-shadow: inset 0 0 0 2px rgba(40,20,5,.35), 2px 3px 0 rgba(40,20,5,.5); }
+.g-hose-shooter .hs-sign { position: relative; padding: 6px 14px 4px; font-size: 22px; transform: rotate(-2deg); }
+.g-hose-shooter .hs-sign::before, .g-hose-shooter .hs-sign::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px;
+  margin-top: -3px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d8c8b0, #4a3a2c); }
+.g-hose-shooter .hs-sign::before { left: 5px; } .g-hose-shooter .hs-sign::after { right: 5px; }
+.g-hose-shooter .hs-vignette { background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(70,35,10,.38) 100%); }
 @keyframes hs-pop { 0% { transform: scale(.6) rotate(-6deg); opacity: 0 } 70% { transform: scale(1.06) rotate(1deg) } 100% { transform: scale(1) rotate(0); opacity: 1 } }
 .g-hose-shooter .hs-pop { animation: hs-pop .35s ease-out both; }
+@keyframes hs-beat { 0% { transform: scale(2.2); opacity: 0 } 25% { transform: scale(1); opacity: 1 } 80% { opacity: 1 } 100% { transform: scale(.9); opacity: 0 } }
+.g-hose-shooter .hs-beat { animation: hs-beat .8s ease-out both; text-shadow: 0 4px 0 #3a2210, 0 0 18px rgba(255,220,150,.6); }
+@keyframes hs-swing { 0%,100% { transform: rotate(-3deg) } 50% { transform: rotate(3deg) } }
+.g-hose-shooter .hs-swing { animation: hs-swing 2.4s ease-in-out infinite; transform-origin: 50% 0; }
 `;
 
-const TITLE_COLORS = ['#ee8a2c', '#7fd9df', '#ffd23f', '#f3a7b3', '#8fd36a', '#fffaf0'];
-
-function Title({ text, size = 34 }: { text: string; size?: number }) {
-  let n = 0;
+/** Original drawing for the start poster: a yard cat in a bandit mask and bandana. */
+function OutlawCat() {
   return (
-    <div className="hs-title leading-none text-[#2a1608]" style={{ fontSize: size }}>
-      {text.split(' ').map((word, wi) => (
-        <div key={wi} className="whitespace-nowrap my-1">
-          {word.split('').map((ch, i) => {
-            const k = n++;
-            return (
-              <span key={i} style={{ background: TITLE_COLORS[k % TITLE_COLORS.length], transform: `rotate(${((k * 37) % 9) - 4}deg)` }}>
-                {ch}
-              </span>
-            );
-          })}
-        </div>
-      ))}
+    <svg viewBox="0 0 120 100" width="132" height="110" aria-hidden="true" style={{ filter: 'sepia(.55) contrast(1.05)' }}>
+      <rect x="2" y="2" width="116" height="96" fill="#e9cf98" stroke="#6a4022" strokeWidth="2" />
+      <path d="M30 40 L36 12 L52 30 Z M90 40 L84 12 L68 30 Z" fill="#e2852e" />
+      <path d="M35 34 L38 19 L47 30 Z M85 34 L82 19 L73 30 Z" fill="#f0a3ae" />
+      <ellipse cx="60" cy="50" rx="33" ry="28" fill="#e98a30" />
+      <path d="M50 26 L54 36 L58 26 Z M62 26 L66 36 L70 26 Z" fill="#b85e18" />
+      <path d="M28 46 Q60 36 92 46 L90 58 Q60 50 30 58 Z" fill="#1d1a1f" />
+      <path d="M28 49 L14 44 M28 52 L16 58" stroke="#1d1a1f" strokeWidth="4" strokeLinecap="round" />
+      <ellipse cx="48" cy="51" rx="7" ry="6" fill="#fff" /><ellipse cx="72" cy="51" rx="7" ry="6" fill="#fff" />
+      <circle cx="50" cy="52" r="2.6" fill="#111" /><circle cx="70" cy="52" r="2.6" fill="#111" />
+      <path d="M44 44 L54 47 M76 44 L66 47" stroke="#111" strokeWidth="2.4" strokeLinecap="round" />
+      <ellipse cx="60" cy="64" rx="12" ry="8" fill="#f8d2a0" />
+      <path d="M57 61 L63 61 L60 65 Z" fill="#d86a7c" />
+      <path d="M56 69 Q60 72 64 69" stroke="#3a2210" strokeWidth="1.6" fill="none" />
+      <path d="M58 64 L40 60 M58 66 L40 68 M62 64 L80 60 M62 66 L80 68" stroke="#3a2210" strokeWidth="1" />
+      <path d="M32 74 L88 74 L62 98 Z" fill="#b8322a" />
+      <circle cx="48" cy="79" r="1.6" fill="#f6e6c8" /><circle cx="60" cy="83" r="1.6" fill="#f6e6c8" /><circle cx="72" cy="79" r="1.6" fill="#f6e6c8" />
+    </svg>
+  );
+}
+
+/** Six-point sheriff star with the seconds left in the middle. */
+function SheriffStar({ children }: { children: React.ReactNode }) {
+  const pts: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 ? 15 : 27;
+    pts.push(`${30 + Math.cos(a) * r},${30 + Math.sin(a) * r}`);
+  }
+  return (
+    <div className="relative w-[60px] h-[60px] rotate-[6deg]" style={{ filter: 'drop-shadow(2px 3px 0 rgba(40,20,5,.5))' }}>
+      <svg viewBox="0 0 60 60" className="absolute inset-0">
+        <polygon points={pts.join(' ')} fill="#e2b445" stroke="#8a6420" strokeWidth="2" strokeLinejoin="round" />
+        {pts.filter((_, i) => i % 2 === 0).map((p, i) => {
+          const [x, y] = p.split(',').map(Number);
+          return <circle key={i} cx={x} cy={y} r="3" fill="#f2d27a" stroke="#8a6420" strokeWidth="1.2" />;
+        })}
+        <circle cx="30" cy="30" r="12.5" fill="#f2d27a" stroke="#8a6420" strokeWidth="1.5" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-[16px] text-[#3a2210] pt-[2px]">{children}</div>
+    </div>
+  );
+}
+
+function Poster({ children, tilt }: { children: React.ReactNode; tilt: number }) {
+  return (
+    <div className="hs-pop w-full max-w-[332px]" style={{ filter: 'drop-shadow(4px 6px 0 rgba(40,20,5,.45))' }}>
+      <div className="hs-poster p-3" style={{ transform: `rotate(${tilt}deg)` }}>
+        <span className="hs-nail" style={{ left: 10, top: 10 }} />
+        <span className="hs-nail" style={{ right: 10, top: 10 }} />
+        <div className="hs-poster-inner px-4 py-4 text-center">{children}</div>
+      </div>
     </div>
   );
 }
@@ -88,6 +146,9 @@ export default function Game({ onExit }: GameProps) {
   const [muted, setMuted] = useState(() => load<boolean>(ID, 'muted', false));
   const [best, setBest] = useState(() => getHighScore(ID));
   const [result, setResult] = useState<Result | null>(null);
+  const [beat, setBeat] = useState<Beat>(null);
+  const twirlRef = useRef(-10);
+  const kickRef = useRef(-10);
 
   if (!sfxRef.current) {
     sfxRef.current = new Sfx();
@@ -160,10 +221,19 @@ export default function Game({ onExit }: GameProps) {
         if (ev.type === 'hit') {
           if (ev.kind === 'cat') sfx.cat();
           else if (ev.kind === 'chicken') sfx.chicken();
+          if (ev.kind === 'cat' || ev.kind === 'chicken') kickRef.current = now / 1000;
           else sfx.oops();
           if (playing && !sfx.muted) buzz(ev.kind === 'cat' ? 15 : ev.kind === 'chicken' ? [25, 40, 25] : 70);
         } else if (ev.type === 'chicken-up' && playing) sfx.chickenUp();
         else if (ev.type === 'tick') sfx.tick();
+        else if (ev.type === 'count' && playing) {
+          sfx.count(ev.beat);
+          setBeat(ev.beat);
+          if (ev.beat === 'draw') {
+            twirlRef.current = now / 1000;
+            window.setTimeout(() => setBeat(null), 800);
+          }
+        }
         else if (ev.type === 'end') sfx.whistle();
       }
       const ended = g.events.some((e) => e.type === 'end');
@@ -176,7 +246,7 @@ export default function Game({ onExit }: GameProps) {
         setResult({ score: g.score, best: b, isBest, stats: { ...g.stats } });
         setPhaseBoth('over');
       }
-      drawFrame(ctx, g, lay, now / 1000, playing && (inp.pointer >= 0 || inp.hover));
+      drawFrame(ctx, g, lay, now / 1000, playing && g.countdown <= 0 && (inp.pointer >= 0 || inp.hover), (now / 1000 - twirlRef.current) / TWIRL, (now / 1000 - kickRef.current) / 0.22);
       hudT += dt;
       if (hudT > 0.08) {
         hudT = 0;
@@ -254,6 +324,7 @@ export default function Game({ onExit }: GameProps) {
     pausedRef.current = false;
     setPaused(false);
     setResult(null);
+    setBeat(null);
     setPhaseBoth('play');
   };
 
@@ -273,14 +344,14 @@ export default function Game({ onExit }: GameProps) {
   const oops = result ? result.stats.bunnies + result.stats.turtles : 0;
 
   return (
-    <div className="g-hose-shooter fixed inset-0 bg-[#3b2a1c] flex justify-center select-none" style={{ height: '100dvh' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" />
+    <div className="g-hose-shooter fixed inset-0 bg-[#2e1c10] flex justify-center select-none" style={{ height: '100dvh' }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap" />
       <style>{CSS}</style>
       <div ref={wrapRef} className="relative w-full max-w-[480px] h-full overflow-hidden" style={{ touchAction: 'none' }}>
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full block"
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'none', filter: 'sepia(0.08) saturate(1.1) contrast(1.04)' }}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
@@ -290,87 +361,102 @@ export default function Game({ onExit }: GameProps) {
           }}
           onContextMenu={(e) => e.preventDefault()}
         />
+        <div className="hs-vignette absolute inset-0 pointer-events-none" />
 
         {/* HUD */}
-        <div className="absolute top-0 left-0 right-0 flex items-start justify-between gap-2 p-2 pointer-events-none" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-start justify-between gap-2 p-2 pointer-events-none" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
           <div className="pointer-events-auto">
             <ExitButton onExit={onExit} className="hs-exit" />
           </div>
           {phase === 'play' && (
-            <div className="flex gap-2 items-center">
-              <div className="hs-chip text-[20px] rotate-[-2deg]">
-                <span ref={scoreRef}>0</span>
+            <div className="flex gap-2 items-start">
+              <div className="hs-swing flex flex-col items-center">
+                <div className="flex gap-[34px] h-[8px]">
+                  <span className="block w-[2px] h-full bg-[#4a3020]" />
+                  <span className="block w-[2px] h-full bg-[#4a3020]" />
+                </div>
+                <div className="hs-wood hs-sign">
+                  $<span ref={scoreRef}>0</span>
+                </div>
               </div>
-              <div className="hs-chip text-[20px] rotate-[2deg] bg-[#ffd23f]" style={{ background: '#ffd23f' }}>
-                ⏱ <span ref={timeRef}>60</span>
-              </div>
+              <SheriffStar>
+                <span ref={timeRef}>60</span>
+              </SheriffStar>
             </div>
           )}
           <button
             onClick={toggleMute}
             aria-label={muted ? 'Sound on' : 'Mute'}
-            className="pointer-events-auto hs-chip text-[16px] w-[42px] h-[34px] flex items-center justify-center"
+            className="pointer-events-auto hs-exit text-[15px] w-[40px] h-[32px] flex items-center justify-center"
           >
             {muted ? '🔇' : '🔊'}
           </button>
         </div>
 
+        {phase === 'play' && beat && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div key={beat} className="hs-beat text-[54px]" style={{ color: beat === 'draw' ? '#e8483a' : '#fff1d0' }}>
+              {beat === 'ready' ? 'READY…' : beat === 'steady' ? 'STEADY…' : 'DRAW!'}
+            </div>
+          </div>
+        )}
+
         {phase === 'start' && (
-          <div className="absolute inset-0 flex items-center justify-center p-5 bg-[rgba(42,22,8,0.28)]">
-            <div className="hs-paper hs-pop w-full max-w-[330px] px-5 py-6 text-center rotate-[-1deg]">
-              <Title text="HOSE SHOOTER" />
-              <p className="mt-4 text-[16px] leading-snug" style={{ fontFamily: '"Pixelify Sans", system-ui, sans-serif' }}>
-                Drag to aim, hold to spray. Soak the cats, splash the chicken for a big bonus, and leave the bunnies and turtles dry!
-              </p>
-              <div className="mt-3 grid grid-cols-3 gap-1 text-[13px]">
-                <div className="hs-chip">CAT +100</div>
-                <div className="hs-chip" style={{ background: '#ffd23f' }}>
-                  HEN +500
-                </div>
-                <div className="hs-chip" style={{ background: '#f3a7b3' }}>
-                  BUNNY −150
-                </div>
+          <div className="absolute inset-0 flex items-center justify-center p-5 bg-[rgba(46,24,8,0.32)]">
+            <Poster tilt={-1.5}>
+              <div className="text-[46px] leading-none tracking-wider">WANTED</div>
+              <div className="hs-type text-[13px] mt-1">DEAD OR SOAKING WET</div>
+              <div className="flex justify-center mt-2">
+                <OutlawCat />
               </div>
-              <div className="mt-3 text-[15px]">BEST: {best}</div>
-              <button onClick={start} className="hs-btn mt-4">
+              <div className="text-[20px] mt-2 leading-tight">THE YARD CAT GANG</div>
+              <p className="hs-type text-[14px] leading-snug mt-2">
+                Drag to aim, hold to spray. Soak the outlaw cats and the hen that peeks over the wall. Leave the bunnies and turtles dry!
+              </p>
+              <div className="hs-type text-[13px] mt-2 leading-snug">
+                <div>
+                  REWARD: <b>$100–200</b> a cat · <b>$500</b> the outlaw hen
+                </div>
+                <div>FINE: $150 per wet bunny or turtle</div>
+              </div>
+              <div className="text-[14px] mt-2">BEST BOUNTY: ${best}</div>
+              <button onClick={start} className="hs-wood hs-btn mt-3">
                 PLAY
               </button>
-            </div>
+            </Poster>
           </div>
         )}
 
         {phase === 'over' && result && (
-          <div className="absolute inset-0 flex items-center justify-center p-5 bg-[rgba(42,22,8,0.35)]">
-            <div className="hs-paper hs-pop w-full max-w-[330px] px-5 py-6 text-center rotate-[1deg]">
-              <Title text="TIME'S UP!" size={30} />
-              <div className="mt-3 text-[52px] leading-none">{result.score}</div>
-              <div className="mt-1 text-[17px]">{result.isBest && result.score > 0 ? '★ NEW BEST! ★' : `BEST: ${result.best}`}</div>
-              <div className="mt-3 flex justify-center gap-2 text-[14px]">
-                <div className="hs-chip">🐱 {result.stats.cats}</div>
-                <div className="hs-chip" style={{ background: '#ffd23f' }}>
-                  🐔 {result.stats.chickens}
-                </div>
-                <div className="hs-chip" style={{ background: '#f3a7b3' }}>
-                  OOPS {oops}
-                </div>
+          <div className="absolute inset-0 flex items-center justify-center p-5 bg-[rgba(46,24,8,0.4)]">
+            <Poster tilt={1.5}>
+              <div className="text-[42px] leading-none tracking-wider">WANTED</div>
+              <div className="hs-type text-[13px] mt-1">FOR HOSING DOWN THE YARD</div>
+              <div className="hs-type text-[14px] mt-3">BOUNTY COLLECTED</div>
+              <div className="text-[54px] leading-none mt-1">${result.score}</div>
+              <div className="text-[16px] mt-2">{result.isBest && result.score > 0 ? '★ NEW BEST! ★' : `BEST: $${result.best}`}</div>
+              <div className="hs-type text-[14px] mt-3 flex justify-center gap-3">
+                <span>CATS {result.stats.cats}</span>
+                <span>HENS {result.stats.chickens}</span>
+                <span>OOPS {oops}</span>
               </div>
-              <div className="mt-5 flex justify-center gap-3">
-                <button onClick={start} className="hs-btn">
+              <div className="mt-4 flex justify-center gap-3">
+                <button onClick={start} className="hs-wood hs-btn">
                   RETRY
                 </button>
-                <button onClick={onExit} className="hs-btn alt">
+                <button onClick={onExit} className="hs-wood hs-btn alt">
                   MAP
                 </button>
               </div>
-            </div>
+            </Poster>
           </div>
         )}
 
         {paused && phase === 'play' && (
-          <button onClick={resume} className="absolute inset-0 flex items-center justify-center bg-[rgba(42,22,8,0.45)]">
-            <div className="hs-paper px-6 py-5 text-center">
+          <button onClick={resume} className="absolute inset-0 flex items-center justify-center bg-[rgba(46,24,8,0.5)]">
+            <div className="hs-wood px-6 py-4 text-center">
               <div className="text-[28px]">PAUSED</div>
-              <div className="text-[15px] mt-1">tap to keep spraying</div>
+              <div className="hs-type text-[15px] mt-1">tap to get back in the saddle</div>
             </div>
           </button>
         )}

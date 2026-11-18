@@ -49,8 +49,11 @@ boulevard (ficus/palm trees, red-line tram) yourself; do not copy web photos.
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
 hold to spray (water stream with arc). Cats run along the tree, wall and ground: +points. A chicken sometimes pops
 up from behind the wall: big bonus. Bunnies and turtles wander through: hitting them costs points. 60-second rounds,
-best score kept. Look: cut-out construction-paper characters (South Park-like) on a cartoon background. The
-"characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
+best score kept. Look (Ben's call): old western. The same yard as a dusty sun-bleached showdown (adobe wall, plank
+fence, desert tree, mesas beyond the wall, tumbleweeds and dust), cut-paper characters: outlaw cats in bandit masks and
+bandanas, the chicken as a bonus "outlaw" in a hat, the real bunnies and turtles unchanged. The nozzle is held like a
+six-shooter; READY/STEADY/DRAW countdown; wanted-poster start and game-over screens, score on a wooden sign, sheriff-star
+timer, twangy guitar sounds. The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
 
 ## Garden Defense (yard, bunny wall)
 Side view of the bed along the yard's left wall, with the apartment block across the street (windows, nosy
