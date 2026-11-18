@@ -79,6 +79,18 @@ export class Sfx {
     if (!this.ok()) return;
     this.noise(this.ctx!.currentTime, 0.09, 0.35, 1800);
   }
+  /** Scrabbling up onto a tram roof. */
+  mount() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    this.tone(420, t, 0.1, 'square', 0.08, 840);
+    this.tone(640, t + 0.07, 0.12, 'triangle', 0.18, 1100);
+  }
+  /** Soft paw thump on landing. */
+  land() {
+    if (!this.ok()) return;
+    this.noise(this.ctx!.currentTime, 0.06, 0.25, 400);
+  }
   bonk() {
     if (!this.ok()) return;
     const t = this.ctx!.currentTime;

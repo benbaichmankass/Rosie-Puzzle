@@ -40,10 +40,22 @@ Bentzi (cartoon "BOOM", no gore). Fewer open exits as levels rise; later levels 
 furniture to route around. Levels must be solvable (check script with a solver or a known solution per level).
 
 ## Jerusalem Boulevard Runner (yard, street door)
-Behind-the-back 3-lane endless runner, Rosie on a leash pulling Bentzi (or Rosie alone). Middle lane: pedestrians
-and bikers coming at you. Side lanes: the light rail, one direction per side; trains telegraph before arriving.
-Swipe left/right to change lane, swipe up to jump low obstacles. Speed ramps up; score = distance. Draw the
-boulevard (ficus/palm trees, red-line tram) yourself; do not copy web photos.
+Behind-the-back 3-lane endless runner, Rosie on a leash (Bentzi's arm and the leash in view). Middle lane: a wider
+two-way bike path (red asphalt, dashed centre line, painted bike symbols) with pedestrians and bikers coming at you,
+plus low things to jump. Side lanes: the light rail, one direction per side: oncoming trams on the left, slower
+trams going your way on the right (you catch up with them; some have a yellow ramp at the rear). Trams telegraph
+before arriving (bell, glowing rails, warning sign). Swipe left/right to change lane, swipe up to jump. Speed ramps
+up; score = distance. Draw the boulevard (ficus/palm trees, red-line tram) yourself; do not copy web photos.
+Ben's feedback (round 1):
+- Lively animation: Rosie's run cycle (legs, body bounce, flapping ears, head bob, wagging tail), squash and stretch
+  on jumps/landings, lean into lane changes; the leash swings and Bentzi's hand bobs and is tugged; walkers and
+  bikers have walk/pedal cycles; trees sway.
+- Tram roofs (Subway Surfers style): being in the air when a tram reaches you, or running up a rear ramp, puts Rosie
+  on the roof. She runs along it and drops off its end; she can hop down to the bike path, or leap across the bike
+  path onto a tram on the other track if one is alongside. Running into a tram on the ground (front or rear) is a
+  crash. The spawner and `scripts/check-boulevard-runner.ts` model roofs and prove every run stays passable.
+- Coming next: light rail stations with real Red Line station names, real shop names on Sderot Yerushalayim,
+  treats and power-ups (e.g. a skateboard) with an on-screen timer.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,

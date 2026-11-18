@@ -119,7 +119,9 @@ function lookFor(v: number): Look {
 
 /** A walker seen from the front, coming toward Rosie. frame 0/1 = stride. */
 function drawWalker(g: CanvasRenderingContext2D, L: Look, f: number) {
-  const st = f === 0 ? 1 : -1;
+  const a = (f / 4) * Math.PI * 2;
+  const st = Math.sin(a) * 1.6;
+  g.translate(0, -Math.abs(Math.cos(a)) * 0.03);
   const longHair = L.style === 1 || L.style === 4;
   const dress = L.style === 4;
   // shadow
@@ -201,7 +203,7 @@ function drawWalker(g: CanvasRenderingContext2D, L: Look, f: number) {
 
 /** Bike rider, front view. kind 0 = city bike, 1 = e-scooter, 2 = delivery e-bike with a box. */
 function drawBiker(g: CanvasRenderingContext2D, L: Look, kind: number, f: number) {
-  const st = f === 0 ? 1 : -1;
+  const st = Math.sin((f / 4) * Math.PI * 2) * (kind === 1 ? 0.25 : 1.2);
   ell(g, 0, 0, 0.36, 0.07, 'rgba(40,25,10,0.3)');
   if (kind === 1) {
     // e-scooter: narrow deck, tall stem, rider standing
@@ -440,12 +442,12 @@ export function buildSprites(): Sprites {
   const walkers: Sprite[] = [];
   for (let v = 0; v < 12; v++) {
     const L = lookFor(v + 1);
-    walkers.push(makeSprite(1.0, 1.85, 90, (g, f) => drawWalker(g, L, f), 2));
+    walkers.push(makeSprite(1.0, 1.9, 90, (g, f) => drawWalker(g, L, f), 4));
   }
   const bikers: Sprite[] = [];
   for (let v = 0; v < 6; v++) {
     const L = lookFor(v + 40);
-    bikers.push(makeSprite(0.9, 1.9, 90, (g, f) => drawBiker(g, L, v % 3, f), 2));
+    bikers.push(makeSprite(0.9, 1.9, 90, (g, f) => drawBiker(g, L, v % 3, f), 4));
   }
   const lows = [0, 1, 2].map((k) => makeSprite(1.9, 1.1, 80, (g) => { g.scale(1.3, 1.3); drawLow(g, k); }));
   const palms = [1, 2, 3].map((v) => makeSprite(7, 10.5, 46, (g) => drawPalm(g, v)));
@@ -467,32 +469,35 @@ export function drawRosie(g: CanvasRenderingContext2D, x: number, y: number, u: 
   g.save();
   g.translate(x, y);
   g.scale(u, u);
-  g.rotate(lean * 0.12);
+  // body rolls with each stride and leans into lane changes
+  g.rotate(lean * 0.14 + (airborne ? 0 : Math.sin(phase) * 0.04));
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  const bob = airborne ? 0 : Math.abs(Math.sin(phase)) * 0.025;
+  const bob = airborne ? 0 : Math.abs(Math.sin(phase)) * 0.055;
   const s1 = Math.sin(phase), s2 = Math.sin(phase + Math.PI);
   const WHITE = '#f6f3ee', SHADOW = '#d9d3ca', BLACK = '#161616', TEAL = '#1f9aa6';
   // front legs (behind the body), visible under the chest
   const fl = (lx: number, s: number) => {
-    const lift = airborne ? 0.12 : Math.max(0, s) * 0.09;
+    const lift = airborne ? 0.14 : Math.max(0, s) * 0.14;
     line(g, [lx, -0.42 - bob, lx + s * 0.01, -0.18 - lift, lx, -0.03 - lift], 0.05, SHADOW);
     ell(g, lx, -0.025 - lift, 0.035, 0.022, '#cfc8bd');
   };
   fl(-0.075, s2);
   fl(0.075, s1);
   // head (black) and ears, seen from behind, above the back
-  const hy = -0.79 - bob * 1.5;
-  ell(g, 0, hy + 0.12, 0.085, 0.09, WHITE); // white neck/chest edge
-  ell(g, 0, hy, 0.115, 0.115, BLACK);
-  // ears: semi-floppy
+  // head bobs a beat behind the body and sways; ears flap with every stride (and fly up in a jump)
+  const hy = -0.79 - bob * 1.1 + Math.sin(phase * 2 + 0.9) * 0.02;
+  const hx = Math.sin(phase) * 0.018;
+  const flap = airborne ? -0.7 : Math.sin(phase * 2 + 1.3) * 0.34;
+  ell(g, hx * 0.5, hy + 0.12, 0.085, 0.09, WHITE); // white neck/chest edge
+  ell(g, hx, hy, 0.115, 0.115, BLACK);
   g.save();
-  g.translate(-0.095, hy - 0.05); g.rotate(-0.5 - Math.sin(phase * 2) * 0.05);
-  ell(g, 0, 0.05, 0.05, 0.09, BLACK); g.restore();
+  g.translate(hx - 0.095, hy - 0.05); g.rotate(-0.5 + flap);
+  ell(g, 0, 0.05, 0.05, 0.09 + Math.max(0, -flap) * 0.02, BLACK); g.restore();
   g.save();
-  g.translate(0.095, hy - 0.05); g.rotate(0.5 + Math.sin(phase * 2) * 0.05);
-  ell(g, 0, 0.05, 0.05, 0.09, BLACK); g.restore();
-  ell(g, -0.04, hy - 0.05, 0.03, 0.02, 'rgba(255,255,255,0.18)');
+  g.translate(hx + 0.095, hy - 0.05); g.rotate(0.5 - flap);
+  ell(g, 0, 0.05, 0.05, 0.09 + Math.max(0, -flap) * 0.02, BLACK); g.restore();
+  ell(g, hx - 0.04, hy - 0.05, 0.03, 0.02, 'rgba(255,255,255,0.18)');
   // torso (receding)
   ell(g, 0, -0.56 - bob, 0.17, 0.15, WHITE);
   ell(g, 0.05, -0.53 - bob, 0.1, 0.1, SHADOW);
@@ -505,7 +510,7 @@ export function drawRosie(g: CanvasRenderingContext2D, x: number, y: number, u: 
   g.beginPath(); g.arc(0, -0.735 - bob, 0.025, 0, Math.PI * 2); g.lineWidth = 0.014; g.strokeStyle = '#d8dde0'; g.stroke();
   // hind legs: thigh then thin shank, alternating
   const hl = (lx: number, s: number, dir: number) => {
-    const lift = airborne ? 0.16 : Math.max(0, s) * 0.13;
+    const lift = airborne ? 0.18 : Math.max(0, s) * 0.19;
     g.beginPath();
     g.ellipse(lx, -0.4 - bob, 0.07, 0.11, dir * 0.15, 0, Math.PI * 2);
     g.fillStyle = WHITE; g.fill();
@@ -546,10 +551,11 @@ export function drawRosie(g: CanvasRenderingContext2D, x: number, y: number, u: 
 }
 
 /** Bentzi's forearm and fist holding the leash, rising from the bottom of the screen (screen px). */
-export function drawBentziArm(g: CanvasRenderingContext2D, hx: number, hy: number, k: number) {
+export function drawBentziArm(g: CanvasRenderingContext2D, hx: number, hy: number, k: number, tilt = 0) {
   g.save();
   g.translate(hx, hy);
   g.scale(k, k);
+  g.rotate(tilt);
   g.lineCap = 'round';
   // forearm from below-right
   g.beginPath();
