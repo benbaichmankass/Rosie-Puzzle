@@ -323,16 +323,14 @@ function prop(p: Painter, o: Prop) {
     case 'gardenbed': {
       p.rect(X, Y, W, H, 1);
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (hash(X + x, Y + y, 9) < 0.12) p.px(X + x, Y + y, 0);
-      // leafy plants
+      // leafy lettuce-like plants
       for (let i = 0; i < 9; i++) {
-        const py = Y + 8 + i * 16, px = X + 5 + (i % 2) * 3;
         if (i === 1 || i === 7) continue; // gaps where the bunnies sit
-        for (const [dx, dy] of [[0, -4], [-3, -1], [3, -1], [-2, 2], [2, 2], [0, 0]]) {
-          p.rect(px + dx - 1, py + dy - 1, 3, 3, 0);
-        }
-        for (const [dx, dy] of [[0, -4], [-3, -1], [3, -1], [-2, 2], [2, 2], [0, 0]]) {
-          p.px(px + dx, py + dy, 3); p.px(px + dx + (dx > 0 ? -1 : 1), py + dy, 2);
-        }
+        const py = Y + 8 + i * 16, px = X + 6 + (i % 2);
+        disc(p, px, py, 5, 0);
+        disc(p, px, py, 4, 2);
+        p.hline(px - 2, py - 3, 3, 3); p.px(px - 3, py - 2, 3); p.px(px + 2, py + 1, 3);
+        p.vline(px, py - 2, 5, 1); p.px(px - 2, py + 1, 1); p.px(px + 2, py - 1, 1);
       }
       // low green wire fence
       for (let y = Y; y < Y + H; y++) {
