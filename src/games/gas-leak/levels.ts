@@ -71,6 +71,7 @@ export const LEVELS: Level[] = [
     tip: 'Gas keeps going straight. Blow it up, then left out of the window.',
     open: ALL,
     fans: 2,
+    pace: { startMs: 2000, minMs: 800 },
     ac: null,
     // prettier-ignore
     map: [

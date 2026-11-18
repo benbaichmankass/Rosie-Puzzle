@@ -33,11 +33,16 @@ sleep after a moment. A level's score never drops below 0. The start screen says
 
 ## Gas Leak (living room)
 Top-down grid of the living room. Gas enters from the kitchen side (right). The left wall has, top to bottom: a
-window, the door, a window with an AC unit (matches the house plan). Bentzi sits on the couch. The player places
-fans from a limited supply, sets each fan's direction and strength (1-3), then presses RUN; gas spreads as a
-simple grid flow sim pushed by fans. Win: gas leaves through an open exit before reaching Bentzi. Lose: gas reaches
-Bentzi (cartoon "BOOM", no gore). Fewer open exits as levels rise; later levels add AC airflow, ceiling fans and
-furniture to route around. Levels must be solvable (check script with a solver or a known solution per level).
+window, the door, a window with an AC unit (matches the house plan). Bentzi sits on the couch. **Real time, no RUN
+button (Ben's call):** after a 3-2-1 countdown the gas starts leaking on its own, seeping slowly at first and then
+speeding up. The player places fans from a limited supply and sets each fan's direction and strength (1-3) while the
+gas flows; every change affects the gas on the next tick. The gas travels as one stream pushed by fans. If it is blocked
+or circles over its own trail, pressure builds; at the limit the room fills up. Win: gas leaves through an open exit.
+Lose: gas reaches Bentzi, or the room fills (cartoon "BOOM", no gore). Level clear shows the time and 1-3 stars against
+the level's par; best time and stars are kept per level. Retry restarts the leak with no fans. Fewer open exits as
+levels rise; later levels add AC airflow, ceiling fans and furniture to route around. Levels must be provably winnable
+in real time: the check script builds each stored solution one fan every 2.5 s (from the countdown) in the same
+simulation and must win.
 
 ## Jerusalem Boulevard Runner (yard, street door)
 Behind-the-back 3-lane endless runner, Rosie on a leash (Bentzi's arm and the leash in view). Middle lane: a wider

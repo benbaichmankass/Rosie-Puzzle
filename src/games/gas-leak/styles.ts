@@ -62,6 +62,16 @@ export const CSS = `
 .g-gas-leak .gl-hiss { animation: gl-hiss 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .g-gas-leak .gl-hiss-text { animation: gl-hisst 0.8s steps(2) infinite; }
 .g-gas-leak .gl-exitpuff { animation: gl-exitpuff 0.9s ease-out infinite; }
+.g-gas-leak .gl-timer { font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; background: #fff; border: 3px solid #3b2f22; border-radius: 12px; padding: 6px 12px; box-shadow: 0 4px 0 #3b2f22; min-width: 104px; text-align: center; }
+.g-gas-leak .gl-warn { color: #c0392b; font-weight: 700; animation: gl-pulse 0.6s ease-in-out infinite; }
+.g-gas-leak .gl-pressure { animation: gl-press 0.35s ease-in-out infinite; filter: hue-rotate(-60deg) saturate(1.6); }
+.g-gas-leak .gl-countdown { position: absolute; inset: 0 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; pointer-events: none; }
+.g-gas-leak .gl-count { font-family: 'Bangers', Impact, sans-serif; font-size: 96px; line-height: 1; color: #8bc34a; -webkit-text-stroke: 3px #3b2f22; text-shadow: 4px 5px 0 #3b2f22; animation: gl-countpop 1s ease-out both; }
+.g-gas-leak .gl-count-tip { background: rgba(59,47,34,0.88); color: #fff7e6; border-radius: 12px; padding: 8px 12px; font-size: 14px; text-align: center; max-width: 300px; }
+.g-gas-leak .gl-stars { font-size: 34px; letter-spacing: 4px; color: #d8cbb5; line-height: 1; }
+.g-gas-leak .gl-stars .on { color: #f2b705; text-shadow: 0 2px 0 #8a6a00; }
+.g-gas-leak .gl-chip { position: relative; }
+.g-gas-leak .gl-chip-stars { position: absolute; left: 0; right: 0; bottom: -2px; font-size: 8px; color: #f2b705; line-height: 1; }
 .g-gas-leak .gl-boom { animation: gl-boom 0.5s cubic-bezier(.2,1.6,.4,1) both; }
 .g-gas-leak .gl-boom > * { transform-box: view-box; }
 .g-gas-leak .gl-wind { animation: gl-wind 1.2s linear infinite; }
@@ -75,6 +85,8 @@ export const CSS = `
 @keyframes gl-smoke { 0% { opacity: 0; transform: translateY(4px); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(-6px); } }
 @keyframes gl-zzz { 0% { opacity: 0; transform: translate(0, 2px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -6px); } }
 @keyframes gl-exitpuff { from { transform: translateX(0) scale(1); opacity: 0.9; } to { transform: translateX(-26px) scale(1.6); opacity: 0; } }
+@keyframes gl-press { 50% { transform: scale(1.12); } }
+@keyframes gl-countpop { 0% { transform: scale(2.2); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0.2; } }
 @keyframes gl-hisst { 50% { opacity: 0.2; } }
 @keyframes gl-hiss { 50% { transform: scale(1.5); opacity: 0.5; } }
 @keyframes gl-boom { from { opacity: 0; transform: scale(0.2); } }
