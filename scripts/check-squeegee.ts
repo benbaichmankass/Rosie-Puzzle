@@ -37,13 +37,14 @@ function run(name: string, policy: Policy, seed = 1, maxT = 900, dtFn?: (r: () =
 const idle = run('idle', () => ({ move: 0, swing: false }));
 console.log(`idle player: zapped at ${idle.t.toFixed(1)} s (shelves flooded at ${idle.floodTime.map((x) => x.toFixed(0)).join(', ')} s)`);
 if (!idle.over) bad('idle player never lost');
-if (idle.t < 30 || idle.t > 120) bad(`idle player should lose in 30-120 s, took ${idle.t.toFixed(1)} s`);
+if (idle.t < 20 || idle.t > 35) bad(`idle player should lose in about 25-30 s (allowed 20-35), took ${idle.t.toFixed(1)} s`);
 if (!(idle.floodTime[0] < idle.floodTime[1] && idle.floodTime[1] < idle.floodTime[2])) bad('shelves should flood bottom, middle, top in order');
 
 const bot = run('bot', (s) => S.botInput(s));
 console.log(`active bot: survived ${bot.t.toFixed(1)} s, ${bot.swings} swings, drained ${bot.drained.toFixed(0)} of ${bot.inflowTotal.toFixed(0)}, rolls stuck ${bot.rolls.filter((r) => r.stuck).length}`);
 if (!bot.over) bad('even the bot should lose eventually (inflow ramps up)');
-if (bot.t < idle.t * 1.8) bad(`active play should last much longer than idle (${bot.t.toFixed(1)} vs ${idle.t.toFixed(1)})`);
+if (bot.t < 40 || bot.t > 70) bad(`an active player should last about 45-60 s (allowed 40-70), lasted ${bot.t.toFixed(1)} s`);
+if (bot.t < idle.t * 1.6) bad(`active play should last much longer than idle (${bot.t.toFixed(1)} vs ${idle.t.toFixed(1)})`);
 if (bot.rolls.length && !bot.rolls.some((r) => r.stuck)) bad('paper rolls should end up clogging the drain');
 
 // random button-mashers with jittery frame times: only stability matters here

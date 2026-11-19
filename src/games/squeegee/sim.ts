@@ -23,16 +23,16 @@ export const T = {
   DAMP: 6, // bed friction strength
   FRICTION_H: 1, // depth (cm) at which friction halves
   DRAIN_K: 1, // outflow per cm of depth per drain cell (units/s)
-  DRAIN_CAP: 3, // passive outflow cap per drain cell (units/s) when unclogged
-  INFLOW0: 55, // shower units/s at t=0
-  INFLOW_RAMP: 0.006, // inflow grows by this fraction of INFLOW0 per second
+  DRAIN_CAP: 7, // passive outflow cap per drain cell (units/s) when unclogged
+  INFLOW0: 150, // shower units/s at t=0
+  INFLOW_RAMP: 0.015, // inflow grows by this fraction of INFLOW0 per second
   SWING_GRAB: 4, // cells downhill of the blade that are scooped
   SWING_FRACTION: 0.7,
   THROW_V0: 30, // initial uphill speed of a swung wave (cells/s)
   THROW_DECEL: 22.5, // how fast the wave slows (cells/s^2): range = V0^2 / (2 * DECEL)
-  SWING_CAP: 16, // most water one stroke can carry (units)
-  FORCE_DRAIN: 16, // how much of a wave that hits the drain goes straight down it (unclogged)
-  ROLL_DRIFT: 2, // cells/s a soggy roll creeps toward the drain
+  SWING_CAP: 36, // most water one stroke can carry (units)
+  FORCE_DRAIN: 36, // how much of a wave that hits the drain goes straight down it (unclogged)
+  ROLL_DRIFT: 5, // cells/s a soggy roll creeps toward the drain
   WALK_SPEED: 11, // cells per second
   SPRAY_TO: 26,
 };

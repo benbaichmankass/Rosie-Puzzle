@@ -152,12 +152,12 @@ strands and crosses, trickier balance on a narrower plata, more calls). Look: Bo
 Side view (cross-section) of the bathroom at realistic proportions: the floor falls gently from the shower down
 toward the sink (a slight, readable incline, not a ramp); shower is on, water runs downhill. Bentzi is drawn at full
 height; the sink counter is at about his hip height. The player moves up/down along the floor and taps to swing the
-squeegee (one tap = one push of water toward the drain). Under the sink stands an IKEA-style utility trolley (round-
-cornered metal cart, 3 lipped trays, 4 castors; drawn originally, no logo). It sits on the floor, so its trays flood
+squeegee (one tap = one push of water toward the drain). Under the sink stands a burgundy IKEA-style utility trolley
+(round-cornered metal cart, 3 lipped trays, 4 castors; drawn originally, no logo). It sits on the floor, so its trays flood
 as the water rises: bottom = cleaning supplies (suds, slippery controls), middle = toilet paper (falls in, clogs the
 drain, slower draining), top = electric toothbrush and trimmer (electrocution, game over). Back wall: a window, a
-hanging shower caddy with shampoo bottles, and plants. Score = survival time. Look: Maurice Sendak-like pen-and-ink
-with watercolor wash.
+hanging shower caddy with shampoo bottles, and plants. Short games: an idle player loses in about 25-30 s, a decent
+active player lasts about 45-60 s. Score = survival time. Look: Maurice Sendak-like pen-and-ink with watercolor wash.
 
 ## Turtle vs Bunny Race (yard, turtle pool) — added from Ben's feedback
 A race of one lap around the L-shaped yard (down the left side past the bunny wall, along the bottom wall, and
