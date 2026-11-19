@@ -3,7 +3,10 @@
  * For every handcrafted level, using the game's own simulation:
  *  - the stored solution is legal (fans on free floor, within the level's fan supply) and WINS;
  *  - doing nothing LOSES (no free levels);
- *  - the level map is sane (Bentzi on a sofa, gas source not blocked, ceiling fans on the floor).
+ *  - the level map is sane (Bentzi on a sofa and/or Shai on his mat with his candle beside him, every
+ *    flame reachable so it really needs protecting, gas source not blocked, ceiling fans on the floor).
+ *  Every winning run is checked by the simulation itself: gas next to ANY flame (Bentzi's joint or
+ *  Shai's candle) is an immediate BOOM, so a win means every danger point stayed protected.
  *  - REAL TIME: the leak starts on its own, so a player must be able to build the solution in time.
  *    Fans go down in the order the gas needs them, one every REACT_S seconds counted from the start of
  *    the 3-2-1 countdown, while the live simulation (the same stepLive the game ticks) runs. Must win.
@@ -11,7 +14,7 @@
  * time that still wins, as a difficulty readout.
  */
 import { LEVELS } from '../src/games/gas-leak/levels';
-import { COLS, COUNTDOWN_S, ROWS, canPlace, dangerCells, orderByNeed, parSeconds, runLive, simulate, solidGrid, solve, sourceCell, type Fan, type Level } from '../src/games/gas-leak/sim';
+import { COLS, COUNTDOWN_S, ROWS, canPlace, flames, orderByNeed, parSeconds, runLive, simulate, solidGrid, solve, sourceCell, type Fan, type Level } from '../src/games/gas-leak/sim';
 
 /** Seconds a player needs per fan: tap the floor, aim, set the power. */
 const REACT_S = 2.5;
@@ -32,9 +35,17 @@ for (const l of LEVELS) {
   const solid = solidGrid(l);
   const src = sourceCell(l);
   if (solid[src.r][src.c]) fail(l.id, 'gas source cell is blocked');
-  if (!l.furniture.some((f) => f.kind === 'sofa' && l.bentzi.r >= f.r && l.bentzi.r < f.r + f.h && l.bentzi.c >= f.c && l.bentzi.c < f.c + f.w))
-    fail(l.id, 'Bentzi is not on a sofa');
-  if (dangerCells(l, solid).length === 0) fail(l.id, 'gas can never reach Bentzi (no danger cells)');
+  const inside = (kind: string, p: { r: number; c: number }) => l.furniture.some((f) => f.kind === kind && p.r >= f.r && p.r < f.r + f.h && p.c >= f.c && p.c < f.c + f.w);
+  if (!l.bentzi && !l.shai) fail(l.id, 'nobody to protect');
+  if (l.bentzi && !inside('sofa', l.bentzi)) fail(l.id, 'Bentzi is not on a sofa');
+  if (l.shai) {
+    if (!inside('mat', l.shai.at)) fail(l.id, 'Shai is not on his yoga mat');
+    if (!inside('candle', l.shai.candle)) fail(l.id, "Shai's candle is missing");
+    if (Math.abs(l.shai.at.r - l.shai.candle.r) + Math.abs(l.shai.at.c - l.shai.candle.c) > 2) fail(l.id, "Shai's candle is not beside him");
+  }
+  for (const fl of flames(l))
+    if (![0, 1, 2, 3].some((d) => { const r = fl.at.r + [-1, 0, 1, 0][d]; const c = fl.at.c + [0, 1, 0, -1][d]; return r >= 0 && r < ROWS && c >= 0 && c < COLS && !solid[r][c]; }))
+      fail(l.id, `${fl.who}'s flame can never be reached (no danger cells)`);
   for (const cf of l.ceilingFans) if (cf.r < 0 || cf.r >= ROWS || cf.c < 0 || cf.c >= COLS || solid[cf.r][cf.c]) fail(l.id, 'ceiling fan on furniture');
   if (!Object.values(l.open).some(Boolean)) fail(l.id, 'no open exit');
 

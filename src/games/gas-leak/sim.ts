@@ -41,7 +41,7 @@ export interface Fan extends Cell {
   dir: Dir;
   s: Strength;
 }
-export type FurnitureKind = 'sofa' | 'table' | 'plant' | 'armchair' | 'tv' | 'dogbed' | 'cabinet' | 'dining' | 'counter' | 'lamp' | 'chair';
+export type FurnitureKind = 'sofa' | 'table' | 'plant' | 'armchair' | 'tv' | 'dogbed' | 'cabinet' | 'dining' | 'counter' | 'lamp' | 'chair' | 'mat' | 'candle';
 export interface Furniture extends Cell {
   kind: FurnitureKind;
   w: number;
@@ -58,8 +58,10 @@ export interface Level {
   open: Record<ExitId, boolean>;
   /** How many fans the player may place. */
   fans: number;
-  /** Bentzi's seat (must be inside a sofa piece). */
-  bentzi: Cell;
+  /** Bentzi's seat (inside a sofa piece), or null when he's out and only Shai is home. */
+  bentzi: Cell | null;
+  /** Shai doing yoga: his mat cell and the lit candle beside him (both block like furniture). */
+  shai: { at: Cell; candle: Cell } | null;
   furniture: Furniture[];
   ceilingFans: Cell[];
   /** A running AC unit above the AC window: blows like a fixed fan from the wall cell of that row. */
@@ -88,14 +90,31 @@ export function solidGrid(level: Level): boolean[][] {
   return g;
 }
 
-/** Cells where gas makes Bentzi's joint go BOOM (open cells next to his seat). */
+/** The flames that set the gas off: Bentzi's joint and Shai's candle. */
+export type Flame = 'bentzi' | 'shai';
+export function flames(level: Level): { who: Flame; at: Cell }[] {
+  const out: { who: Flame; at: Cell }[] = [];
+  if (level.bentzi) out.push({ who: 'bentzi', at: level.bentzi });
+  if (level.shai) out.push({ who: 'shai', at: level.shai.candle });
+  return out;
+}
+
+/** Which flame (if any) a cell is next to. */
+export function flameAt(level: Level, r: number, c: number, solid = solidGrid(level)): Flame | null {
+  if (!inBounds(r, c) || solid[r][c]) return null;
+  for (const f of flames(level)) if (Math.abs(f.at.r - r) + Math.abs(f.at.c - c) === 1) return f.who;
+  return null;
+}
+
+/** Cells where gas goes BOOM: open cells next to Bentzi's seat or Shai's candle. */
 export function dangerCells(level: Level, solid = solidGrid(level)): Cell[] {
   const out: Cell[] = [];
-  for (let d = 0; d < 4; d++) {
-    const r = level.bentzi.r + DR[d];
-    const c = level.bentzi.c + DC[d];
-    if (inBounds(r, c) && !solid[r][c]) out.push({ r, c });
-  }
+  for (const f of flames(level))
+    for (let d = 0; d < 4; d++) {
+      const r = f.at.r + DR[d];
+      const c = f.at.c + DC[d];
+      if (inBounds(r, c) && !solid[r][c] && !out.some((o) => o.r === r && o.c === c)) out.push({ r, c });
+    }
   return out;
 }
 
@@ -294,6 +313,8 @@ export interface LiveState {
   pressure: number;
   outcome: LiveOutcome;
   exit?: ExitId;
+  /** For 'boom': whose flame the gas reached. */
+  hit?: Flame;
 }
 
 export function startLive(level: Level): LiveState {
@@ -324,9 +345,9 @@ export function stepLive(level: Level, fans: Fan[], st: LiveState, solid = solid
   const revisit = st.trail.some((p) => p.r === nr && p.c === nc);
   const pressure = revisit ? st.pressure + 1 : 0;
   const trail = [...st.trail, head];
-  const danger = dangerCells(level, solid).some((d) => d.r === nr && d.c === nc);
-  const outcome: LiveOutcome = danger ? 'boom' : pressure >= PRESSURE_LIMIT ? 'burst' : 'flowing';
-  return { head, dir: nd, trail, ticks, pressure, outcome };
+  const hit = flameAt(level, nr, nc, solid);
+  const outcome: LiveOutcome = hit ? 'boom' : pressure >= PRESSURE_LIMIT ? 'burst' : 'flowing';
+  return { head, dir: nd, trail, ticks, pressure, outcome, ...(hit ? { hit } : {}) };
 }
 
 export interface TimedFan {

@@ -16,6 +16,7 @@ export const cy = (r: number) => Y0 + r * CELL + CELL / 2;
 
 const B = CHARACTERS.bentzi.colors;
 const R = CHARACTERS.rosie.colors;
+const SH = CHARACTERS.shai.colors;
 
 export const ROT = [0, 90, 180, 270]; // rotation (deg) for N E S W when the shape points up
 
@@ -54,6 +55,10 @@ export function Defs() {
         <rect width="6" height="6" fill="#cfd8dc" />
         <rect x="6" y="6" width="6" height="6" fill="#cfd8dc" />
       </pattern>
+      <radialGradient id="gl-flameglow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#ffd36b" stopOpacity="0.6" />
+        <stop offset="100%" stopColor="#ffb02e" stopOpacity="0" />
+      </radialGradient>
       <filter id="gl-shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="1.5" dy="2.5" stdDeviation="1.2" floodColor="#3b2f22" floodOpacity="0.28" />
       </filter>
@@ -312,6 +317,99 @@ export function SofaSet({ pieces, rosie }: { pieces: Furniture[]; rosie?: { r: n
   );
 }
 
+/** Shai's head, front view: olive skin, very short dark hair, trimmed beard, big smile, shades up. */
+function ShaiHead({ soot, worried }: { soot: boolean; worried: boolean }) {
+  const skin = soot ? '#5a5048' : SH.skin;
+  return (
+    <g>
+      {soot && (
+        <g fill="#2b2622">
+          {Array.from({ length: 7 }, (_, i) => (
+            <path key={i} d={`M0 -4 l${Math.cos((i / 6) * Math.PI) * -11} ${-Math.sin((i / 6) * Math.PI) * 10 - 2} l3 2z`} />
+          ))}
+        </g>
+      )}
+      <ellipse rx="7.5" ry="8.5" fill={skin} />
+      {!soot && <path d="M-7.5 -2.5 q0 -7 7.5 -7 q7.5 0 7.5 7 q-2.5 -3.5 -7.5 -3.5 q-5 0 -7.5 3.5z" fill={SH.hair} />}
+      <g transform="translate(0 -6.5)">
+        <rect x="-6.2" y="-1.6" width="5" height="3.2" rx="1.4" fill={SH.shades} />
+        <rect x="1.2" y="-1.6" width="5" height="3.2" rx="1.4" fill={SH.shades} />
+      </g>
+      <path d="M-7 1 q0 7.5 7 7.5 q7 0 7 -7.5 q-2 2.5 -7 2.5 q-5 0 -7 -2.5z" fill={soot ? '#2b2622' : SH.beard} />
+      {soot ? (
+        <g>
+          <circle cx="-3" cy="-1.5" r="1.8" fill="#fff" />
+          <circle cx="3" cy="-1.5" r="1.8" fill="#fff" />
+        </g>
+      ) : worried ? (
+        <g>
+          <circle cx="-3" cy="-1.5" r="1.7" fill="#fff" />
+          <circle cx="3" cy="-1.5" r="1.7" fill="#fff" />
+          <circle cx="-3" cy="-1.3" r="0.8" fill="#2b1d14" />
+          <circle cx="3" cy="-1.3" r="0.8" fill="#2b1d14" />
+          <ellipse cx="0" cy="4" rx="2" ry="2.3" fill="#5a1f1a" />
+        </g>
+      ) : (
+        <g>
+          <path d="M-4.5 -1.5 q1.5 -1.4 3 0 M1.5 -1.5 q1.5 -1.4 3 0" stroke="#2b1d14" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+          <path d="M-4 2.2 q4 5 8 0z" fill="#fff" stroke="#5a1f1a" strokeWidth="0.7" />
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** Shai on his mat cycling through yoga poses (downward dog, tree, warrior). */
+export function Shai({ r, c, mood }: { r: number; c: number; mood: 'calm' | 'worried' | 'boom' }) {
+  const soot = mood === 'boom';
+  const skin = soot ? '#5a5048' : SH.skin;
+  const shirt = SH.shirt;
+  const limb = { stroke: skin, strokeWidth: 3.4, strokeLinecap: 'round' as const, fill: 'none' };
+  const legs = { stroke: '#3d4a5c', strokeWidth: 4, strokeLinecap: 'round' as const, fill: 'none' };
+  const still = mood !== 'calm';
+  return (
+    <g transform={`translate(${cx(c)} ${cy(r) + 2})`}>
+      {/* tree pose: standing on one leg, hands together overhead */}
+      <g className={still ? '' : 'gl-pose gl-pose-1'} opacity={still ? 1 : undefined}>
+        <path d="M0 6 L-1 17" {...legs} />
+        <path d="M0 7 L6 11 L1 13" {...legs} />
+        <rect x="-5" y="-4" width="10" height="12" rx="4" fill={shirt} />
+        <path d="M-4 -2 L-6 -12 L0 -19 M4 -2 L6 -12 L0 -19" {...limb} />
+        <g transform="translate(0 -9) scale(0.8)">
+          <ShaiHead soot={soot} worried={mood === 'worried'} />
+        </g>
+      </g>
+      {!still && (
+        <>
+          {/* downward dog: an upside-down V, head between the arms */}
+          <g className="gl-pose gl-pose-2">
+            <path d="M2 -4 L12 12" {...legs} />
+            <path d="M2 -4 L-9 12" {...limb} />
+            <rect x="-3" y="-8" width="9" height="9" rx="3.5" fill={shirt} transform="rotate(30 1 -4)" />
+            <g transform="translate(-6 6) scale(0.7)">
+              <ShaiHead soot={false} worried={false} />
+            </g>
+          </g>
+          {/* warrior: wide lunge, arms stretched out */}
+          <g className="gl-pose gl-pose-3">
+            <path d="M0 6 L-9 11 L-10 17 M0 6 L10 17" {...legs} />
+            <rect x="-5" y="-4" width="10" height="12" rx="4" fill={shirt} />
+            <path d="M-4 -1 H-17 M4 -1 H17" {...limb} />
+            <g transform="translate(0 -9) scale(0.8)">
+              <ShaiHead soot={false} worried={false} />
+            </g>
+          </g>
+        </>
+      )}
+      {mood === 'calm' && (
+        <text x="9" y="-16" fontSize="7" fontFamily="'Bangers', sans-serif" fill="#8a6fb0" className="gl-zzz">
+          om
+        </text>
+      )}
+    </g>
+  );
+}
+
 /** Top-down furniture. */
 export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number; c: number } | null }) {
   const x = X0 + f.c * CELL;
@@ -435,6 +533,26 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
         <g filter="url(#gl-shadow)">
           <rect x={x + 9} y={y + 8} width={w - 18} height={h - 16} rx="4" fill="#9a6b45" stroke="#6b4428" strokeWidth="1.2" />
           <rect x={x + 9} y={y + 8} width={w - 18} height="6" rx="3" fill="#6b4428" />
+        </g>
+      );
+    case 'mat':
+      return (
+        <g filter="url(#gl-shadow)">
+          <rect x={x + 3} y={y + 3} width={w - 6} height={h - 6} rx="5" fill="#9b7fd0" />
+          <rect x={x + 6} y={y + 6} width={w - 12} height={h - 12} rx="3" fill="none" stroke="#b9a3e6" strokeWidth="1.2" strokeDasharray="3 3" />
+        </g>
+      );
+    case 'candle':
+      return (
+        <g>
+          <circle cx={x + w / 2} cy={y + h / 2} r="17" fill="url(#gl-flameglow)" className="gl-glow" />
+          <rect x={x + w / 2 - 6} y={y + h / 2 - 2} width="12" height="12" rx="2.5" fill="#f4ecd8" stroke="#c9b98f" strokeWidth="1" />
+          <ellipse cx={x + w / 2} cy={y + h / 2 - 2} rx="6" ry="2" fill="#fbf6e9" stroke="#c9b98f" strokeWidth="0.8" />
+          <path d={`M${x + w / 2} ${y + h / 2 - 3} v-3`} stroke="#333" strokeWidth="1" />
+          <g className="gl-flame" style={{ transformOrigin: `${x + w / 2}px ${y + h / 2 - 5}px` }}>
+            <path d={`M${x + w / 2} ${y + h / 2 - 16} q6 7 0 11 q-6 -4 0 -11z`} fill="#ffb02e" />
+            <path d={`M${x + w / 2} ${y + h / 2 - 11} q3 4 0 6 q-3 -2 0 -6z`} fill="#fff4b0" />
+          </g>
         </g>
       );
     case 'cabinet':

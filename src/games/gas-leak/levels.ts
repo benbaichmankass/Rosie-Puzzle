@@ -13,26 +13,33 @@ const KINDS: Record<string, FurnitureKind> = {
   c: 'counter',
   l: 'lamp',
   h: 'chair',
+  y: 'mat',
+  Y: 'mat',
+  f: 'candle',
 };
 
 /**
  * Levels are drawn as 7x9 ASCII maps:
  *  . floor   s sofa   B Bentzi on the sofa   t glass coffee table   p plant   a armchair
  *  v TV stand   d Rosie's dog bed   k bookcase   D dining table   c kitchen counter   l floor lamp   h chair
- *  @ ceiling fan (gas passes under it)
+ *  y yoga mat   Y Shai doing yoga on the mat   f Shai's lit candle   @ ceiling fan (gas passes under it)
  * Blocks of the same letter become rectangles of furniture.
  */
-function parse(map: string[]): Pick<Level, 'furniture' | 'ceilingFans' | 'bentzi'> {
+function parse(map: string[]): Pick<Level, 'furniture' | 'ceilingFans' | 'bentzi' | 'shai'> {
   if (map.length !== ROWS || map.some((row) => row.length !== COLS)) throw new Error('bad level map size');
-  const norm = map.map((row) => row.replace(/B/g, 's'));
+  const norm = map.map((row) => row.replace(/B/g, 's').replace(/Y/g, 'y'));
   const used = map.map((row) => Array<boolean>(row.length).fill(false));
   const furniture: Furniture[] = [];
   const ceilingFans: Cell[] = [];
   let bentzi: Cell | null = null;
+  let shaiAt: Cell | null = null;
+  let candle: Cell | null = null;
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++) {
       const ch = map[r][c];
       if (ch === 'B') bentzi = { r, c };
+      if (ch === 'Y') shaiAt = { r, c };
+      if (ch === 'f') candle = { r, c };
       if (ch === '@') ceilingFans.push({ r, c });
       const k = norm[r][c];
       if (!KINDS[k] || used[r][c]) continue;
@@ -47,8 +54,9 @@ function parse(map: string[]): Pick<Level, 'furniture' | 'ceilingFans' | 'bentzi
       for (let rr = r; rr < r + h; rr++) for (let cc = c; cc < c + w; cc++) used[rr][cc] = true;
       furniture.push({ kind: KINDS[k], r, c, w, h });
     }
-  if (!bentzi) throw new Error('level has no Bentzi');
-  return { furniture, ceilingFans, bentzi };
+  if (!!shaiAt !== !!candle) throw new Error('Shai and his candle come together');
+  if (!bentzi && !shaiAt) throw new Error('level has nobody to protect');
+  return { furniture, ceilingFans, bentzi, shai: shaiAt && candle ? { at: shaiAt, candle } : null };
 }
 
 const ALL = { window: true, door: true, acWindow: true };
@@ -56,7 +64,7 @@ const DOOR = { window: false, door: true, acWindow: false };
 const TOP = { window: true, door: false, acWindow: false };
 const ACW = { window: false, door: false, acWindow: true };
 
-export interface Draft extends Omit<Level, 'furniture' | 'ceilingFans' | 'bentzi' | 'source'> {
+export interface Draft extends Omit<Level, 'furniture' | 'ceilingFans' | 'bentzi' | 'shai' | 'source'> {
   map: string[];
 }
 

@@ -11,6 +11,9 @@ import {
   acCell,
   canPlace,
   dangerCells,
+  flameAt,
+  flames,
+  type Flame,
   parSeconds,
   solidGrid,
   startLive,
@@ -23,7 +26,7 @@ import {
   type LiveState,
   type Strength,
 } from './sim';
-import { Bentzi, Boom, CELL, CeilingFan, Defs, DirIcon, ExitWhoosh, FanSprite, FurniturePiece, GasPuff, Room, SofaSet, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
+import { Bentzi, Boom, CELL, CeilingFan, Defs, DirIcon, ExitWhoosh, FanSprite, FurniturePiece, GasPuff, Room, Shai, SofaSet, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
 import { sfx, startHiss, stopHiss } from './sound';
 
 type Phase = 'countdown' | 'flowing' | 'pooling' | 'won' | 'boom';
@@ -65,6 +68,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
   const [poolStep, setPoolStep] = useState(0);
   const [result, setResult] = useState<{ seconds: number; stars: number; newBest: boolean } | null>(null);
   const [run, setRun] = useState(0); // bumps on retry
+  const [hit, setHit] = useState<Flame | null>(null);
   const [blocked, setBlocked] = useState<{ r: number; c: number; n: number; why: string } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const cb = useRef({ onCleared, bestTime });
@@ -144,6 +148,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               return;
             }
             if (ns.outcome === 'boom') {
+              setHit(ns.hit ?? null);
               stopHiss();
               sfx.boom();
               buzz();
@@ -151,7 +156,10 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               return;
             }
             if (ns.outcome === 'burst') {
-              setPool(poolRings(ns.trail, solid, danger));
+              const rings = poolRings(ns.trail, solid, danger);
+              const last = rings[rings.length - 1] ?? [];
+              setHit(last.map((p) => flameAt(level, p.r, p.c, solid)).find((f) => f) ?? flames(level)[0]?.who ?? null);
+              setPool(rings);
               setPoolStep(0);
               setPhase('pooling');
               return;
@@ -266,6 +274,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
     setPool([]);
     setPoolStep(0);
     setResult(null);
+    setHit(null);
     setPhase('countdown');
     setRun((n) => n + 1);
   };
@@ -287,8 +296,11 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
     return out.reverse();
   }, [live.trail, head.r, head.c]);
   const poolShown = pool.slice(0, poolStep).flat();
-  const nearBentzi = Math.abs(head.r - level.bentzi.r) + Math.abs(head.c - level.bentzi.c) <= 3;
-  const mood = phase === 'boom' ? 'boom' : phase === 'won' ? 'relieved' : phase === 'pooling' || (phase === 'flowing' && (nearBentzi || pressure >= 3)) ? 'worried' : 'chill';
+  const near = (p: Cell | null | undefined) => !!p && Math.abs(head.r - p.r) + Math.abs(head.c - p.c) <= 3;
+  const tense = phase === 'pooling' || (phase === 'flowing' && pressure >= 3);
+  const mood = phase === 'boom' ? 'boom' : phase === 'won' ? 'relieved' : tense || (phase === 'flowing' && near(level.bentzi)) ? 'worried' : 'chill';
+  const shaiMood = phase === 'boom' ? 'boom' : tense || (phase === 'flowing' && near(level.shai?.candle)) ? 'worried' : 'calm';
+  const boomAt = hit === 'shai' && level.shai ? level.shai.candle : level.bentzi ?? level.shai?.candle ?? null;
   const leaking = phase !== 'countdown';
   const headMs = Math.min(900, tickMs(level, live.ticks));
   const seeping = leaking && live.ticks < 3 && live.trail.length === 1;
@@ -301,7 +313,8 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
       if (f.kind === 'sofa')
         for (let r = f.r; r < f.r + f.h; r++)
           for (let c = f.c; c < f.c + f.w; c++) {
-            const d = Math.abs(r - level.bentzi.r) + Math.abs(c - level.bentzi.c);
+            const b = level.bentzi ?? { r: -9, c: -9 };
+            const d = Math.abs(r - b.r) + Math.abs(c - b.c);
             if (d > bestD) {
               bestD = d;
               bestCell = { r, c };
@@ -359,7 +372,8 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               <path d="M-8 -8 L8 8 M8 -8 L-8 8" stroke="#c0392b" strokeWidth="4.5" strokeLinecap="round" />
             </g>
           )}
-          <Bentzi r={level.bentzi.r} c={level.bentzi.c} mood={mood} />
+          {level.bentzi && <Bentzi r={level.bentzi.r} c={level.bentzi.c} mood={mood} />}
+          {level.shai && <Shai r={level.shai.at.r} c={level.shai.at.c} mood={shaiMood} />}
           {level.ac && <FanSprite r={acCell().r} c={acCell().c} dir={level.ac.dir} s={level.ac.s} fixed spinning />}
           {trail.map(({ p, i }, n) => (
             <g key={`t${p.r},${p.c}`} opacity={0.45 + (0.5 * (n + 1)) / trail.length}>
@@ -389,7 +403,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               <CeilingFan r={f.r} c={f.c} />
             </g>
           ))}
-          {phase === 'boom' && <Boom r={level.bentzi.r} c={level.bentzi.c} />}
+          {phase === 'boom' && boomAt && <Boom r={boomAt.r} c={boomAt.c} />}
         </svg>
         {phase === 'countdown' && (
           <div className="gl-countdown" key={count}>
@@ -429,7 +443,13 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
         {phase === 'boom' && (
           <div className="gl-card gl-card-low">
             <div className="gl-text">
-              {live.outcome === 'boom' ? 'The gas reached Bentzi and his joint.' : 'The gas got stuck, filled the room and found his joint.'}
+              {live.outcome === 'boom'
+                ? hit === 'shai'
+                  ? "The gas reached Shai's candle. Namaste… BOOM."
+                  : 'The gas reached Bentzi and his joint.'
+                : hit === 'shai'
+                  ? "The gas got stuck, filled the room and found Shai's candle."
+                  : 'The gas got stuck, filled the room and found his joint.'}
             </div>
             <div className="gl-text gl-small">
               Level {level.id} · Best: <b>{best}</b> {best === 1 ? 'level' : 'levels'} cleared
@@ -524,6 +544,8 @@ const FURNITURE_NAME: Record<string, string> = {
   counter: 'kitchen counter',
   lamp: 'floor lamp',
   chair: 'chair',
+  mat: 'yoga mat',
+  candle: "Shai's candle",
 };
 
 /** Short rumble on phones that support it. */
