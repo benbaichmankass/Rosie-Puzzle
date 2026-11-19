@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { braidRows, isComplete, legalMoves, ruleText, span, tryMove, type BraidState } from './logic/challah';
+import React, { useEffect, useRef, useState } from 'react';
+import { braidRows, isComplete, legalMoves, resolveDrop, ruleText, span, tryMove, type BraidState } from './logic/challah';
 import { INK, P } from './art';
 import { sfx } from './sfx';
 
@@ -36,7 +36,8 @@ function StrandSeg({ d, baked, hi = true, overlay = false }: { d: string; baked:
 
 export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; onChange: (b: BraidState) => void; showHint: boolean }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [drag, setDrag] = useState<{ from: number; x: number; y: number } | null>(null);
+  const [drag, setDrag] = useState<{ from: number; x: number; y: number; x0: number } | null>(null);
+  const [flash, setFlash] = useState<{ x: number; y: number; ok: boolean; key: number } | null>(null);
   const [msg, setMsg] = useState<string>(ruleText(braid.n));
   const [shake, setShake] = useState(0);
   const [hintOn, setHintOn] = useState(false);
@@ -95,72 +96,83 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
   }
   for (const s of order) {
     const { ex, ey } = paths.get(s)!;
-    segs.push(<circle key={`tip-${s}`} cx={ex} cy={ey} r={STRAND / 2 + 1} fill={done ? P.baked : P.dough} stroke={INK} strokeWidth={3} />);
+    if (done) segs.push(<circle key={`tip-${s}`} cx={ex} cy={ey} r={STRAND / 2 + 1} fill={P.baked} stroke={INK} strokeWidth={3} />);
   }
 
   const moves = legalMoves(braid);
   const hint = (showHint || hintOn) && !done && !drag ? moves[0] : null;
+  const hintStrand = hint ? last[hint.from] : -1;
 
-  const onDown = (pos: number) => (e: React.PointerEvent) => {
+  // After a few idle seconds, show the next correct move.
+  useEffect(() => {
+    if (done) return;
+    setHintOn(false);
+    const t = setTimeout(() => setHintOn(true), 3000);
+    return () => clearTimeout(t);
+  }, [braid.crosses.length, braid.mistakes, done]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 700);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const startDrag = (pos: number) => (e: React.PointerEvent) => {
     if (done || !svgRef.current) return;
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+    svgRef.current.setPointerCapture?.(e.pointerId);
     const p = svgPoint(svgRef.current, e);
-    setDrag({ from: pos, x: p.x, y: p.y });
+    setDrag({ from: pos, x: p.x, y: p.y, x0: p.x });
     sfx.tap();
   };
   const onMove = (e: React.PointerEvent) => {
     if (!drag || !svgRef.current) return;
     const p = svgPoint(svgRef.current, e);
-    setDrag({ ...drag, x: Math.max(16, Math.min(W - 16, p.x)), y: Math.max(40, Math.min(rowY(K) - 20, p.y)) });
+    setDrag({ ...drag, x: Math.max(16, Math.min(W - 16, p.x)), y: Math.max(30, Math.min(rowY(K) - 24, p.y)) });
   };
   const onUp = () => {
     if (!drag) return;
-    let to = 0;
-    let best = Infinity;
-    for (let i = 0; i < n; i++) {
-      const d = Math.abs(fx(i) - drag.x);
-      if (d < best) {
-        best = d;
-        to = i;
-      }
-    }
+    const d = drag;
     setDrag(null);
-    if (to === drag.from) return;
-    const r = tryMove(braid, drag.from, to);
+    const to = resolveDrop(braid, d.from, (d.x - d.x0) / fsp);
+    if (to === null || to === d.from) return;
+    const r = tryMove(braid, d.from, to);
     if (r.ok) {
       sfx.braid();
-      setHintOn(false);
+      setFlash({ x: fx(to), y: TOP_Y, ok: true, key: Date.now() });
       const left = r.state.target - r.state.crosses.length;
-      setMsg(left === 0 ? 'Beautiful braid!' : `${left} more cross${left === 1 ? '' : 'es'}`);
+      setMsg(left === 0 ? 'Beautiful braid!' : `Nice! ${left} more cross${left === 1 ? '' : 'es'}.`);
       if (left === 0) sfx.done();
       onChange(r.state);
     } else {
       sfx.wrong();
-      setShake((s) => s + 1);
+      setFlash({ x: d.x, y: d.y, ok: false, key: Date.now() });
+      setShake((v) => v + 1);
       setHintOn(true);
       const k = span(n);
       const reason = (r as { reason: string }).reason;
       setMsg(
         reason === 'not-outer'
-          ? 'Only an OUTSIDE strand can cross.'
+          ? 'Grab an OUTSIDE strand (left or right end).'
           : reason === 'wrong-side'
-            ? 'Other side now! Alternate left and right.'
-            : `Over ${k === 1 ? 'the middle one' : `${k} strands`}, into the middle.`,
+            ? 'Now the other side! Alternate left and right.'
+            : `Drag it over ${k === 1 ? 'the middle strand' : `${k} strands`}, toward the middle.`,
       );
       onChange(r.state);
     }
   };
 
+  const zoneW = Math.min(fsp, 120);
   return (
     <div className="flex flex-col items-center h-full">
       <div className={`sh-msg ${shake ? 'sh-shake' : ''}`} key={shake}>
-        {msg}
+        {hint && hintOn ? `Hint: drag the glowing ${hint.side === 'R' ? 'right' : 'left'} strand over toward the middle.` : msg}
       </div>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="w-full flex-1 touch-none select-none"
-        style={{ maxHeight: '100%' }}
+        style={{ maxHeight: '100%', touchAction: 'none' }}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={() => setDrag(null)}
@@ -171,9 +183,6 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
         {[110, 190, 270, 340].map((y) => (
           <path key={y} d={`M 40 ${y} q 60 -8 130 0 t 150 2`} stroke={P.woodDark} strokeWidth={2} fill="none" opacity={0.35} />
         ))}
-        <circle cx={W / 2} cy={30} r={10} fill={P.wood} stroke={INK} strokeWidth={3} />
-        <circle cx={W / 2} cy={30} r={4} fill={INK} />
-        {/* flour dusting */}
         {[
           [70, 380],
           [290, 360],
@@ -184,33 +193,66 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
         ].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={6 + (i % 3) * 3} fill="#fff8ea" opacity={0.35} />
         ))}
-        {/* slot markers along the top */}
-        {Array.from({ length: n }, (_, i) => (
-          <circle key={i} cx={fx(i)} cy={TOP_Y} r={STRAND / 2 + 7} fill="#000" opacity={drag ? 0.12 : 0.06} />
-        ))}
+        {/* glow under the strand to move next */}
+        {hintStrand >= 0 && (
+          <path d={paths.get(hintStrand)!.d} stroke="#fff27a" strokeWidth={STRAND + 24} fill="none" strokeLinecap="round" opacity={0.95} className="sh-pulse" pointerEvents="none" />
+        )}
         {segs}
         {/* knot where the strands are joined */}
         <ellipse cx={W / 2} cy={KNOT_Y - 8} rx={bsp * (n - 1) / 2 + 16} ry={14} fill={done ? P.baked : P.dough} stroke={INK} strokeWidth={3} />
         <path d={`M ${W / 2 - bsp * (n - 1) / 2 - 4} ${KNOT_Y - 10} q ${bsp * (n - 1) / 2 + 4} 8 ${bsp * (n - 1) + 8} 0`} stroke={done ? P.bakedHi : P.doughHi} strokeWidth={4} fill="none" />
+        {/* grab knobs on each strand end */}
+        {!done &&
+          order.map((s2) => {
+            const { ex, ey } = paths.get(s2)!;
+            const pos = posOf(last, s2);
+            const outer = pos === 0 || pos === n - 1;
+            return (
+              <g key={`knob-${s2}`} pointerEvents="none">
+                <circle cx={ex} cy={ey} r={16} fill={P.dough} stroke={INK} strokeWidth={3} />
+                <path d={`M ${ex - 6} ${ey - 4} h 12 M ${ex - 6} ${ey} h 12 M ${ex - 6} ${ey + 4} h 12`} stroke={P.woodDark} strokeWidth={2} strokeLinecap="round" />
+                {outer && <circle cx={ex} cy={ey} r={21} fill="none" stroke="#fff" strokeWidth={2.5} opacity={0.8} />}
+              </g>
+            );
+          })}
         {hint && (
           <g className="sh-pulse" pointerEvents="none">
-            <circle cx={fx(hint.from)} cy={TOP_Y} r={22} fill="none" stroke="#fff" strokeWidth={4} strokeDasharray="6 5" />
             <path
-              d={`M ${fx(hint.from)} ${TOP_Y - 28} Q ${(fx(hint.from) + fx(hint.to)) / 2} ${TOP_Y - 62} ${fx(hint.to)} ${TOP_Y - 28}`}
+              d={`M ${fx(hint.from)} ${TOP_Y - 26} Q ${(fx(hint.from) + fx(hint.to)) / 2} ${TOP_Y - 64} ${fx(hint.to)} ${TOP_Y - 26}`}
               stroke="#fff"
-              strokeWidth={4}
+              strokeWidth={5}
               fill="none"
               strokeLinecap="round"
             />
-            <path d={`M ${fx(hint.to)} ${TOP_Y - 22} l -8 -12 l 16 0 z`} fill="#fff" />
+            <path d={`M ${fx(hint.to)} ${TOP_Y - 18} l -10 -14 l 20 0 z`} fill="#fff" />
           </g>
         )}
-        {/* touch targets */}
+        {flash && (
+          <g key={flash.key} pointerEvents="none" className="sh-burst">
+            <circle cx={flash.x} cy={flash.y} r={28} fill="none" stroke={flash.ok ? P.green : P.red} strokeWidth={6} />
+            {flash.ok ? (
+              <path d={`M ${flash.x - 10} ${flash.y} l 7 7 l 13 -14`} stroke={P.green} strokeWidth={6} fill="none" strokeLinecap="round" />
+            ) : (
+              <path d={`M ${flash.x - 9} ${flash.y - 9} l 18 18 M ${flash.x + 9} ${flash.y - 9} l -18 18`} stroke={P.red} strokeWidth={6} strokeLinecap="round" />
+            )}
+          </g>
+        )}
+        {/* forgiving touch targets: a tall column over each free strand end */}
         {!done &&
           Array.from({ length: n }, (_, i) => (
-            <circle key={i} cx={fx(i)} cy={TOP_Y} r={30} fill="transparent" style={{ cursor: 'grab' }} onPointerDown={onDown(i)} />
+            <rect
+              key={i}
+              data-strand-handle={i}
+              x={fx(i) - zoneW / 2}
+              y={TOP_Y - 44}
+              width={zoneW}
+              height={Math.max(90, rowY(K) - TOP_Y + 20)}
+              fill="transparent"
+              style={{ cursor: drag ? 'grabbing' : 'grab' }}
+              onPointerDown={startDrag(i)}
+            />
           ))}
-        <text x={W / 2} y={H - 2} textAnchor="middle" className="sh-small" fill={P.cream}>
+        <text x={W / 2} y={H - 2} textAnchor="middle" className="sh-small" fill={P.cream} data-braid-progress>
           {done ? 'Braided!' : `${braid.crosses.length} / ${braid.target}`}
         </text>
       </svg>

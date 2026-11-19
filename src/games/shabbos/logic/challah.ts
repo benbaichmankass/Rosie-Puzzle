@@ -110,3 +110,18 @@ export function ruleText(n: number): string {
     ? 'Outside strand over the middle one. Alternate sides.'
     : `Outside strand over ${k} strands toward the middle. Alternate sides.`;
 }
+
+/**
+ * Forgiving drop: turns a drag of the strand at `from` by `dx` (in slot widths, + = rightward)
+ * into a target position. Any clear inward drag of an outside strand means "cross it over toward
+ * the middle", however far past the middle the finger ends up. Returns null for tiny drags.
+ */
+export function resolveDrop(s: BraidState, from: number, dxSlots: number): number | null {
+  if (Math.abs(dxSlots) < 0.35) return null;
+  const n = s.n;
+  if (from === n - 1 && dxSlots < 0) return moveFor(n, 'R').to;
+  if (from === 0 && dxSlots > 0) return moveFor(n, 'L').to;
+  // Inner strand, or an outer strand dragged outward: nearest slot (tryMove will explain why it's wrong).
+  const to = Math.max(0, Math.min(n - 1, from + Math.round(dxSlots)));
+  return to === from ? (dxSlots > 0 ? Math.min(n - 1, from + 1) : Math.max(0, from - 1)) : to;
+}
