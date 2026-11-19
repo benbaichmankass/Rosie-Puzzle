@@ -1,7 +1,7 @@
 /**
  * Computer players (also used by scripts/check-yard-race.ts as simulated humans). Pure TS.
  */
-import { BUNNY_COST, TUNING, brakeDistance, type Input, type Racer } from './sim';
+import { BUNNY_COST, brakeDistance, type Input, type Racer } from './sim';
 import { FOOD, LAP, foodAt, nextFood } from './track';
 
 export type Rng = () => number;
@@ -24,34 +24,26 @@ export interface Brain {
 // ---------------------------------------------------------------- turtle
 
 export interface TurtleSkill {
-  /** Tap rate as a multiple of the ideal steady pace. */
-  pace: number;
-  /** Random timing wobble of each tap, as a fraction of the interval. */
+  /** Average taps per second. */
+  rate: number;
+  /** Irregular rhythm: each gap between taps varies by up to this fraction either way. */
   jitter: number;
-  /** Seconds of rest taken every `restEvery` seconds (a lazy player). */
-  rest?: number;
-  restEvery?: number;
-  /** Speeds up when it has spare energy and eases off when the tank runs low (a thinking player). */
-  adaptive?: boolean;
+  /** Short hesitations: on average one every `pauseEvery` seconds, lasting up to `pauseLen` seconds. */
+  pauseEvery?: number;
+  pauseLen?: number;
+  /** Tiring thumb: the tap rate drops by this fraction by the end of the lap. */
+  fatigue?: number;
 }
 
 export function turtleBrain(skill: TurtleSkill, rng: Rng): Brain {
   let next = 0;
   return {
     input(r, t) {
-      if (skill.rest && skill.restEvery && t % skill.restEvery > skill.restEvery - skill.rest) {
-        next = t + 0.05;
-        return { hold: false, taps: 0 };
-      }
       if (t < next) return { hold: false, taps: 0 };
-      let pace = skill.pace;
-      if (skill.adaptive) {
-        // ideal: energy left matches the share of the lap left
-        const want = 1 - r.s / LAP;
-        pace *= 1 + Math.max(-0.08, Math.min(0.08, (r.energy - want) * 0.8));
-      }
-      const iv = 1 / (TUNING.turtlePace * pace);
-      next = Math.max(next, t - iv) + iv * (1 + (rng() * 2 - 1) * skill.jitter);
+      const rate = skill.rate * (1 - (skill.fatigue ?? 0) * Math.min(1, r.s / LAP));
+      let gap = (1 / rate) * (1 + (rng() * 2 - 1) * skill.jitter);
+      if (skill.pauseEvery && skill.pauseLen && rng() < gap / skill.pauseEvery) gap += rng() * skill.pauseLen;
+      next = Math.max(next, t - 1 / rate) + gap;
       return { hold: false, taps: 1 };
     },
   };
@@ -70,6 +62,8 @@ export interface BunnySkill {
   aimErr: number;
   /** Seconds of reaction delay when leaving a food spot. */
   react: number;
+  /** Human-like misjudgement of how much to eat: leaves with up to this much energy more or less than planned. */
+  sloppy?: number;
 }
 
 /** A careless bunny: runs until nearly empty, then stops wherever it is, eats until full. */
@@ -139,6 +133,7 @@ export function bunnyBrain(skill: BunnySkill | CarelessSkill, rng: Rng): Brain {
         if (!wasStopped) {
           wasStopped = true;
           leaveAt = fuelFor(r.food, r.s);
+          if (skill.sloppy) leaveAt = Math.min(0.995, Math.max(0.05, leaveAt + (rng() * 2 - 1) * skill.sloppy));
           leaveDelay = skill.react * (0.5 + rng());
         }
         if (r.energy >= leaveAt) {
@@ -175,4 +170,10 @@ export function bunnyBrain(skill: BunnySkill | CarelessSkill, rng: Rng): Brain {
 
 /** The good-player profile used for balance and the strongest computer opponent. */
 export const GOOD_BUNNY: BunnySkill = { margin: 0.04, look: 1, fill: 0, aimErr: 8, react: 0.15 };
-export const GOOD_TURTLE: TurtleSkill = { pace: 1, jitter: 0.12, adaptive: true };
+/** A keen human tapper: about 5.5 taps a second, uneven rhythm, the odd hesitation, tiring a little. */
+export const GOOD_TURTLE: TurtleSkill = { rate: 5.5, jitter: 0.35, pauseEvery: 8, pauseLen: 0.4, fatigue: 0.1 };
+
+/** Computer bunny: plans like a good player but misjudges stops and meals like a human (eats too long or too short). */
+export const CPU_BUNNY: BunnySkill = { margin: 0.04, look: 1, fill: 0, aimErr: 12, react: 0.35, sloppy: 0.12 };
+/** Computer turtle: a keen human-like tapper. */
+export const CPU_TURTLE: TurtleSkill = { rate: 5.6, jitter: 0.3, pauseEvery: 9, pauseLen: 0.35, fatigue: 0.08 };

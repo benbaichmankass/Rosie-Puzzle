@@ -1,9 +1,10 @@
 /**
  * Turtle vs Bunny race simulation. Pure TS (no DOM) so scripts/check-yard-race.ts can run it.
  *
- * Turtle: TAP to take a step. Every step gives a shove of speed that fades; energy burns with speed squared,
- * so a steady rhythm goes furthest per unit of energy. The tank holds exactly one lap at the steady pace
- * (TUNING.turtlePace taps a second). Rushing empties it early and the last stretch is a weary crawl.
+ * Turtle: TAP to take steps. Every step gives a shove of speed that quickly fades, up to a top speed, so the
+ * faster and steadier you tap, the faster it goes. Its energy bar is a lap gauge: energy is spent per distance
+ * walked, and the tank holds exactly one lap, so the turtle never runs out (Ben: "the turtle has enough energy to
+ * make one full circle"). The challenge is keeping up a fast rhythm for the whole lap.
  *
  * Bunny: HOLD to run, much faster than the turtle, but the tank only lasts about a quarter of a lap.
  * Let go inside a food spot to stop and eat: energy refills, fastest when the tank is low. Let go anywhere else
@@ -13,11 +14,11 @@ import { FOOD, LAP, foodAt } from './track';
 
 export const TUNING = {
   // turtle
-  turtleShove: 20, // speed added by one step (world units / s)
-  turtleTau: 0.55, // seconds for the speed to fade by 1/e
-  turtleMax: 60, // speed cap
-  turtlePace: 2.6, // taps per second of the ideal steady rhythm
-  turtleCrawl: 7, // speed cap once the tank is empty
+  turtleMax: 31.4, // top speed (world units / s), approached as the tap rate rises
+  turtleRate0: 2.6, // tap rate scale of the speed curve: speed = max * (1 - exp(-rate / rate0))
+  turtleBeat: 0.35, // how quickly the felt tap rate follows each new tap (0..1)
+  turtleEase: 0.25, // seconds for the speed to catch up with the tap rate
+  turtlePace: 6, // a brisk tapping rate (taps per second); used for hints and the walk animation
   // bunny
   bunnySpeed: 74,
   bunnyAccel: 320,
@@ -43,6 +44,7 @@ export interface Racer {
   finished: boolean;
   finishT: number;
   steps: number; // turtle step counter (animation)
+  beat: number; // turtle: smoothed taps per second
   lastStep: number; // time of the last step
   food: number; // food spot being eaten, -1 if none
   eaten: number; // total energy eaten (stats)
@@ -61,7 +63,6 @@ export type RaceEvent =
   | { type: 'eat-stop'; who: number }
   | { type: 'flop'; who: number }
   | { type: 'up'; who: number }
-  | { type: 'tired'; who: number }
   | { type: 'finish'; who: number; first: boolean };
 
 export interface Race {
@@ -72,62 +73,36 @@ export interface Race {
   winner: number; // index into racers, -1 until someone finishes
 }
 
-/** Turtle energy burned per second at speed v. */
-const turtleK = { k: 1 };
-
-/**
- * Calibrates the turtle's burn so a perfectly steady tapper at TUNING.turtlePace ends the lap with an
- * (almost) empty tank: "exactly enough energy for one lap".
- */
-function calibrateTurtle() {
-  turtleK.k = 1;
-  const dt = 1 / 120;
-  const r = newRacer('turtle');
-  r.energy = 1e9;
-  let t = 0;
-  let next = 0;
-  let burned = 0;
-  while (r.s < LAP && t < 600) {
-    let taps = 0;
-    if (t >= next) {
-      taps = 1;
-      next += 1 / TUNING.turtlePace;
-    }
-    const before = r.energy;
-    stepTurtle(r, dt, taps, t, null, 0);
-    burned += before - r.energy;
-    t += dt;
-  }
-  turtleK.k = 1 / (burned * 1.015);
-}
-
 export function newRacer(kind: Kind): Racer {
-  return { kind, s: 0, v: 0, energy: 1, state: 'run', timer: 0, finished: false, finishT: 0, steps: 0, lastStep: -9, food: -1, eaten: 0 };
+  return { kind, s: 0, v: 0, energy: 1, state: 'run', timer: 0, finished: false, finishT: 0, steps: 0, beat: 0, lastStep: -9, food: -1, eaten: 0 };
 }
 
 export function createRace(kinds: Kind[] = ['turtle', 'bunny']): Race {
   return { t: 0, racers: kinds.map(newRacer), events: [], over: false, winner: -1 };
 }
 
+/** Turtle speed for a given tap rate. */
+export function turtleSpeedAt(rate: number): number {
+  return TUNING.turtleMax * (1 - Math.exp(-Math.max(0, rate) / TUNING.turtleRate0));
+}
+
 function stepTurtle(r: Racer, dt: number, taps: number, t: number, ev: RaceEvent[] | null, who: number) {
   const T = TUNING;
   if (taps > 0) {
-    for (let i = 0; i < taps; i++) r.v = Math.min(T.turtleMax, r.v + T.turtleShove);
+    const gap = Math.max(1 / 14, t - r.lastStep);
+    const inst = r.lastStep < 0 ? 3 : Math.min(14, 1 / gap);
+    r.beat += (inst - r.beat) * T.turtleBeat;
     r.steps += taps;
     r.lastStep = t;
     ev?.push({ type: 'step', who });
   }
-  r.v *= Math.exp(-dt / T.turtleTau);
-  if (r.energy <= 0) r.v = Math.min(r.v, T.turtleCrawl);
-  const burn = turtleK.k * r.v * r.v * dt;
-  if (r.energy > 0) {
-    r.energy -= burn;
-    if (r.energy <= 0) {
-      r.energy = 0;
-      ev?.push({ type: 'tired', who });
-    }
-  }
+  // stop tapping and the felt rate falls away
+  const rate = Math.min(r.beat, 1 / Math.max(1e-3, t - r.lastStep));
+  const target = turtleSpeedAt(rate);
+  r.v += (target - r.v) * Math.min(1, dt / T.turtleEase);
   r.s += r.v * dt;
+  // lap gauge: one tank = one lap, spent per distance, so it can never run out before the line
+  r.energy = Math.max(0, 1 - r.s / LAP);
 }
 
 /** Energy one unit of bunny running costs. */
@@ -233,4 +208,3 @@ export const progress = (r: Racer) => Math.min(1, r.s / LAP);
 
 export { FOOD, LAP };
 
-calibrateTurtle();
