@@ -8,40 +8,41 @@
  * so no cell can go negative. Mass is conserved apart from shower inflow and drain outflow.
  */
 
-export const N = 64; // floor cells
+export const N = 64; // floor cells (about 3.3 cm each)
 export const DRAIN_CELLS = [1, 2, 3];
-export const SPRAY_FROM = 6;
-export const FLAT_FROM = 46; // low flat section under the vanity starts here
-export const VANITY_FROM = 50; // player cannot walk past this
-export const SLOPE_TOP = 10; // floor elevation at the shower end (cm)
-/** Water-surface elevation (cm above the low floor) at which each shelf is flooded: bottom, middle, top. */
-export const SHELF_LEVELS = [1.6, 4.4, 7.2] as const;
+export const SPRAY_FROM = 4;
+export const CART_FROM = 50; // the trolley stands on cells CART_FROM.. (player can't walk there)
+export const SLOPE_DROP = 13; // the floor falls this many cm from the shower end to the sink end
+/** Water-surface height (cm above the lowest floor) at which each trolley tray floods: bottom, middle, top. */
+export const SHELF_LEVELS = [12, 40, 68] as const;
+export const BLADE_OFF = 9; // the squeegee blade rests this many cells in front of Bentzi's feet
 
 /** Tunable numbers (the check script and tuning runs may tweak them). */
 export const T = {
   G: 30,
   DAMP: 6, // bed friction strength
-  FRICTION_H: 0.5, // depth (cm) at which friction halves
-  DRAIN_K: 2.2, // outflow per cm of depth per drain cell (units/s)
-  DRAIN_CAP: 2.5, // max outflow per drain cell (units/s) when unclogged
-  INFLOW0: 4.6, // shower units/s at t=0
-  INFLOW_RAMP: 0.007, // inflow grows by this fraction of INFLOW0 per second
+  FRICTION_H: 1, // depth (cm) at which friction halves
+  DRAIN_K: 1, // outflow per cm of depth per drain cell (units/s)
+  DRAIN_CAP: 3, // passive outflow cap per drain cell (units/s) when unclogged
+  INFLOW0: 55, // shower units/s at t=0
+  INFLOW_RAMP: 0.006, // inflow grows by this fraction of INFLOW0 per second
   SWING_GRAB: 4, // cells downhill of the blade that are scooped
   SWING_FRACTION: 0.7,
   THROW_V0: 30, // initial uphill speed of a swung wave (cells/s)
-  THROW_DECEL: 30, // how fast the wave slows (cells/s^2): range = V0^2 / (2 * DECEL)
-  SWING_CAP: 2.6, // most water one stroke can carry (units)
-  ROLL_DRIFT: 1.2, // cells/s a soggy roll creeps toward the drain
+  THROW_DECEL: 22.5, // how fast the wave slows (cells/s^2): range = V0^2 / (2 * DECEL)
+  SWING_CAP: 16, // most water one stroke can carry (units)
+  FORCE_DRAIN: 16, // how much of a wave that hits the drain goes straight down it (unclogged)
+  ROLL_DRIFT: 2, // cells/s a soggy roll creeps toward the drain
   WALK_SPEED: 11, // cells per second
-  SPRAY_TO: 28,
+  SPRAY_TO: 26,
 };
 
 const MAX_SUB_DT = 1 / 240;
 
 export const SWING_COOLDOWN = 0.32;
 
-export const MIN_X = 4;
-export const MAX_X = VANITY_FROM - 2;
+export const MIN_X = BLADE_OFF + 1;
+export const MAX_X = CART_FROM - 1;
 
 export interface Roll {
   x: number; // cell position (float)
@@ -85,12 +86,11 @@ export interface State {
 export function makeBed(): Float64Array {
   const b = new Float64Array(N);
   for (let i = 0; i < N; i++) {
-    let z: number;
-    if (i >= FLAT_FROM) z = 0;
-    else z = SLOPE_TOP * (1 - i / FLAT_FROM);
-    // a little dip at the drain so water that reaches it stays there
-    if (DRAIN_CELLS.includes(i)) z -= 0.9;
-    if (i === 0) z -= 0.4;
+    // a gentle, even fall from the shower to the sink
+    let z = SLOPE_DROP * (1 - i / (N - 1));
+    // a small dip at the drain so water that reaches it stays there
+    if (DRAIN_CELLS.includes(i)) z -= 2.5;
+    if (i === 0) z -= 1;
     b[i] = z;
   }
   return b;
@@ -159,7 +159,7 @@ export function velocityAt(s: State, x: number): number {
 }
 
 function doSwing(s: State): void {
-  const blade = Math.round(s.px) - 1; // blade sits just uphill of the feet
+  const blade = Math.max(0, Math.round(s.px) - BLADE_OFF); // the blade is out in front, toward the shower
   // scoop water from the blade and a bit downhill of it (the blade only holds so much)
   let avail = 0;
   const lo = Math.max(0, blade), hi = Math.min(N - 1, blade + T.SWING_GRAB);
@@ -190,8 +190,11 @@ function slugsStep(s: State, dt: number): void {
     g.v += T.THROW_DECEL * dt;
     g.x += g.v * dt;
     if (g.x <= drainEdge) {
-      // reached the drain corner: pour into the drain dip
-      for (const i of DRAIN_CELLS) s.h[i] += g.vol / DRAIN_CELLS.length;
+      // reached the drain: the wave forces most of itself down the grate (less when clogged),
+      // the rest pools in the drain dip
+      const forced = Math.min(g.vol, T.FORCE_DRAIN * drainFactor(s));
+      s.drained += forced;
+      for (const i of DRAIN_CELLS) s.h[i] += (g.vol - forced) / DRAIN_CELLS.length;
       g.vol = 0;
     } else if (g.v >= 0) {
       deposit(s, g.x, g.vol);
@@ -256,7 +259,7 @@ function playerStep(s: State, input: Input, dt: number): void {
   } else {
     // soapy: weak grip, slide downhill, overshoot
     s.pv += (target * 1.15 - s.pv) * Math.min(1, dt * 2.2);
-    s.pv += 1.8 * dt; // gravity on the slope pulls toward the sink
+    s.pv += 0.8 * dt; // the slope still nudges him toward the sink
   }
   s.px += s.pv * dt;
   if (s.px < MIN_X) { s.px = MIN_X; s.pv = slippery ? Math.abs(s.pv) * 0.3 : 0; }
@@ -333,7 +336,7 @@ export function throwRange(): number {
  * possible. When the pool under the sink gets deep it runs down and flings that water up too.
  */
 export function botInput(s: State): Input {
-  const camp = Math.floor(DRAIN_CELLS[DRAIN_CELLS.length - 1] + 1 + throwRange());
+  const camp = Math.floor(DRAIN_CELLS[DRAIN_CELLS.length - 1] + throwRange() + BLADE_OFF - 6);
   const target = Math.max(MIN_X, Math.min(MAX_X, camp));
   const d = target - s.px;
   const move = Math.abs(d) < 0.6 ? 0 : Math.sign(d);
