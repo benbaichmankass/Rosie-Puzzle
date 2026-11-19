@@ -832,13 +832,13 @@ function drawDandelions(g: Ctx, x: number, y: number, r: number, t: number) {
 }
 
 /** Food spots: a tinted stopping zone on the track plus the plant beside it. `active` = a bunny is eating here. */
-export function drawFood(g: Ctx, t: number, active: boolean[], highlight: number) {
+export function drawFood(g: Ctx, t: number, active: boolean[], highlight: number, cue = -1) {
   FOOD.forEach((f, i) => {
     // zone band on the track
     g.save();
     g.lineCap = 'butt';
-    const pulse = highlight === i ? 0.3 + Math.sin(t * 6) * 0.1 : 0.2;
-    g.strokeStyle = `rgba(150,215,90,${pulse})`;
+    const pulse = cue === i ? 0.6 : highlight === i ? 0.3 + Math.sin(t * 6) * 0.1 : 0.2;
+    g.strokeStyle = cue === i ? `rgba(255,236,120,${pulse})` : `rgba(150,215,90,${pulse})`;
     g.lineWidth = TRACK_W - 2;
     g.beginPath();
     for (let s = f.s0; s <= f.s1; s += 2) {
@@ -873,6 +873,25 @@ export function drawFood(g: Ctx, t: number, active: boolean[], highlight: number
     ellipse(g, c.x, c.y + 1, 9, 7.5);
     g.fill();
     drawFoodIcon(g, f.kind, c.x + bob, c.y, 10.5, t, active[i] ? 0.6 : 0);
+    if (cue === i) {
+      // speech-bubble cue beside the patch
+      const mp = pointAt((f.s0 + f.s1) / 2, f.side * (TRACK_W / 2 + 26));
+      g.save();
+      g.font = '700 9px "Fredoka", system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const w = g.measureText('LET GO!').width + 8;
+      const m = { x: Math.max(WALL + w / 2 + 2, Math.min(WORLD.w - WALL - w / 2 - 2, mp.x)), y: Math.max(WALL + 9, Math.min(WORLD.h - WALL - 9, mp.y)) };
+      g.fillStyle = '#fff8ea';
+      g.strokeStyle = C.ink;
+      g.lineWidth = 1.2;
+      rr(g, m.x - w / 2, m.y - 7, w, 14, 5);
+      g.fill();
+      g.stroke();
+      g.fillStyle = C.ink;
+      g.fillText('LET GO!', m.x, m.y + 0.5);
+      g.restore();
+    }
   });
 }
 
