@@ -38,7 +38,13 @@ button (Ben's call):** after a 3-2-1 countdown the gas starts leaking on its own
 speeding up. The player places fans from a limited supply and sets each fan's direction and strength (1-3) while the
 gas flows; every change affects the gas on the next tick. The gas travels as one stream pushed by fans. If it is blocked
 or circles over its own trail, pressure builds; at the limit the room fills up. Win: gas leaves through an open exit.
-Lose: gas reaches Bentzi, or the room fills (cartoon "BOOM", no gore). Level clear shows the time and 1-3 stars against
+Lose: gas reaches Bentzi, or the room fills (cartoon "BOOM", no gore). **Furniture is the core level mechanic (Ben's
+call):** fans only go on free floor (blue dots show the legal tiles; tapping furniture flashes a red X and names the
+piece), and every piece blocks both gas and fan wind. Pieces: the dark grey L-sofa, glass coffee table, TV stand,
+bookcases (also used as room dividers that make corridors), dining table with chairs, kitchen counter by the doorway,
+armchair, floor lamp, chair, plants and Rosie's bed; wall shelf, lamp, AC, windows and door are drawn on the walls.
+Early levels are open rooms; later ones are crowded, so each layout defines its own corridors, dead ends and
+fan spots. Level clear shows the time and 1-3 stars against
 the level's par; best time and stars are kept per level. Retry restarts the leak with no fans. Fewer open exits as
 levels rise; later levels add AC airflow, ceiling fans and furniture to route around. Levels must be provably winnable
 in real time: the check script builds each stored solution one fan every 2.5 s (from the countdown) in the same
@@ -71,16 +77,23 @@ Ben's feedback (round 1):
   from a tram puts her on its roof) or the treat magnet (10 s: pulls in treats from every lane). The active
   power-up shows with a timer bar. Treats are only placed where collecting them never forces a crash; the check
   script proves it for every treat with the real timings, and checks the run is passable at skateboard speed.
+Ben's feedback (round 2):
+- Day/night cycle by distance (one day = 1600 m; runs start in the afternoon): day, sunset, night, dawn, day.
+  Sky, sun, moon and stars change smoothly; the whole street takes the light's tint; at night street lamps and
+  the lamps on the catenary poles light pools on the ground, windows and shop fronts glow, trams light up their
+  windows and headlights, station shelters are lit. Rosie and Bentzi's arm stay a little brighter than the world.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
 hold to spray (water stream with arc). Cats run along the tree, wall and ground: +points. A chicken sometimes pops
 up from behind the wall: big bonus. Bunnies and turtles wander through: hitting them costs points. 60-second rounds,
-best score kept. Look (Ben's call): old western. The same yard as a dusty sun-bleached showdown (adobe wall, plank
-fence, desert tree, mesas beyond the wall, tumbleweeds and dust), cut-paper characters: outlaw cats in bandit masks and
-bandanas, the chicken as a bonus "outlaw" in a hat, the real bunnies and turtles unchanged. The nozzle is held like a
-six-shooter; READY/STEADY/DRAW countdown; wanted-poster start and game-over screens, score on a wooden sign, sheriff-star
-timer, twangy guitar sounds. The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
+best score kept. Look (Ben's call): toned-down old western set in the real garden (cream walls, the tree with the
+colander, dirt with dry leaves, teal hose, green wire fencing, pallet planters, potted plants, cable-spool table), no
+desert. The "from the past" feel comes from a gentle vintage grade (warm sepia tint, film grain, old-photo vignette)
+and western touches: slab-serif wild-west fonts, wanted-poster start and game-over screens, wooden score sign,
+sheriff-star timer, READY/STEADY/DRAW, the nozzle held like a six-shooter with a cowboy cuff, guitar twangs, cowboy hats
+and bandanas on the cats and the outlaw hen, an occasional tumbleweed. The real bunnies and turtles stay unchanged.
+The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
 
 ## Garden Defense (yard, bunny wall)
 Side view of the bed along the yard's left wall, with the apartment block across the street (windows, nosy
@@ -100,8 +113,10 @@ with their doors swung open (antique-brass bow handles), white shelves inside, t
 boards, the copper-handled pan and a trailing fern, and the glossy black marble backsplash behind the play area.
 The bamboo cutting-board paddle runs along the black speckled granite counter (white base cabinets with a drawer
 stack, gooseneck tap, white stove at the end). Bricks are that kitchen's things: dish-rack plates, glasses of water,
-steel bowls, the green colander, Spark soap + pump, the pink French press, paper towels, the filter jug, pickles
-(1 hit); kettle, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
+steel bowls, the green colander, Spark soap + pump, the pink French press, the filter jug, pickles, plus pantry
+things: coffee bag + bean jar, cereal, tea boxes, sugar/flour canisters, spice jars, olive oil, honey, mugs (1 hit);
+kettle, moka pot, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
+No paper rolls (Ben: they read as toilet paper).
 
 ## Getting Ready for Shabbos (kitchen counter)
 Shabbat candle-lighting time for Tel Aviv from Hebcal (no key, CORS ok):

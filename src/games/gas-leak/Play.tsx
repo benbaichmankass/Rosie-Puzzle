@@ -23,7 +23,7 @@ import {
   type LiveState,
   type Strength,
 } from './sim';
-import { Bentzi, Boom, CELL, CeilingFan, Defs, DirIcon, ExitWhoosh, FanSprite, FurniturePiece, GasPuff, Room, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
+import { Bentzi, Boom, CELL, CeilingFan, Defs, DirIcon, ExitWhoosh, FanSprite, FurniturePiece, GasPuff, Room, SofaSet, VB_H, VB_W, WindArrow, X0, Y0, cx, cy } from './art';
 import { sfx, startHiss, stopHiss } from './sound';
 
 type Phase = 'countdown' | 'flowing' | 'pooling' | 'won' | 'boom';
@@ -65,6 +65,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
   const [poolStep, setPoolStep] = useState(0);
   const [result, setResult] = useState<{ seconds: number; stars: number; newBest: boolean } | null>(null);
   const [run, setRun] = useState(0); // bumps on retry
+  const [blocked, setBlocked] = useState<{ r: number; c: number; n: number; why: string } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const cb = useRef({ onCleared, bestTime });
   cb.current = { onCleared, bestTime };
@@ -76,6 +77,16 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
   const clock = useRef({ last: 0, cd: COUNTDOWN_S * 1000, acc: 0, elapsed: 0, pool: 0, shown: -1 });
 
   const wind = useMemo(() => windField(level, fans, solid), [level, fans, solid]);
+  const spots = useMemo(() => {
+    const out: Cell[] = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (canPlace(level, r, c, solid) && !fans.some((f) => f.r === r && f.c === c)) out.push({ r, c });
+    return out;
+  }, [level, solid, fans]);
+  useEffect(() => {
+    if (!blocked) return;
+    const id = window.setTimeout(() => setBlocked(null), 1600);
+    return () => window.clearTimeout(id);
+  }, [blocked]);
 
   useEffect(() => () => stopHiss(), []);
   useEffect(() => {
@@ -124,6 +135,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               stopHiss();
               sfx.win();
               const seconds = Math.round(k.elapsed / 100) / 10;
+              setElapsed(seconds);
               const stars = starsFor(seconds, par);
               const prev = cb.current.bestTime;
               setResult({ seconds, stars, newBest: prev === null || seconds < prev });
@@ -200,8 +212,19 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
     if (!canPlace(level, r, c, solid) || fansLeft <= 0) {
       sfx.nope();
       setSel(null);
+      const piece = level.furniture.find((f) => r >= f.r && r < f.r + f.h && c >= f.c && c < f.c + f.w);
+      const why =
+        fansLeft <= 0
+          ? 'No fans left. Tap a fan to re-aim it.'
+          : piece
+            ? `Can't put a fan on the ${FURNITURE_NAME[piece.kind]}. Fans go on free floor (blue dots).`
+            : level.ceilingFans.some((f) => f.r === r && f.c === c)
+              ? "Can't put a fan under the ceiling fan."
+              : "Can't block the kitchen doorway.";
+      setBlocked((b) => ({ r, c, n: (b?.n ?? 0) + 1, why }));
       return;
     }
+    setBlocked(null);
     // New fans point up by default, unless that faces a wall.
     const dir: Dir = r > 0 && !solid[r - 1][c] ? 0 : 3;
     setFans((fs) => [...fs, { r, c, dir, s: 1 }]);
@@ -315,11 +338,27 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
                 ),
               ),
             )}
-          {level.furniture.map((f, i) => (
-            <g key={i}>
-              <FurniturePiece f={f} rosie={rosie} />
+          {canEdit && fansLeft > 0 && (
+            <g className="gl-spots" opacity={phase === 'countdown' ? 0.9 : 0.45}>
+              {spots.map((p) => (
+                <circle key={`${p.r},${p.c}`} cx={cx(p.c)} cy={cy(p.r)} r="2.6" fill="#2f8f9d" />
+              ))}
             </g>
-          ))}
+          )}
+          <SofaSet pieces={level.furniture.filter((f) => f.kind === 'sofa')} rosie={rosie} />
+          {level.furniture.map((f, i) =>
+            f.kind === 'sofa' ? null : (
+              <g key={i}>
+                <FurniturePiece f={f} />
+              </g>
+            ),
+          )}
+          {blocked && (
+            <g key={blocked.n} className="gl-nope" transform={`translate(${cx(blocked.c)} ${cy(blocked.r)})`}>
+              <circle r="15" fill="#fff" opacity="0.85" />
+              <path d="M-8 -8 L8 8 M8 -8 L-8 8" stroke="#c0392b" strokeWidth="4.5" strokeLinecap="round" />
+            </g>
+          )}
           <Bentzi r={level.bentzi.r} c={level.bentzi.c} mood={mood} />
           {level.ac && <FanSprite r={acCell().r} c={acCell().c} dir={level.ac.dir} s={level.ac.s} fixed spinning />}
           {trail.map(({ p, i }, n) => (
@@ -434,8 +473,10 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
             </div>
           </div>
         ) : (
-          <div className={`gl-hint ${pressure > 0 ? 'gl-warn' : ''}`}>
-            {phase === 'countdown'
+          <div className={`gl-hint ${pressure > 0 || blocked ? 'gl-warn' : ''}`}>
+            {blocked && canEdit
+              ? blocked.why
+              : phase === 'countdown'
               ? 'Get ready! Fans can go down already.'
               : phase === 'flowing'
                 ? pressure > 0
@@ -470,6 +511,20 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
     </div>
   );
 }
+
+const FURNITURE_NAME: Record<string, string> = {
+  sofa: 'sofa',
+  table: 'coffee table',
+  plant: 'plant',
+  armchair: 'armchair',
+  tv: 'TV stand',
+  dogbed: "Rosie's bed",
+  cabinet: 'bookcase',
+  dining: 'dining table',
+  counter: 'kitchen counter',
+  lamp: 'floor lamp',
+  chair: 'chair',
+};
 
 /** Short rumble on phones that support it. */
 function buzz() {

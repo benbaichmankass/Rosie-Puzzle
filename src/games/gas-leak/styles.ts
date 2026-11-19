@@ -72,6 +72,7 @@ export const CSS = `
 .g-gas-leak .gl-stars .on { color: #f2b705; text-shadow: 0 2px 0 #8a6a00; }
 .g-gas-leak .gl-chip { position: relative; }
 .g-gas-leak .gl-chip-stars { position: absolute; left: 0; right: 0; bottom: -2px; font-size: 8px; color: #f2b705; line-height: 1; }
+.g-gas-leak .gl-nope { animation: gl-nope 1.6s ease-out both; }
 .g-gas-leak .gl-boom { animation: gl-boom 0.5s cubic-bezier(.2,1.6,.4,1) both; }
 .g-gas-leak .gl-boom > * { transform-box: view-box; }
 .g-gas-leak .gl-wind { animation: gl-wind 1.2s linear infinite; }
@@ -87,6 +88,7 @@ export const CSS = `
 @keyframes gl-exitpuff { from { transform: translateX(0) scale(1); opacity: 0.9; } to { transform: translateX(-26px) scale(1.6); opacity: 0; } }
 @keyframes gl-press { 50% { transform: scale(1.12); } }
 @keyframes gl-countpop { 0% { transform: scale(2.2); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0.2; } }
+@keyframes gl-nope { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes gl-hisst { 50% { opacity: 0.2; } }
 @keyframes gl-hiss { 50% { transform: scale(1.5); opacity: 0.5; } }
 @keyframes gl-boom { from { opacity: 0; transform: scale(0.2); } }

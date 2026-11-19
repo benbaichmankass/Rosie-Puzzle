@@ -16,6 +16,27 @@ const TWIRL = 0.55;
 type Phase = 'start' | 'play' | 'over';
 type Beat = 'ready' | 'steady' | 'draw' | null;
 
+/** A small tile of film grain for the old-photo overlay (made once, as a data URL). */
+function makeGrainUrl(): string {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext('2d');
+    if (!ctx) return '';
+    const img = ctx.createImageData(128, 128);
+    for (let i = 0; i < 128 * 128; i++) {
+      const v = 128 + (Math.random() - 0.5) * 200;
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c.toDataURL();
+  } catch {
+    return '';
+  }
+}
+
 /** Short vibration where supported (Android Chrome). */
 function buzz(pattern: number | number[]) {
   try {
@@ -60,7 +81,10 @@ const CSS = `
 .g-hose-shooter .hs-sign::before, .g-hose-shooter .hs-sign::after { content: ""; position: absolute; top: 50%; width: 6px; height: 6px;
   margin-top: -3px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d8c8b0, #4a3a2c); }
 .g-hose-shooter .hs-sign::before { left: 5px; } .g-hose-shooter .hs-sign::after { right: 5px; }
-.g-hose-shooter .hs-vignette { background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(70,35,10,.38) 100%); }
+.g-hose-shooter .hs-vignette { background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 50%, rgba(60,32,12,.42) 100%); }
+.g-hose-shooter .hs-tint { background: linear-gradient(180deg, rgba(255,214,150,.10), rgba(170,110,60,.10)); mix-blend-mode: multiply; }
+@keyframes hs-grain { 0% { background-position: 0 0 } 25% { background-position: -37px 21px } 50% { background-position: 19px -43px } 75% { background-position: -11px 33px } 100% { background-position: 0 0 } }
+.g-hose-shooter .hs-grain { mix-blend-mode: overlay; opacity: .16; animation: hs-grain .5s steps(4) infinite; }
 @keyframes hs-pop { 0% { transform: scale(.6) rotate(-6deg); opacity: 0 } 70% { transform: scale(1.06) rotate(1deg) } 100% { transform: scale(1) rotate(0); opacity: 1 } }
 .g-hose-shooter .hs-pop { animation: hs-pop .35s ease-out both; }
 @keyframes hs-beat { 0% { transform: scale(2.2); opacity: 0 } 25% { transform: scale(1); opacity: 1 } 80% { opacity: 1 } 100% { transform: scale(.9); opacity: 0 } }
@@ -78,11 +102,14 @@ function OutlawCat() {
       <path d="M35 34 L38 19 L47 30 Z M85 34 L82 19 L73 30 Z" fill="#f0a3ae" />
       <ellipse cx="60" cy="50" rx="33" ry="28" fill="#e98a30" />
       <path d="M50 26 L54 36 L58 26 Z M62 26 L66 36 L70 26 Z" fill="#b85e18" />
-      <path d="M28 46 Q60 36 92 46 L90 58 Q60 50 30 58 Z" fill="#1d1a1f" />
-      <path d="M28 49 L14 44 M28 52 L16 58" stroke="#1d1a1f" strokeWidth="4" strokeLinecap="round" />
+      <path d="M38 20 L36 2 Q48 -2 60 6 Q72 -2 84 2 L82 20 Z" fill="#7a4a2a" />
+      <path d="M37 14 L83 14 L82 20 L38 20 Z" fill="#4a2a16" />
+      <ellipse cx="60" cy="22" rx="44" ry="7" fill="#7a4a2a" />
+      <ellipse cx="18" cy="17" rx="8" ry="5" fill="#7a4a2a" transform="rotate(-30 18 17)" />
+      <ellipse cx="102" cy="17" rx="8" ry="5" fill="#7a4a2a" transform="rotate(30 102 17)" />
       <ellipse cx="48" cy="51" rx="7" ry="6" fill="#fff" /><ellipse cx="72" cy="51" rx="7" ry="6" fill="#fff" />
       <circle cx="50" cy="52" r="2.6" fill="#111" /><circle cx="70" cy="52" r="2.6" fill="#111" />
-      <path d="M44 44 L54 47 M76 44 L66 47" stroke="#111" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M42 43 L54 46 M78 43 L66 46" stroke="#111" strokeWidth="2.4" strokeLinecap="round" />
       <ellipse cx="60" cy="64" rx="12" ry="8" fill="#f8d2a0" />
       <path d="M57 61 L63 61 L60 65 Z" fill="#d86a7c" />
       <path d="M56 69 Q60 72 64 69" stroke="#3a2210" strokeWidth="1.6" fill="none" />
@@ -147,6 +174,7 @@ export default function Game({ onExit }: GameProps) {
   const [best, setBest] = useState(() => getHighScore(ID));
   const [result, setResult] = useState<Result | null>(null);
   const [beat, setBeat] = useState<Beat>(null);
+  const [grainUrl] = useState(makeGrainUrl);
   const twirlRef = useRef(-10);
   const kickRef = useRef(-10);
 
@@ -351,7 +379,7 @@ export default function Game({ onExit }: GameProps) {
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full block"
-          style={{ touchAction: 'none', filter: 'sepia(0.08) saturate(1.1) contrast(1.04)' }}
+          style={{ touchAction: 'none', filter: 'sepia(0.24) saturate(0.9) contrast(0.98) brightness(1.03)' }}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
@@ -361,6 +389,8 @@ export default function Game({ onExit }: GameProps) {
           }}
           onContextMenu={(e) => e.preventDefault()}
         />
+        <div className="hs-tint absolute inset-0 pointer-events-none" />
+        <div className="hs-grain absolute inset-0 pointer-events-none" style={{ backgroundImage: grainUrl ? `url(${grainUrl})` : undefined }} />
         <div className="hs-vignette absolute inset-0 pointer-events-none" />
 
         {/* HUD */}

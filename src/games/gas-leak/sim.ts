@@ -41,7 +41,7 @@ export interface Fan extends Cell {
   dir: Dir;
   s: Strength;
 }
-export type FurnitureKind = 'sofa' | 'table' | 'plant' | 'armchair' | 'tv' | 'dogbed' | 'cabinet';
+export type FurnitureKind = 'sofa' | 'table' | 'plant' | 'armchair' | 'tv' | 'dogbed' | 'cabinet' | 'dining' | 'counter' | 'lamp' | 'chair';
 export interface Furniture extends Cell {
   kind: FurnitureKind;
   w: number;
