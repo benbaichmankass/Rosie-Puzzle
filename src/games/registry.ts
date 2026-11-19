@@ -13,8 +13,9 @@ import { meta as m5 } from './garden-defense/meta';
 import { meta as m6 } from './cabinet-breaker/meta';
 import { meta as m7 } from './shabbos/meta';
 import { meta as m8 } from './squeegee/meta';
+import { meta as m9 } from './yard-race/meta';
 
-export const GAMES: GameMeta[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8];
+export const GAMES: GameMeta[] = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9];
 
 export const GAME_COMPONENTS: Record<string, LazyExoticComponent<ComponentType<GameProps>>> = {
   'bed-puzzle': lazy(() => import('./bed-puzzle')),
@@ -26,6 +27,7 @@ export const GAME_COMPONENTS: Record<string, LazyExoticComponent<ComponentType<G
   'cabinet-breaker': lazy(() => import('./cabinet-breaker')),
   'shabbos': lazy(() => import('./shabbos')),
   'squeegee': lazy(() => import('./squeegee')),
+  'yard-race': lazy(() => import('./yard-race')),
 };
 
 export const ROOMS: { id: RoomId; name: string }[] = [
