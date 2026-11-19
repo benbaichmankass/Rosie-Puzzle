@@ -94,6 +94,9 @@ export interface Timings {
   duckTime: number;
   duckFrom: number;
   duckTo: number;
+  /** Spring-bootie jumps go so high that tall things (walkers, bikes) can be cleared in this part of the jump. */
+  tallFrom?: number;
+  tallTo?: number;
 }
 
 /** Real controls (used by the game and by the strict check). */
@@ -415,7 +418,9 @@ class Reach {
 }
 
 // ---------- treats and power-ups ----------
-export type PickupKind = 'treat' | 'board' | 'magnet';
+/** Power-ups: skateboard, treat magnet, x2 score, balloon (float over everything), spring booties (super jumps). */
+export type PowerKind = 'board' | 'magnet' | 'mult' | 'balloon' | 'spring';
+export type PickupKind = 'treat' | PowerKind;
 export interface Pickup {
   id: number;
   kind: PickupKind;
@@ -424,12 +429,26 @@ export interface Pickup {
   d: number;
   /** Lying on a tram roof (collect it up there) rather than on the street. */
   roof: boolean;
+  /** Height above the street where it floats (on a ramp it climbs with the slope). */
+  h: number;
+  /** Lying on a moving tram: that tram's id and how far along it (so it is drawn riding the tram). */
+  tramId?: number;
+  along?: number;
 }
 export const TREAT_POINTS = 10;
 export const POWERUP_POINTS = 50;
 /** Seconds a power-up lasts. */
 export const BOARD_TIME = 8;
 export const MAGNET_TIME = 10;
+export const MULT_TIME = 12;
+export const BALLOON_TIME = 6;
+export const SPRING_TIME = 10;
+/** Height Rosie floats at under the balloon (above the trams, branches and canopies). */
+export const BALLOON_H = 5.6;
+/** Spring booties: a jump this high and this long. */
+export const SPRING_JUMP_H = 2.6;
+export const SPRING_JUMP_TIME = 0.93;
+export const POWER_TIMES: Record<PowerKind, number> = { board: BOARD_TIME, magnet: MAGNET_TIME, mult: MULT_TIME, balloon: BALLOON_TIME, spring: SPRING_TIME };
 /** Skateboard speed multiplier. */
 export const BOARD_SPEED = 1.2;
 
@@ -556,10 +575,20 @@ export class Spawner {
     const limit = this.cursor - 50;
     const R = this.reach;
     while (this.pickupCursor < limit) {
-      const d0 = this.pickupCursor;
-      const lane = Math.floor(r() * 3) as Lane;
+      let d0 = this.pickupCursor;
+      let lane = Math.floor(r() * 3) as Lane;
       const power = d0 >= this.nextPowerup;
-      const count = power ? 1 : 4 + Math.floor(r() * 4);
+      let count = power ? 1 : 4 + Math.floor(r() * 4);
+      // a trail of treats leading up a tram's ramp onto its roof (like a coin line)
+      if (!power) {
+        const rampTram = this.obstacles.find((o) => o.ramp && o.start >= d0 + 6 && o.start < d0 + 50 && !this.trailed.has(o.id));
+        if (rampTram && rampTram.start - 6 < limit) {
+          this.trailed.add(rampTram.id);
+          d0 = rampTram.start - 6;
+          lane = rampTram.lane;
+          count = 11;
+        }
+      }
       const spacing = 2.4;
       const row: Pickup[] = [];
       for (let j = 0; j < count; j++) {
@@ -574,10 +603,21 @@ export class Spawner {
         let ok = true;
         for (let c = i - 2; c <= i + k && ok; c++) {
           if (tramHere) { if (R.tram[lane][c] === 0 || R.duckR[lane][c] > 0) ok = false; }
+          else if (c > i && R.tram[lane][c] > 0 && R.rampStart[lane][c] > 0) break; // the trail runs on up the ramp
           else if (R.any(lane, c)) ok = false;
         }
         if (!ok) break;
-        row.push({ id: 0, kind: 'treat', lane, d, roof: tramHere });
+        const pk: Pickup = { id: 0, kind: 'treat', lane, d, roof: tramHere, h: 0 };
+        if (tramHere) {
+          const tr = this.obstacles.find((o) => o.tram && o.lane === lane && d >= o.start && d <= o.end);
+          if (tr) {
+            const u = alongObstacle(tr, d);
+            pk.tramId = tr.id;
+            pk.along = u;
+            pk.h = tr.ramp && u < RAMP_LEN ? (ROOF_H * Math.max(0, u)) / RAMP_LEN : ROOF_H;
+          } else pk.h = ROOF_H;
+        }
+        row.push(pk);
       }
       if (row.length >= (power ? 1 : 3)) {
         const last = row[row.length - 1];
@@ -587,8 +627,9 @@ export class Spawner {
         R.pins.push({ cell, lane, roof: last.roof });
         if (R.pins.length > 16) R.pins.shift();
         if (power) {
-          row[0].kind = r() < 0.6 ? 'board' : 'magnet';
-          this.nextPowerup = d0 + 500 + r() * 300;
+          const x = r();
+          row[0].kind = x < 0.24 ? 'board' : x < 0.42 ? 'magnet' : x < 0.62 ? 'mult' : x < 0.8 ? 'balloon' : 'spring';
+          this.nextPowerup = d0 + 380 + r() * 300;
         }
         for (const p of row) { p.id = this.nextPickupId++; this.pickups.push(p); }
         this.pickupCursor = d0 + row.length * spacing + 10 + r() * 25;
@@ -596,6 +637,7 @@ export class Spawner {
     }
   }
   private nextPickupId = 1;
+  private trailed = new Set<number>();
 
   /** Drop obstacles Rosie has fully passed (keeps arrays small in long runs). */
   prune(d: number) {

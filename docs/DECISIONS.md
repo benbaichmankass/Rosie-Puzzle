@@ -105,6 +105,12 @@ Ben's feedback (round 3):
   overhanging ficus branches and palm fronds, low steel gantries on the southern stretch, and the station canopy
   beams that reach over both tracks. The skateboard ducks them for you. Spawner and check script model ducking
   (including on roofs) and prove every run passable.
+- More power-ups (one active at a time, each with an icon, a sound and a HUD timer bar): x2 score (12 s, metres and
+  treats count double), balloon (6 s, Rosie floats above everything and collects the treats in her lane at any
+  height; then she floats down, untouchable for 1.6 s so the landing is never a trap), spring booties (10 s, jumps
+  go 2.6 high and last 0.93 s: clear walkers and bikes, land on roofs from far off), alongside the skateboard and
+  magnet. Treat trails lead up tram ramps onto the roofs (and ride along with the moving tram). The check script
+  proves every run stays passable with spring-bootie jumps and at skateboard speed, and every treat collectable.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,

@@ -123,6 +123,29 @@ export class Sfx {
     const t = this.ctx!.currentTime;
     [523, 659, 784, 1047, 784, 1047].forEach((f, i) => { this.tone(f, t + i * 0.11, 0.3, 'triangle', 0.18); this.tone(f * 2, t + i * 0.11, 0.12, 'sine', 0.05); });
   }
+  /** x2 pickup: sparkly chime. */
+  chime() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    [1568, 2093, 2637].forEach((f, i) => this.tone(f, t + i * 0.07, 0.4, 'sine', 0.12));
+  }
+  /** Balloon: a rising whistle. */
+  balloon() {
+    if (!this.ok()) return;
+    this.tone(400, this.ctx!.currentTime, 0.6, 'sine', 0.18, 1200);
+  }
+  /** Spring booties: boing. */
+  boing() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    this.tone(180, t, 0.35, 'triangle', 0.25, 520);
+    this.tone(520, t + 0.1, 0.25, 'sine', 0.08, 300);
+  }
+  /** A power-up running out (or the balloon letting go). */
+  pop() {
+    if (!this.ok()) return;
+    this.noise(this.ctx!.currentTime, 0.07, 0.4, 2200);
+  }
   bonk() {
     if (!this.ok()) return;
     const t = this.ctx!.currentTime;

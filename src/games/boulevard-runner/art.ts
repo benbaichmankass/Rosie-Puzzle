@@ -616,6 +616,36 @@ function drawMagnet(g: CanvasRenderingContext2D) {
   rrect(g, 0.135, 0.1, 0.13, 0.09, 0.02, '#dfe3e8');
 }
 
+/** x2 score: a gold coin-badge with "x2". */
+function drawMult(g: CanvasRenderingContext2D) {
+  g.translate(0, -0.28);
+  ell(g, 0, 0, 0.27, 0.27, '#b8860b');
+  ell(g, 0, 0, 0.23, 0.23, '#f2c14e');
+  ell(g, -0.07, -0.08, 0.08, 0.05, 'rgba(255,255,255,0.6)');
+  g.fillStyle = '#7a4a0a';
+  g.font = '900 0.26px Rubik, Arial, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('x2', 0, 0.02);
+}
+/** A red party balloon on a string. */
+function drawBalloon(g: CanvasRenderingContext2D) {
+  g.beginPath(); g.moveTo(0, -0.05); g.quadraticCurveTo(0.08, -0.25, 0, -0.42);
+  g.lineWidth = 0.02; g.strokeStyle = '#555'; g.stroke();
+  ell(g, 0, -0.66, 0.2, 0.25, '#e2342a');
+  ell(g, -0.07, -0.74, 0.05, 0.08, 'rgba(255,255,255,0.55)');
+  g.beginPath(); g.moveTo(-0.04, -0.4); g.lineTo(0.04, -0.4); g.lineTo(0, -0.44); g.closePath(); g.fillStyle = '#b82620'; g.fill();
+}
+/** Spring booties: a pair of little teal dog boots on coiled springs. */
+function drawSpring(g: CanvasRenderingContext2D) {
+  for (const x of [-0.15, 0.15]) {
+    g.beginPath();
+    for (let i = 0; i <= 6; i++) { const y = -0.06 - i * 0.035; g.lineTo(x + (i % 2 ? 0.06 : -0.06), y); }
+    g.lineWidth = 0.025; g.strokeStyle = '#9aa0aa'; g.stroke();
+    rrect(g, x - 0.09, -0.46, 0.18, 0.2, 0.06, '#1f9aa6');
+    rrect(g, x - 0.1, -0.3, 0.2, 0.06, 0.03, '#f2c230');
+  }
+}
+
 /** Rosie's skateboard seen from behind (drawn under her feet, in units). */
 export function drawBoardUnder(g: CanvasRenderingContext2D, x: number, y: number, u: number, tilt: number) {
   g.save();
@@ -648,6 +678,9 @@ export interface Sprites {
   beitGidi: Sprite;
   bone: Sprite;
   boardItem: Sprite;
+  mult: Sprite;
+  balloon: Sprite;
+  spring: Sprite;
   magnet: Sprite;
   lowBranch: Sprite;
   boom: Sprite;
@@ -692,6 +725,9 @@ export function buildSprites(): Sprites {
     canopyBeam: makeSprite(2.1, 0.8, 70, drawCanopyBeam),
     bone: makeSprite(0.7, 0.42, 120, drawBone),
     boardItem: makeSprite(1.0, 0.55, 110, drawBoardItem),
+    mult: makeSprite(0.7, 0.62, 120, drawMult),
+    balloon: makeSprite(0.6, 1.0, 110, drawBalloon),
+    spring: makeSprite(0.6, 0.55, 120, drawSpring),
     magnet: makeSprite(0.65, 0.5, 120, drawMagnet),
   };
 }

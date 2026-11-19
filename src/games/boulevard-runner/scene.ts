@@ -35,6 +35,8 @@ export interface Player {
   ghost: boolean;
   /** 0..1 how far into a duck (crouch-roll) Rosie is. */
   crouch: number;
+  /** Active power-up (for drawing the balloon, spring booties, x2 sparkle). */
+  power: string | null;
 }
 
 export interface Frame {
@@ -412,8 +414,33 @@ export class Scene {
             // riding: stands on the deck, gentle carving sway, no gallop
             drawBoardUnder(g, 0, 0, p.s * 1.45, Math.sin(this.t * 3) * 0.06 + pl.lean * 0.1);
             drawRosie(g, 0, -p.s * 1.45 * 0.06, p.s * 1.45, 0, pl.wag, pl.lean + Math.sin(this.t * 3) * 0.3, false);
-          } else drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
+          } else drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne || pl.power === 'balloon');
+          const u = p.s * 1.45;
+          if (pl.power === 'spring') {
+            // coiled springs under her paws
+            g.strokeStyle = '#9aa0aa'; g.lineWidth = Math.max(1, u * 0.02);
+            for (const fx of [-0.1, 0.1]) {
+              g.beginPath();
+              for (let i = 0; i <= 5; i++) g.lineTo(fx * u + (i % 2 ? 0.035 : -0.035) * u, -i * 0.03 * u);
+              g.stroke();
+            }
+          }
+          if (pl.power === 'balloon') {
+            // string from the harness up to a big red balloon, bobbing
+            const bob = Math.sin(this.t * 3) * 0.04 * u;
+            g.beginPath(); g.moveTo(0, -0.74 * u); g.quadraticCurveTo(0.12 * u, -1.15 * u, 0.04 * u, -1.55 * u + bob);
+            g.lineWidth = Math.max(1, u * 0.012); g.strokeStyle = '#555'; g.stroke();
+            g.beginPath(); g.ellipse(0.04 * u, -1.85 * u + bob, 0.24 * u, 0.3 * u, 0, 0, Math.PI * 2); g.fillStyle = '#e2342a'; g.fill();
+            g.beginPath(); g.ellipse(-0.04 * u, -1.95 * u + bob, 0.06 * u, 0.1 * u, 0, 0, Math.PI * 2); g.fillStyle = 'rgba(255,255,255,0.5)'; g.fill();
+          }
           g.restore();
+          if (pl.power === 'mult') {
+            // golden sparkles around her
+            for (let i = 0; i < 5; i++) {
+              const a = this.t * 3 + (i * Math.PI * 2) / 5;
+              this.star(g, p.x + Math.cos(a) * u * 0.35, p.y - u * 0.5 + Math.sin(a) * u * 0.25, u * 0.035, '#ffd23f');
+            }
+          }
         }
         });
       },
@@ -797,10 +824,15 @@ export class Scene {
   private collectPickups(g: CanvasRenderingContext2D, fr: Frame, items: { gap: number; fn: () => void }[], px: number) {
     for (const p of fr.pickups) {
       let gap = p.d - fr.d;
+      // a treat lying on a moving tram rides along with it
+      if (p.tramId !== undefined && p.along !== undefined) {
+        const tr = fr.obstacles.find((o) => o.id === p.tramId);
+        if (tr) gap = obstacleGap(tr, fr.d).near + p.along;
+      }
       if (gap > 70 || gap + CAM_BACK < NEAR_Z + 0.5) continue;
       const takenAt = fr.taken.get(p.id);
       let x = (p.lane - 1) * LANE_W;
-      let y = (p.roof ? ROOF_H : 0) + 0.25 + Math.sin(fr.t * 4 + p.id) * 0.08;
+      let y = p.h + 0.25 + Math.sin(fr.t * 4 + p.id) * 0.08;
       let alpha = 1, grow = 1;
       if (takenAt !== undefined) {
         // pop up toward Rosie and fade out
@@ -812,7 +844,8 @@ export class Scene {
         const k = 1 - Math.max(0, gap) / 9;
         x += (px - x) * k * k; y += (fr.player.y + 0.5 - y) * k * k;
       }
-      const sp = p.kind === 'treat' ? this.sp.bone : p.kind === 'board' ? this.sp.boardItem : this.sp.magnet;
+      const sp = p.kind === 'treat' ? this.sp.bone : p.kind === 'board' ? this.sp.boardItem : p.kind === 'magnet' ? this.sp.magnet
+        : p.kind === 'mult' ? this.sp.mult : p.kind === 'balloon' ? this.sp.balloon : this.sp.spring;
       const spin = p.kind === 'treat' ? Math.cos(fr.t * 3 + p.id * 0.7) : 1;
       items.push({
         gap,
@@ -822,7 +855,7 @@ export class Scene {
           g.save();
           g.globalAlpha = alpha;
           // glow ring under power-ups, soft shadow under everything
-          const sh = this.P(x, p.roof ? ROOF_H : 0, gap);
+          const sh = this.P(x, p.h, gap);
           g.fillStyle = 'rgba(50,30,10,0.22)';
           g.beginPath(); g.ellipse(sh.x, sh.y, sh.s * 0.22, sh.s * 0.05, 0, 0, Math.PI * 2); g.fill();
           if (p.kind !== 'treat') {
