@@ -146,6 +146,14 @@ export class Sfx {
     if (!this.ok()) return;
     this.noise(this.ctx!.currentTime, 0.07, 0.4, 2200);
   }
+  /** Rosie nips a fan: snap + yelp. */
+  chomp() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    this.noise(t, 0.05, 0.6, 3000);
+    this.tone(900, t + 0.06, 0.18, 'square', 0.08, 1500);
+    this.tone(1400, t + 0.1, 0.2, 'triangle', 0.12, 700);
+  }
   bonk() {
     if (!this.ok()) return;
     const t = this.ctx!.currentTime;

@@ -8,7 +8,7 @@ import { timeOfDay } from './daynight';
 import { Scene } from './scene';
 import { Sfx } from './audio';
 import type { Obstacle } from './spawner';
-import { stationsIn, station, platformStart, PLATFORM_LEN } from './route';
+import { stationsIn, station, platformStart, PLATFORM_LEN, fansNear, lapOf } from './route';
 
 type Screen = 'start' | 'play' | 'paused' | 'over';
 
@@ -80,12 +80,13 @@ export default function Game({ onExit }: GameProps) {
   const [best, setBest] = useState(() => getHighScore(meta.id));
   const bestRef = useRef(best);
   bestRef.current = best;
-  const [last, setLast] = useState({ score: 0, newBest: false, why: '', metres: 0, treats: 0 });
+  const [last, setLast] = useState({ score: 0, newBest: false, why: '', metres: 0, treats: 0, fans: 0 });
   const [hint, setHint] = useState(false);
   const [muted, setMuted] = useState(() => load<boolean>(meta.id, 'muted', false));
 
   const sfx = useRef(new Sfx());
   const runRef = useRef<Run | null>(null);
+  const sceneRef = useRef<Scene | null>(null);
   const anim = useRef({ phase: 0, wag: 0, idleD: 0, crashT: 0, shake: 0, camLift: 0 });
 
   const go = useCallback((s: Screen) => { screenRef.current = s; setScreen(s); }, []);
@@ -135,14 +136,15 @@ export default function Game({ onExit }: GameProps) {
   }, [act, go, start]);
 
   // swipes
-  const swipe = useRef<{ x: number; y: number; id: number; done: boolean } | null>(null);
+  const swipe = useRef<{ x: number; y: number; id: number; done: boolean; t: number; max: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
-    swipe.current = { x: e.clientX, y: e.clientY, id: e.pointerId, done: false };
+    swipe.current = { x: e.clientX, y: e.clientY, id: e.pointerId, done: false, t: performance.now(), max: 0 };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const s = swipe.current;
     if (!s || s.done || s.id !== e.pointerId) return;
     const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    s.max = Math.max(s.max, Math.hypot(dx, dy));
     const th = 22;
     if (Math.abs(dx) < th && Math.abs(dy) < th) return;
     s.done = true;
@@ -150,7 +152,17 @@ export default function Game({ onExit }: GameProps) {
     else act(dy < 0 ? 'jump' : 'duck');
   };
   const onPointerUp = (e: React.PointerEvent) => {
-    if (swipe.current?.id === e.pointerId) swipe.current = null;
+    const s = swipe.current;
+    if (s?.id !== e.pointerId) return;
+    swipe.current = null;
+    // a tap (short, barely moved, never a swipe) on a football fan: Rosie nips them
+    if (!s.done && s.max < 12 && performance.now() - s.t < 350 && screenRef.current === 'play') {
+      const r = runRef.current, sc = sceneRef.current, wrap = wrapRef.current;
+      if (!r || !sc || !wrap) return;
+      const box = wrap.getBoundingClientRect();
+      const id = sc.hitFan(e.clientX - box.left, e.clientY - box.top);
+      if (id !== null && r.bite(id)) sfx.current.chomp();
+    }
   };
 
   // pause when hidden
@@ -170,6 +182,7 @@ export default function Game({ onExit }: GameProps) {
     const canvas = canvasRef.current!, wrap = wrapRef.current!;
     const g = canvas.getContext('2d')!;
     const scene = new Scene();
+    sceneRef.current = scene;
     let W = 0, H = 0, dpr = 1;
     const resize = () => {
       const r = wrap.getBoundingClientRect();
@@ -189,6 +202,7 @@ export default function Game({ onExit }: GameProps) {
     let raf = 0;
     let prev = performance.now();
     let hudTimer = 0;
+    let fanTipLap = -1;
     const idleObstacles: Obstacle[] = [];
     const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     const showBanner = (title: string, sub: string) => {
@@ -240,15 +254,20 @@ export default function Game({ onExit }: GameProps) {
           if (a.crashT > 0.9) {
             const nb = submitScore(meta.id, run.score);
             setBest(getHighScore(meta.id));
-            setLast({ score: run.score, newBest: nb, why: hitLine(run.hit), metres: Math.floor(run.d), treats: run.treats });
+            setLast({ score: run.score, newBest: nb, why: hitLine(run.hit), metres: Math.floor(run.d), treats: run.treats, fans: run.bitten.size });
             go('over');
           }
+        }
+        // first time the red-shirted fans come into view on a lap: tell the player they can tap them
+        if (!run.crashed && fanTipLap !== lapOf(run.d) && fansNear(run.d, run.d + 45).length) {
+          fanTipLap = lapOf(run.d);
+          showBanner('Football fans!', 'Tap one as you pass: Rosie nips them +100');
         }
         hudTimer += dt;
         if (hudTimer > 0.08 && scoreRef.current) {
           hudTimer = 0;
           scoreRef.current.textContent = `${run.score}`;
-          if (subRef.current) subRef.current.textContent = `🦴 ${run.treats} · ${Math.floor(run.d)} m · BEST ${bestRef.current}`;
+          if (subRef.current) subRef.current.textContent = `🦴 ${run.treats}${run.bitten.size ? ` · 🦷 ${run.bitten.size}` : ''} · ${Math.floor(run.d)} m · BEST ${bestRef.current}`;
           const pw = powerRef.current;
           if (pw) {
             const p = run.power;
@@ -289,6 +308,7 @@ export default function Game({ onExit }: GameProps) {
       const liftTarget = useRun ? Math.max(0, (run.floating ? run.y - 1.5 : run.base) - 0.4) * 0.55 : 0;
       a.camLift += (liftTarget - a.camLift) * Math.min(1, dt * 5);
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      scene.bitten = useRun ? run.bitten : new Map();
       scene.render(g, {
         d: useRun ? run.d : a.idleD,
         t: useRun ? run.t : now / 1000,
@@ -316,6 +336,8 @@ export default function Game({ onExit }: GameProps) {
           ghost: !!(useRun && run.ghost),
           crouch: useRun ? run.crouch : 0,
           power: useRun ? run.power?.kind ?? null : null,
+          lunge: useRun ? run.lunge : 0,
+          lungeSide: useRun ? run.lungeSide : 1,
         },
       });
     };
@@ -405,6 +427,7 @@ export default function Game({ onExit }: GameProps) {
             <div className="text-[15px] font-medium leading-snug">{last.why}</div>
             <div className="text-[56px] font-black leading-none mt-3">{last.score}</div>
             <div className="text-[14px] font-bold opacity-80 mt-1">{last.metres} m walked + 🦴 {last.treats} treats</div>
+            {last.fans > 0 && <div className="text-[14px] font-bold opacity-80">Fans bitten: {last.fans} 🦷</div>}
             {last.newBest ? (
               <div className="inline-block mt-2 px-3 py-1 rounded-full bg-[#f2c14e] text-[#5a2f17] text-[13px] font-black">NEW BEST!</div>
             ) : (

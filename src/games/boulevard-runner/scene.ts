@@ -5,7 +5,7 @@
 import { type Obstacle, type Pickup, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
 import { lightAt, type Light } from './daynight';
 import { SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
-import { pieces, segmentAt, lapU, lapOf, LAP, TRACKS_END, stationsIn, station, platformStart, PLATFORM_LEN, numberToU, LANDMARKS, hasTracks, type Segment } from './route';
+import { pieces, segmentAt, lapU, lapOf, LAP, TRACKS_END, stationsIn, station, platformStart, PLATFORM_LEN, numberToU, LANDMARKS, hasTracks, SHAI_U, fansNear, type Segment } from './route';
 import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, drawBoardUnder, fogc, shade, HAZE } from './art';
 
 export const LANE_W = 1.9;
@@ -37,6 +37,9 @@ export interface Player {
   crouch: number;
   /** Active power-up (for drawing the balloon, spring booties, x2 sparkle). */
   power: string | null;
+  /** 0..1 lunge toward a fan (and which side). */
+  lunge: number;
+  lungeSide: number;
 }
 
 export interface Frame {
@@ -69,6 +72,8 @@ function hash2(a: number, b: number): number {
 const BUILDING_COLORS = ['#ead9b8', '#e3c79a', '#efe6d4', '#e6bf91', '#e9c9b4', '#d9cdb5', '#f0dcc0'];
 const SHUTTERS = ['#5d7f8f', '#7a8f6a', '#8a6f55', '#6c7a8a', '#b9b2a2'];
 /** Plain plaster of the post-1948 housing blocks, and Jaffa limestone of the older buildings. */
+/** Where the median ficus thins out so Bloomfield Stadium and City Hall can be seen. */
+const STADIUM_VIEW_U = (LANDMARKS.find((l) => l.kind === 'stadium')?.u ?? 0) - 40;
 const PLAIN_COLORS = ['#e8e2d4', '#ddd6c6', '#e6dccd', '#d9d3c4', '#ece6d8'];
 const STONE_COLORS = ['#dcc49c', '#d2b88e', '#e3cfa9', '#cdb489'];
 const AWNINGS = ['#c8462f', '#2f7f8a', '#e0a63a', '#3f6b45', '#b8563a'];
@@ -98,6 +103,18 @@ export class Scene {
   private dpr = 1;
   private ctx: CanvasRenderingContext2D | null = null;
   private t = 0;
+  /** Fans Rosie has nipped this run (id -> run time), set by the game each frame. */
+  bitten = new Map<number, number>();
+  /** Screen boxes of the fans that can be tapped right now. */
+  private fanHits: { id: number; x0: number; y0: number; x1: number; y1: number }[] = [];
+  /** The fan under a tap (CSS px), if any. */
+  hitFan(x: number, y: number): number | null {
+    for (let i = this.fanHits.length - 1; i >= 0; i--) {
+      const h = this.fanHits[i];
+      if (x >= h.x0 - 14 && x <= h.x1 + 14 && y >= h.y0 - 14 && y <= h.y1 + 14) return h.id;
+    }
+    return null;
+  }
 
   constructor() {
     this.sp = buildSprites();
@@ -408,7 +425,8 @@ export class Scene {
           else if (pl.airborne) { const st = Math.max(-0.08, Math.min(0.16, pl.vy * 0.022)); sy = 1 + st; sx = 1 - st * 0.6; }
           g.save();
           if (pl.ghost) g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(this.t * 22));
-          g.translate(p.x, p.y);
+          g.translate(p.x + pl.lunge * pl.lungeSide * p.s * 0.45, p.y - pl.lunge * p.s * 0.1);
+          if (pl.lunge > 0) g.rotate(pl.lungeSide * 0.35 * pl.lunge);
           g.scale(sx, sy);
           if (pl.board) {
             // riding: stands on the deck, gentle carving sway, no gallop
@@ -683,10 +701,10 @@ export class Scene {
   }
 
   // ---------- buildings ----------
-  /** Real shops at their house numbers: even numbers on the east (right) side, odd on the west (left). */
+  /** Real shops at their house numbers: even numbers on the west (left) side, odd on the east (right). */
   private shopsByU = [
-    ...SHOPS_EVEN.map((sh) => ({ sh, side: 1, u: numberToU(sh.no) })),
-    ...SHOPS_ODD.map((sh) => ({ sh, side: -1, u: numberToU(sh.no) })),
+    ...SHOPS_EVEN.map((sh) => ({ sh, side: -1, u: numberToU(sh.no) })),
+    ...SHOPS_ODD.map((sh) => ({ sh, side: 1, u: numberToU(sh.no) })),
   ].sort((a, b) => a.u - b.u);
 
   private drawBuildings(g: CanvasRenderingContext2D, d: number, side: number) {
@@ -699,9 +717,10 @@ export class Scene {
       const seg = segmentAt(z0 + BL / 2);
       if (seg === 'park' || seg === 'kaufman') continue; // open junction, then the park and the sea
       const u0 = lapU(z0), u1 = u0 + BL;
-      const lm = LANDMARKS.find((l) => l.side === side && l.u >= u0 && l.u < u1 && (l.kind === 'hospital' || l.kind === 'cityhall' || l.kind === 'postoffice'));
+      const lm = LANDMARKS.find((l) => l.facade && l.side === side && l.u >= u0 && l.u < u1);
       const r = hash2(k, side + 5);
       if (!lm && r < 0.1) continue; // side street
+      if (lm?.kind === 'davidoff' || lm?.kind === 'junction') { this.openBlock(g, lm.kind, X, side, z0 - d, z0 + BL - d); continue; }
       const g0 = z0 - d + (!lm && hash2(k, side) < 0.3 ? 1.2 : 0);
       const g1 = z0 + BL - d;
       if (g1 + CAM_BACK < NEAR_Z) continue;
@@ -709,10 +728,17 @@ export class Scene {
       let floors = seg === 'mall' ? 4 + Math.floor(hash2(k, side + 11) * 2) : seg === 'south' ? 3 + Math.floor(hash2(k, side + 11) * 2) : 2 + Math.floor(hash2(k, side + 11) * 2);
       const palette = seg === 'mandate' ? STONE_COLORS : seg === 'south' ? PLAIN_COLORS : BUILDING_COLORS;
       let col = palette[Math.floor(hash2(k, side + 21) * palette.length)];
-      if (lm?.kind === 'hospital') { col = '#f1f1ee'; floors = 5; }
+      if (lm?.kind === 'hospital') { col = '#f1f1ee'; floors = 4; }
       if (lm?.kind === 'cityhall') { col = '#ece2c9'; floors = 3; }
       if (lm?.kind === 'postoffice') { col = '#dcc49c'; floors = 2; }
-      const stone = seg === 'mandate' || lm?.kind === 'postoffice';
+      if (lm?.kind === 'tower139') { col = '#f3f3f0'; floors = 10; }
+      if (lm?.kind === 'ruthdaniel') { col = '#d8c39a'; floors = 3; }
+      if (lm?.kind === 'alhambra') { col = '#efe3c8'; floors = 2; }
+      if (lm?.kind === 'sheqem') { col = '#d9c49e'; floors = 3; }
+      if (lm?.kind === 'carriage') { col = '#d6c09a'; floors = 1; }
+      if (lm?.kind === 'gesher') { col = '#e4d6b8'; floors = 2; }
+      const stone = seg === 'mandate' || lm?.kind === 'postoffice' || lm?.kind === 'ruthdaniel' || lm?.kind === 'sheqem' || lm?.kind === 'carriage' || lm?.kind === 'gesher';
+      const banded = lm?.kind === 'hospital' || lm?.kind === 'tower139' || lm?.kind === 'cityhall';
       const h = 3.6 + floors * 3.1;
       const fg = this.fog(Math.max(0, g0)) * 0.65;
       const n0 = Math.max(g0, NEAR_Z - CAM_BACK + 0.05);
@@ -763,7 +789,20 @@ export class Scene {
           this.quadLit(g, this.P(X, 0.9, a + 0.6), this.P(X, 2.3, a + 0.6), this.P(X, 2.3, b - 0.6), this.P(X, 0.9, b - 0.6), this.litColor(fogc('#4a4f55', fg), '#ffc867', lit));
         }
       }
-      if (lm?.kind === 'postoffice' && a2ok(g0)) this.facadeWord(g, X, side, g0 + 3, g0 + 9, 'דואר', fg);
+      if (lm?.kind === 'postoffice') {
+        // striped "ablaq" stonework
+        for (let yy = 3.3; yy < h - 0.2; yy += 0.6) this.quad(g, this.P(X - side * 0.02, yy, n0), this.P(X - side * 0.02, yy + 0.3, n0), this.P(X - side * 0.02, yy + 0.3, g1), this.P(X - side * 0.02, yy, g1), fogc('#b9a27e', fg));
+        if (a2ok(g0)) this.facadeWord(g, X, side, g0 + 3, g0 + 9, 'דואר', fg);
+      }
+      if (lm?.kind === 'gesher' && a2ok(g0)) this.shopSign(g, X, side, g0 + 2, g0 + 11, { he: 'תיאטרון גשר', en: 'Gesher Theatre', no: 5 }, fg);
+      if (lm?.kind === 'alhambra' && g0 + CAM_BACK > NEAR_Z + 1) this.verticalSign(g, X - side * 0.15, X - side * 1.2, g0 + 6.5, 'ALHAMBRA', fg);
+      if (lm?.kind === 'carriage' && g0 + CAM_BACK > NEAR_Z + 1) {
+        // the little observation tower on the old carriage station
+        const za = g0 + 5, zb = g0 + 8;
+        this.quad(g, this.P(X, h, za), this.P(X, h + 3, za), this.P(X, h + 3, zb), this.P(X, h, zb), fogc(shade(col, 0.05), fg));
+        this.quad(g, this.P(X, h + 3, za), this.P(X + side * 1.5, h + 4.3, (za + zb) / 2), this.P(X, h + 3, zb), this.P(X, h + 3, za), fogc('#b8563a', fg));
+        this.quad(g, this.P(X, h + 1.2, za + 0.8), this.P(X, h + 2.4, za + 0.8), this.P(X, h + 2.4, zb - 0.8), this.P(X, h + 1.2, zb - 0.8), fogc('#5b4b3a', fg));
+      }
       if (lm?.kind === 'cityhall' && g0 + CAM_BACK > NEAR_Z + 1) {
         // flagpole on the roof
         const pp = this.P(X + side * 1.5, h + 0.35, g0 + 6), pt = this.P(X + side * 1.5, h + 4, g0 + 6);
@@ -776,13 +815,15 @@ export class Scene {
       }
       // upper floors
       const sh = SHUTTERS[Math.floor(hash2(k, side + 41) * SHUTTERS.length)];
-      const balc = !stone && lm?.kind !== 'hospital' && hash2(k, side + 51) < (seg === 'south' ? 0.8 : 0.6);
+      const balc = !stone && !banded && hash2(k, side + 51) < (seg === 'south' ? 0.8 : 0.6);
       for (let f = 0; f < floors; f++) {
         const y0 = 3.6 + f * 3.1;
-        if (lm?.kind === 'hospital') {
-          // long horizontal window bands
+        if (banded) {
+          // International Style ribbon windows (hospital, city hall) or the new tower's glass balconies
           const lit = this.L.lamps * 0.8;
-          this.quadLit(g, this.P(X, y0 + 0.9, n0 + 0.4), this.P(X, y0 + 2.2, n0 + 0.4), this.P(X, y0 + 2.2, g1 - 0.4), this.P(X, y0 + 0.9, g1 - 0.4), this.litColor(fogc('#7d9bb3', fg), '#eaf4ff', lit));
+          const glass = lm?.kind === 'tower139' ? '#9fc3d6' : '#7d9bb3';
+          this.quadLit(g, this.P(X, y0 + 0.9, n0 + 0.4), this.P(X, y0 + 2.2, n0 + 0.4), this.P(X, y0 + 2.2, g1 - 0.4), this.P(X, y0 + 0.9, g1 - 0.4), this.litColor(fogc(glass, fg), '#eaf4ff', lit));
+          if (lm?.kind === 'tower139') this.quad(g, this.P(X - side * 0.8, y0 + 0.2, n0 + 0.4), this.P(X - side * 0.8, y0 + 1.0, n0 + 0.4), this.P(X - side * 0.8, y0 + 1.0, g1 - 0.4), this.P(X - side * 0.8, y0 + 0.2, g1 - 0.4), 'rgba(200,225,240,0.55)');
           continue;
         }
         for (let c = 0; c < 4; c++) {
@@ -813,6 +854,43 @@ export class Scene {
       }
     }
     function a2ok(g0: number) { return g0 + CAM_BACK > NEAR_Z + 1 && g0 + CAM_BACK < 80; }
+  }
+
+  /** No building here: the Davidoff Garden / tennis courts (HaBesht), or a side street (Shalma junction). */
+  private openBlock(g: CanvasRenderingContext2D, kind: string, X: number, side: number, g0: number, g1: number) {
+    const n0 = Math.max(g0, NEAR_Z - CAM_BACK + 0.05);
+    if (g1 <= n0) return;
+    const fg = this.fog(Math.max(0, g0));
+    const xs = X + side * 26;
+    if (kind === 'junction') {
+      this.quad(g, this.P(X, 0, n0), this.P(xs, 0, n0), this.P(xs, 0, g1 - 1), this.P(X, 0, g1 - 1), fogc('#6a6763', fg));
+      for (let i = 0; i < 6; i++) { const z = n0 + 1 + i * 1.6; if (z < g1 - 2) this.quad(g, this.P(X, 0.01, z), this.P(X + side * 4, 0.01, z), this.P(X + side * 4, 0.01, z + 0.8), this.P(X, 0.01, z + 0.8), fogc('#ece8e0', fg)); }
+      return;
+    }
+    // Davidoff Garden lawn and the Jaffa Tennis Center courts behind a green fence
+    this.quad(g, this.P(X, 0, n0), this.P(xs, 0, n0), this.P(xs, 0, g1), this.P(X, 0, g1), fogc('#7fae55', fg));
+    const cx0 = X + side * 3, cx1 = X + side * 11;
+    this.quad(g, this.P(cx0, 0.01, n0 + 1), this.P(cx1, 0.01, n0 + 1), this.P(cx1, 0.01, g1 - 1), this.P(cx0, 0.01, g1 - 1), fogc('#3f7f6a', fg));
+    this.quad(g, this.P((cx0 + cx1) / 2 - side * 0.05, 0.02, n0 + 1), this.P((cx0 + cx1) / 2 + side * 0.05, 0.02, n0 + 1), this.P((cx0 + cx1) / 2 + side * 0.05, 0.02, g1 - 1), this.P((cx0 + cx1) / 2 - side * 0.05, 0.02, g1 - 1), fogc('#f4f1ea', fg));
+    g.globalAlpha = 0.45;
+    this.quad(g, this.P(X + side * 2.5, 0, n0), this.P(X + side * 2.5, 3, n0), this.P(X + side * 2.5, 3, g1), this.P(X + side * 2.5, 0, g1), fogc('#2f5a3c', fg));
+    g.globalAlpha = 1;
+  }
+
+  /** A tall camera-facing vertical sign with stacked letters (the Alhambra cinema's sign). */
+  private verticalSign(g: CanvasRenderingContext2D, x1: number, x2: number, gap: number, text: string, fg: number) {
+    const A = this.P(Math.min(x1, x2), 7.6, gap), B = this.P(Math.max(x1, x2), 2.6, gap);
+    const w = B.x - A.x, h = B.y - A.y;
+    if (w < 3) return;
+    const lit = this.L.lamps;
+    g.fillStyle = this.tc(fogc('#2b2b33', fg));
+    g.beginPath(); g.roundRect(A.x, A.y, w, h, w * 0.2); g.fill();
+    if (h < 20) return;
+    g.fillStyle = lit > 0.2 ? '#ff6a6a' : fogc('#e8d6a8', fg);
+    g.font = `900 ${Math.round(Math.min(w * 0.8, h / text.length))}px Rubik, Arial, sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < text.length; i++) g.fillText(text[i], A.x + w / 2, A.y + (h * (i + 0.5)) / text.length);
+    if (lit > 0.2) this.glow(g, A.x + w / 2, A.y + h / 2, h * 0.6, lit * 0.6, '255,90,90');
   }
 
   /** A word in plain lettering on a facade (e.g. the post office), mapped like the shop signs. */
@@ -896,14 +974,22 @@ export class Scene {
     g.fillStyle = fgc2;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.direction = 'rtl';
-    let size = 64;
-    g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`;
-    while (g.measureText(shop.he).width > 470 && size > 30) { size -= 4; g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`; }
-    g.fillText(shop.he, 256, 52);
-    g.direction = 'ltr';
-    g.font = `600 26px Rubik, Arial, sans-serif`;
-    g.fillText(shop.en.toUpperCase(), 256, 104);
+    if (shop.he) {
+      g.direction = 'rtl';
+      let size = 64;
+      g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`;
+      while (g.measureText(shop.he).width > 470 && size > 30) { size -= 4; g.font = `800 ${size}px Rubik, 'Arial Hebrew', Arial, sans-serif`; }
+      g.fillText(shop.he, 256, 52);
+      g.direction = 'ltr';
+      g.font = `600 26px Rubik, Arial, sans-serif`;
+      g.fillText(shop.en.toUpperCase(), 256, 104);
+    } else {
+      // English-only sign (Hebrew spelling not confirmed)
+      let size = 62;
+      g.font = `800 ${size}px Rubik, Arial, sans-serif`;
+      while (g.measureText(shop.en).width > 470 && size > 26) { size -= 4; g.font = `800 ${size}px Rubik, Arial, sans-serif`; }
+      g.fillText(shop.en, 256, 66);
+    }
     this.signCache.set(key, c);
     return c;
   }
@@ -1098,7 +1184,11 @@ export class Scene {
       add(8, side * 3 + 1, (k, gap, seg) => {
         const x = side * 1.13;
         const r = hash2(k, side * 7);
-        if (seg === 'mall') { if (r < 0.92) tree(this.sp.medianFicus[Math.abs(k) % 3], x, gap, k); }
+        if (seg === 'mall') {
+          // thinner where the canopy opens up toward Bloomfield Stadium and City Hall Square
+          const u = lapU(d + gap), open = Math.abs(u - STADIUM_VIEW_U) < 75;
+          if (!open && r < 0.92) tree(this.sp.medianFicus[Math.abs(k) % 3], x, gap, k);
+        }
         else if (seg === 'south') { if (r < 0.6) tree(this.sp.tamarisk[Math.abs(k) % 2], side * 5.75, gap, k, 0.04); } // tamarisks along the sidewalk edge
         else if (seg === 'mandate') tree(r < 0.5 ? this.sp.palms[Math.abs(k) % 3] : this.sp.medianFicus[Math.abs(k) % 3], x, gap, k);
       });
@@ -1124,18 +1214,69 @@ export class Scene {
       // a few palms at the junction by the north end
       add(10, side * 3 + 7, (k, gap, seg) => { if (seg === 'kaufman' && hash2(k, side) < 0.6) tree(this.sp.palms[Math.abs(k) % 3], side * (10 + hash2(k, 2) * 3), gap, k); });
     }
-    // landmarks
+    // landmarks behind or beside the street wall
     for (const lm of LANDMARKS) {
       const lap0 = Math.max(0, lapOf(d - CAM_BACK)), lap1 = lapOf(d + FAR);
       for (let lap = lap0; lap <= lap1; lap++) {
         const gap = lap * LAP + lm.u - d;
-        if (gap + CAM_BACK < NEAR_Z + 0.5 || gap + CAM_BACK > FAR) continue;
-        const sp = lm.kind === 'mosque' ? this.sp.minaret : lm.kind === 'stadium' ? this.sp.stadium : lm.kind === 'clocktower' ? this.sp.clockTower : lm.kind === 'beitgidi' ? this.sp.beitGidi : null;
-        if (!sp) continue;
-        // set back behind the building line (the stadium ~250 m away to the east, the clock tower west down the side streets)
-        const x = lm.kind === 'stadium' ? 34 : lm.kind === 'clocktower' ? -13 : lm.kind === 'beitgidi' ? -4.2 : lm.side * 9.8;
-        items.push({ gap: gap + (lm.kind === 'stadium' ? 30 : 0), fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0) });
+        if (gap + CAM_BACK < NEAR_Z + 0.5 || gap + CAM_BACK > FAR + 60) continue;
+        const put = (sp: Sprite, x: number, gp: number, sortGap = gp) => { if (gp + CAM_BACK > NEAR_Z + 0.5 && gp + CAM_BACK < FAR + 40) items.push({ gap: sortGap, fn: () => this.sprite(g, sp, this.P(x, 0, gp), gp, 0) }); };
+        switch (lm.kind) {
+          case 'mosque': put(this.sp.minaret, lm.side * 9.4, gap); break;
+          case 'stadium': put(this.sp.stadium2, 24, gap + 60, gap + 100); break; // ~230 m east: seen ahead-right over the rooftops
+          case 'siksik': put(this.sp.siksik, -12, gap, gap + 10); break;
+          case 'policehq': put(this.sp.policehq, 20, gap + 40, gap + 70); break;
+          case 'clocktower': put(this.sp.clockTower, -13, gap); break;
+          case 'mahmoudiya': put(this.sp.mahmoudiya, -20, gap, gap + 6); break;
+          case 'kishle': put(this.sp.kishle, 12, gap, gap + 4); break;
+          case 'beitgidi': put(this.sp.beitGidi, -4.2, gap); break;
+          case 'hassanbek': put(this.sp.hassanbek, 16, gap, gap + 10); break;
+          case 'skyline': put(this.sp.skyline, 60, gap + 90, gap + 200); break;
+          case 'market': for (let i = 0; i < 6; i++) put(this.sp.stalls[i % 3], -9.6 - (i % 2) * 2.5, gap + i * 6); break;
+          case 'cityhall': put(this.sp.fountain, 6.2, gap + 4); break;
+          case 'davidoff': for (let i = 0; i < 5; i++) put(i % 2 ? this.sp.palms[i % 3] : this.sp.ficus[i % 3], 10 + (i % 3) * 2.5, gap - 4 + i * 4); break;
+          default: break;
+        }
       }
+    }
+    // Easter egg: Shai on the Isakov platform, waving at Rosie as she comes by
+    for (let lap = Math.max(0, lapOf(d - CAM_BACK)); lap <= lapOf(d + FAR); lap++) {
+      const gap = lap * LAP + SHAI_U - d;
+      if (gap + CAM_BACK < NEAR_Z + 0.5 || gap + CAM_BACK > FAR) continue;
+      const waving = gap < 22 && gap > -3;
+      const frame = waving ? 1 + (Math.floor(this.t * 5) % 2) : 0;
+      items.push({ gap, fn: () => this.sprite(g, this.sp.shai, this.P(0.8, 0.12, gap), gap, frame) });
+    }
+    // Easter egg: football fans in red along the Bloomfield Stadium stretch (tap one: Rosie nips them)
+    this.fanHits = [];
+    for (const fan of fansNear(d - CAM_BACK + 1, d + 70)) {
+      const gap = fan.d - d;
+      const bitAt = this.bitten.get(fan.id);
+      const since = bitAt === undefined ? -1 : this.t - bitAt;
+      const frame = since >= 0 && since < 1.2 ? 2 : (gap < 16 && Math.floor(this.t * 3 + fan.id) % 2 === 0) ? 1 : 0;
+      items.push({
+        gap,
+        fn: () => {
+          const p = this.P(fan.x, 0, gap);
+          this.sprite(g, this.sp.fans[fan.variant], p, gap, frame);
+          if (bitAt === undefined && gap > -1 && gap < 12) {
+            const w = this.sp.fans[0].w * p.s, h = this.sp.fans[0].h * p.s;
+            this.fanHits.push({ id: fan.id, x0: p.x - w * 0.7, y0: p.y - h, x1: p.x + w * 0.7, y1: p.y + 6 });
+          }
+          if (since >= 0 && since < 0.8) {
+            const k = Math.min(1, since / 0.12);
+            g.save();
+            g.translate(p.x, p.y - p.s * 2.2 - since * 30);
+            g.scale(k, k); g.rotate(-0.12);
+            g.font = `900 ${Math.round(Math.max(14, p.s * 0.5))}px Rubik, system-ui, sans-serif`;
+            g.textAlign = 'center';
+            g.lineWidth = Math.max(3, p.s * 0.08); g.strokeStyle = '#5a2f17'; g.lineJoin = 'round';
+            g.strokeText('CHOMP!', 0, 0);
+            g.fillStyle = '#ffd23f'; g.fillText('CHOMP!', 0, 0);
+            g.restore();
+          }
+        },
+      });
     }
     // catenary poles with cantilever arms over each track (only where there is track)
     const PS = 24;

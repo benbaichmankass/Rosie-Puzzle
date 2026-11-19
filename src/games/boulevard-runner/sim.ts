@@ -1,5 +1,5 @@
 /** One run of the boulevard: Rosie's movement, jumping, tram roofs, collisions and score. Pure TS. */
-import { lapOf, lapU, PARK_START } from './route';
+import { lapOf, lapU, PARK_START, fansNear } from './route';
 import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, TREAT_POINTS, POWERUP_POINTS, BOARD_SPEED, POWER_TIMES, BALLOON_H, SPRING_JUMP_H, SPRING_JUMP_TIME, type Obstacle, type Pickup, type PowerKind } from './spawner';
 
 export { JUMP_H, ROOF_H };
@@ -17,6 +17,8 @@ const CLIMB_V = 16;
 export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount' | 'treat' | 'power' | 'shield' | 'powerEnd' | 'park' | 'lap';
 /** Bonus for reaching Charles Clore Park on each lap. */
 export const PARK_BONUS = 500;
+/** Bonus for nipping a football fan by Bloomfield Stadium (tap them as Rosie passes). */
+export const CHOMP_POINTS = 100;
 export interface Power { kind: PowerKind; until: number; total: number }
 
 export class Run {
@@ -53,6 +55,10 @@ export class Run {
   /** Laps completed and parks reached (milestones). */
   lap = 0;
   parks = 0;
+  /** Fans nipped this run (id -> run time) and the last lunge (for the animation). */
+  bitten = new Map<number, number>();
+  lungeAt = -10;
+  lungeSide = 1;
   spawner: Spawner;
   private warned = new Set<number>();
   private bells = new Set<number>();
@@ -276,6 +282,25 @@ export class Run {
       return this.crash(o, ev);
     }
     return ev;
+  }
+
+  /**
+   * Tap on a fan: Rosie lunges and gives their trouser leg a quick cartoon nip (no harm done), for bonus points.
+   * Only counts for a fan right beside Rosie or just ahead.
+   */
+  bite(fanId: number): boolean {
+    if (this.crashed || this.bitten.has(fanId)) return false;
+    const fan = fansNear(this.d - 2, this.d + 12).find((f) => f.id === fanId);
+    if (!fan) return false;
+    this.bitten.set(fanId, this.t);
+    this.bonus += CHOMP_POINTS * this.multiplier;
+    this.lungeAt = this.t;
+    this.lungeSide = fan.x > (this.lanePos - 1) * 1.9 ? 1 : -1;
+    return true;
+  }
+  get lunge(): number {
+    const k = (this.t - this.lungeAt) / 0.35;
+    return k < 0 || k > 1 ? 0 : Math.sin(k * Math.PI);
   }
 
   private breakBoard(ev: RunEvent[]) {
