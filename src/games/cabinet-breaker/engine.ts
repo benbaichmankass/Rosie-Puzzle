@@ -446,6 +446,10 @@ export class Engine {
       }
       if (b.def.kind === 'pickles') this.chips(cx, cy, 6, ['#6f9a35', '#8bb84a']);
       if (b.def.kind === 'frenchPress') this.chips(cx, cy, 8, ['#5a3420', '#ef94b2']);
+      if (b.def.kind === 'spices') this.chips(cx, cy, 12, ['#c8402a', '#e6a91f', '#5c8a2e']);
+      if (b.def.kind === 'honey') this.chips(cx, cy, 10, ['#e9a21e', '#f5c04a']);
+      if (b.def.kind === 'oliveOil') this.chips(cx, cy, 10, ['#9fb02a', '#c7c94a']);
+      if (b.def.kind === 'canisters') this.dust(cx, cy, 8, 'rgba(255,255,255,0.95)'); // sugar & flour cloud
       if (m === 'glass') for (let i = 0; i < 6; i++) this.spark(cx, cy, this.rand(-200, 200), this.rand(-240, 0), '#ffffff');
       this.dust(cx, cy + 6, 5, 'rgba(255,255,255,0.9)');
     } else {
@@ -484,22 +488,26 @@ export class Engine {
             shape: 'ring',
           });
         }
-      } else if (m === 'paper') {
-        for (let i = 0; i < 8; i++) {
+      } else if (b.def.kind === 'coffee') {
+        this.chips(cx, cy - 4, 14, ['#4a2a16', '#5a3420', '#3a200f']); // spilled beans
+      } else if (b.def.kind === 'cereal') {
+        for (let i = 0; i < 14; i++) {
           this.particles.push({
-            x: cx + this.rand(-6, 6),
-            y: cy,
-            vx: this.rand(-90, 90) + push,
-            vy: this.rand(-200, -60),
-            rot: this.rand(0, 6),
-            vr: this.rand(-8, 8),
-            life: 1.4,
-            max: 1.4,
-            size: this.rand(3, 4.5),
-            color: '#fbfaf6',
-            shape: 'shard',
+            x: cx + this.rand(-8, 8),
+            y: cy - 6,
+            vx: this.rand(-120, 120) + push,
+            vy: this.rand(-260, -60),
+            rot: 0,
+            vr: 0,
+            life: this.rand(0.9, 1.5),
+            max: 1.5,
+            size: this.rand(1.6, 2.4),
+            color: ['#f2c46b', '#e8a33a', '#f7dc8c'][i % 3],
+            shape: 'ring',
           });
         }
+      } else if (m === 'paper') {
+        this.chips(cx, cy, 8, itemColors(b.def.kind, variant));
       } else if (m === 'wood') {
         this.chips(cx, cy, 8, itemColors(b.def.kind, variant));
       } else {

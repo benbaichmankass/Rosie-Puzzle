@@ -33,7 +33,14 @@ export type ItemKind =
   | 'colander'
   | 'soap'
   | 'frenchPress'
-  | 'paperTowels'
+  | 'coffee'
+  | 'cereal'
+  | 'tea'
+  | 'canisters'
+  | 'spices'
+  | 'oliveOil'
+  | 'honey'
+  | 'mugs'
   | 'filterJug'
   | 'pickles'
   | 'kettle'
@@ -41,6 +48,7 @@ export type ItemKind =
   | 'crock'
   | 'sodaStream'
   | 'pot'
+  | 'moka'
   | 'clayPot'
   | 'airFryer'
   | 'pan';
@@ -65,7 +73,14 @@ export const ITEMS: Record<string, ItemDef> = {
   L: { kind: 'colander', hits: 1, points: 50, material: 'plastic' },
   S: { kind: 'soap', hits: 1, points: 50, material: 'plastic' },
   F: { kind: 'frenchPress', hits: 1, points: 70, material: 'glass' },
-  W: { kind: 'paperTowels', hits: 1, points: 40, material: 'paper' },
+  W: { kind: 'coffee', hits: 1, points: 50, material: 'paper' },
+  R: { kind: 'cereal', hits: 1, points: 40, material: 'paper' },
+  I: { kind: 'tea', hits: 1, points: 40, material: 'paper' },
+  Q: { kind: 'canisters', hits: 1, points: 50, material: 'ceramic' },
+  E: { kind: 'spices', hits: 1, points: 50, material: 'glass' },
+  V: { kind: 'oliveOil', hits: 1, points: 60, material: 'glass' },
+  Y: { kind: 'honey', hits: 1, points: 60, material: 'glass' },
+  M: { kind: 'mugs', hits: 1, points: 50, material: 'ceramic' },
   H: { kind: 'filterJug', hits: 1, points: 50, material: 'plastic' },
   J: { kind: 'pickles', hits: 1, points: 60, material: 'glass' },
   // 2 hits
@@ -74,6 +89,7 @@ export const ITEMS: Record<string, ItemDef> = {
   U: { kind: 'crock', hits: 2, points: 90, material: 'wood' },
   D: { kind: 'sodaStream', hits: 2, points: 110, material: 'plastic' },
   O: { kind: 'pot', hits: 2, points: 120, material: 'metal' },
+  Z: { kind: 'moka', hits: 2, points: 110, material: 'metal' },
   // 3 hits
   C: { kind: 'clayPot', hits: 3, points: 180, material: 'clay' },
   A: { kind: 'airFryer', hits: 3, points: 200, material: 'plastic' },
@@ -88,30 +104,30 @@ export interface LevelDef {
 
 /** Ordered roughly by difficulty: heavier items and trickier shapes come later. */
 export const LEVELS: LevelDef[] = [
-  { name: 'Clean Dishes', rows: ['PPPPPPPP', 'LLLLLLLL', 'GGGGSSSS', '........', 'WWWWWWWW'] },
-  { name: 'Stacked Up', rows: ['...PP...', '..LLLL..', '.GGGSSS.', 'JJJJJJJJ', 'WWTWWTWW'] },
-  { name: 'Two Cupboards', rows: ['PPP..BBB', 'FFF..GGG', 'UWU..UWU', 'LLL..JJJ', 'WWW..WWW', 'KHK..KHK'] },
-  { name: 'Pantry Check', rows: ['W.W.W.W.', '.K.K.K.K', 'B.B.B.B.', '.S.S.G.G', 'P.P.P.P.', '.S.S.S.S'] },
+  { name: 'Clean Dishes', rows: ['PPPPPPPP', 'LLLLLLLL', 'GGGGSSSS', '........', 'EMEMEMEM'] },
+  { name: 'Stacked Up', rows: ['...PP...', '..LLLL..', '.MGMEEE.', 'JJJJJJJJ', 'VWTVWTVW'] },
+  { name: 'Two Cupboards', rows: ['PPP..BBB', 'FFF..MGM', 'UEU..UMU', 'LLL..JJJ', 'YRY..RYR', 'ZHZ..KHK'] },
+  { name: 'Pantry Check', rows: ['Q.Y.Q.Y.', '.K.K.K.K', 'B.B.B.B.', '.R.I.W.Y', 'P.P.P.P.', '.Q.E.V.R'] },
   { name: 'Dinner for Two', rows: ['.BB..BB.', 'LHHLLHHL', 'BPPGSPPB', '.LJSGJL.', '..BPPB..', '...LL...'] },
-  { name: 'Soup Night', rows: ['O.O..O.O', 'LLLLLLLL', '.PPPPPP.', 'SS.SG.GG', 'TTTTTTTT', '..LLLL..'] },
-  { name: 'Coffee Corner', rows: ['TWTWTWTW', '........', 'WUWUWUWU', '........', 'GGGGFFFF', 'KLKLKLKL'] },
+  { name: 'Soup Night', rows: ['O.O..O.O', 'LLLLLLLL', '.PPPPPP.', 'EE.EV.VE', 'TTTTTTTT', '..LLLL..'] },
+  { name: 'Coffee Corner', rows: ['TWTMTWTM', '........', 'WZIZWZIZ', '........', 'MMMMFFFF', 'ZQZQZQZQ'] },
   {
     name: 'Good Morning',
-    rows: ['.PP..PP.', 'HFFHHGGH', 'PGGPPSSP', '.JJ..JJ.', '........', 'S......S', '.WUUUUW.', '..LLLL..'],
+    rows: ['.PP..PP.', 'HFFHHMMH', 'PMGPPSSP', '.JJ..JJ.', '........', 'R......R', '.YUUUUW.', '..LLLL..'],
   },
-  { name: 'Diamond Dinnerware', rows: ['...GF...', '..HLLH..', '.PUOOUP.', 'SLKAAKLG', '.PTOOTP.', '..HLLH..', '...GS...'] },
-  { name: 'The Valley', rows: ['P......P', 'LH....HL', 'GBP..PBS', 'DSLJJLGD', '.TGBBFT.', '..KFGK..', '...OO...'] },
+  { name: 'Diamond Dinnerware', rows: ['...GF...', '..HLLH..', '.PUOOUP.', 'SLZAAKLM', '.PTOOTP.', '..HLLH..', '...GS...'] },
+  { name: 'The Valley', rows: ['P......P', 'LH....HL', 'GBP..PBE', 'DVLJJLYD', '.TGBBFT.', '..ZFGK..', '...OO...'] },
   {
     name: 'Zig Zag Shelves',
-    rows: ['PPPP....', '.LLLL...', '..GGSS..', '...DDDD.', '....OOOO', '...SSSS.', '..PPPP..', '.LLLL...'],
+    rows: ['PPPP....', '.LLLL...', '..MMEE..', '...DDDD.', '....OOOO', '...WIRQ.', '..PPPP..', '.LLLL...'],
   },
-  { name: 'Hourglass', rows: ['TTTTTTTT', '.HHHHHH.', '..GGSS..', '...AA...', '..GGFF..', '.LLLLLL.', 'WWWWWWWW'] },
-  { name: 'Up the Shelf', rows: ['...AA...', '..KFGK..', '.OGPPSO.', 'KSJLLJGK', '...TT...', '...KK...', '...WW...'] },
-  { name: 'Heavy Metal', rows: ['NNCCCCNN', 'K.K..K.K', 'GGGGSSSS', 'DLDLDLDL', 'PPPPPPPP', '.K.KK.K.'] },
-  { name: 'Fortress', rows: ['AAAAAAAA', 'C.FFGG.C', 'N.GPPS.N', 'A.SSGG.A', 'O......O', 'KKKKKKKK'] },
+  { name: 'Hourglass', rows: ['TTTTTTTT', '.HHHHHH.', '..GMEE..', '...AA...', '..GMFF..', '.LLLLLL.', 'RERERERE'] },
+  { name: 'Up the Shelf', rows: ['...AA...', '..ZFGK..', '.OGPPSO.', 'ZSJLLJGK', '...TT...', '...KZ...', '...IV...'] },
+  { name: 'Heavy Metal', rows: ['NNCCCCNN', 'Z.Z..K.K', 'GMGMEEEE', 'DLDLDLDL', 'PPPPPPPP', '.K.KZ.Z.'] },
+  { name: 'Fortress', rows: ['AAAAAAAA', 'C.FFGM.C', 'N.GPPS.N', 'A.QQGM.A', 'O......O', 'ZKZKZKZK'] },
   {
     name: 'Full Kitchen',
-    rows: ['AOOGFOOA', 'KHHLLHHK', 'WGGUUSSW', 'LLKJJKLL', 'PPPCCPPP', 'FSKSSKSG', 'BBBBBBBB', 'JJJJJJJJ'],
+    rows: ['AOOMFOOA', 'ZHHLLHHK', 'RMGUUSSE', 'LLZJJKLL', 'PPPCCPPP', 'FVZYYKVG', 'BBBBBBBB', 'JJJJJJJJ'],
   },
 ];
 

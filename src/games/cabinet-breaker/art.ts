@@ -541,6 +541,7 @@ export function itemColors(kind: ItemKind, variant: number): string[] {
     case 'glasses':
       return ['rgba(190,230,245,0.9)', '#ffffff', '#a9d8ea'];
     case 'steelBowls':
+    case 'moka':
     case 'kettle':
     case 'pot':
       return ['#c9cfd3', '#8e979d', '#eef2f4'];
@@ -550,8 +551,22 @@ export function itemColors(kind: ItemKind, variant: number): string[] {
       return ['#c8e03a', '#f3d6dc', '#ffffff'];
     case 'frenchPress':
       return ['#ef94b2', 'rgba(220,240,250,0.9)', '#ffffff'];
-    case 'paperTowels':
-      return ['#ffffff', '#efece4'];
+    case 'coffee':
+      return ['#b8895a', '#5a3420', '#f4ead8'];
+    case 'cereal':
+      return [['#e2453c', '#2f6fd0', '#f2a516'][variant % 3], '#ffd23f', '#e8a33a'];
+    case 'tea':
+      return ['#3f8f4a', '#c0463a', '#f4ead8'];
+    case 'canisters':
+      return ['#ffffff', '#f3ead6', '#4d7fbf', '#d6ae74'];
+    case 'spices':
+      return ['#c8402a', '#e6a91f', '#5c8a2e', 'rgba(220,238,245,0.9)'];
+    case 'oliveOil':
+      return ['#2f5a1e', '#3f7a28', '#d7b347'];
+    case 'honey':
+      return ['#e9a21e', '#f5c04a', 'rgba(220,238,245,0.9)'];
+    case 'mugs':
+      return [['#4d7fbf', '#f2b632', '#3c9a76', '#d45a7a'][variant % 4], '#ffffff'];
     case 'filterJug':
       return ['#ffffff', '#bfe3f2'];
     case 'pickles':
@@ -820,65 +835,411 @@ export function drawItem(c: C, kind: ItemKind, x: number, y: number, w: number, 
       c.fill();
       break;
     }
-    case 'paperTowels': {
-      const px = x + 9;
-      const pw = 19;
-      const top = b - 21;
-      // Steel holder: base and the rod poking out of the top.
-      c.fillStyle = '#9aa4ab';
-      rr(c, px - 3, b - 2.2, pw + 6, 2.2, 1);
-      c.fill();
-      c.fillStyle = '#c6cdd2';
-      c.fillRect(cx - 1, top - 5, 2, 5);
+    case 'coffee': {
+      // Kraft bag of coffee beans with a folded top, and a glass jar of beans.
+      const bx = x + 2;
+      const bw = 17;
+      const top = b - 24;
+      c.fillStyle = '#b8895a';
+      c.strokeStyle = '#4a3220';
       c.beginPath();
-      c.arc(cx, top - 5.5, 1.8, 0, Math.PI * 2);
-      c.fill();
-      // Roll.
-      const g = c.createLinearGradient(px, 0, px + pw, 0);
-      g.addColorStop(0, '#d9d4c8');
-      g.addColorStop(0.35, '#ffffff');
-      g.addColorStop(1, '#cfc9bc');
-      c.fillStyle = g;
-      c.strokeStyle = '#6f6656';
-      c.beginPath();
-      c.moveTo(px, top);
-      c.lineTo(px, b - 2.5);
-      c.ellipse(cx, b - 2.5, pw / 2, 2.2, 0, Math.PI, 0, true);
-      c.lineTo(px + pw, top);
+      c.moveTo(bx + 1, top + 4);
+      c.lineTo(bx + bw - 1, top + 4);
+      c.lineTo(bx + bw, b);
+      c.lineTo(bx, b);
       c.closePath();
       c.fill();
       c.stroke();
-      c.fillStyle = '#ffffff';
+      c.fillStyle = '#9c7046';
+      c.fillRect(bx + 1, top, bw - 2, 4.5);
+      c.strokeRect(bx + 1, top, bw - 2, 4.5);
+      c.fillStyle = '#d7b47a';
+      c.fillRect(bx + 1.5, top + 1.6, bw - 3, 1.2);
+      // Label with a coffee bean.
+      c.fillStyle = '#f4ead8';
+      rr(c, bx + 3, top + 9, bw - 6, 9, 1.5);
+      c.fill();
+      c.fillStyle = '#4a2a16';
       c.beginPath();
-      c.ellipse(cx, top, pw / 2, 2.6, 0, 0, Math.PI * 2);
+      c.ellipse(bx + bw / 2, top + 13.5, 2.4, 3.2, 0.4, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#c99a62';
+      c.lineWidth = 0.6;
+      c.beginPath();
+      c.moveTo(bx + bw / 2 - 1, top + 11);
+      c.quadraticCurveTo(bx + bw / 2 + 1, top + 13.5, bx + bw / 2 - 0.5, top + 16);
+      c.stroke();
+      // Jar of beans.
+      const jx = x + 21;
+      const jw = 13;
+      c.fillStyle = 'rgba(215,235,240,0.55)';
+      rr(c, jx, b - 16, jw, 16, 2.5);
+      c.fill();
+      c.fillStyle = '#5a3420';
+      for (let i = 0; i < 9; i++) {
+        c.beginPath();
+        c.ellipse(jx + 2.5 + (i % 3) * 4, b - 3 - Math.floor(i / 3) * 3.6, 1.6, 1.2, i, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.strokeStyle = 'rgba(60,80,90,0.8)';
+      c.lineWidth = 0.9;
+      rr(c, jx, b - 16, jw, 16, 2.5);
+      c.stroke();
+      c.fillStyle = '#2b2b2e';
+      rr(c, jx + 0.5, b - 19, jw - 1, 3.5, 1);
+      c.fill();
+      break;
+    }
+    case 'cereal': {
+      const colors = [
+        ['#e2453c', '#ffd23f'],
+        ['#2f6fd0', '#ffffff'],
+        ['#f2a516', '#7a3b12'],
+      ][variant % 3];
+      const bw = w * 0.6;
+      c.fillStyle = colors[0];
+      rr(c, x + 1, y, bw, h, 1.5);
       c.fill();
       c.stroke();
-      c.fillStyle = '#b98a55';
-      c.beginPath();
-      c.ellipse(cx, top, 3, 1.2, 0, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(0,0,0,0.15)';
+      c.fillRect(x + bw - 3, y + 0.5, 3.5, h - 1);
+      c.fillStyle = colors[1];
+      rr(c, x + 3.5, y + 3, bw - 8, 6, 1.5);
       c.fill();
-      // Perforations + quilting.
-      c.strokeStyle = 'rgba(120,110,90,0.45)';
-      c.lineWidth = 0.6;
-      c.setLineDash([1.2, 1.2]);
-      for (const ly of [top + 7, top + 13]) {
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.arc(x + 1 + bw / 2 - 1.5, y + 16, 6, 0, Math.PI);
+      c.fill();
+      c.strokeStyle = colors[1] === '#ffffff' ? '#ffd23f' : colors[1];
+      c.lineWidth = 1.2;
+      for (const [ox, oy] of [
+        [-3.5, 14.5],
+        [0, 13],
+        [3.2, 14.6],
+      ]) {
         c.beginPath();
-        c.moveTo(px + 1, ly);
-        c.quadraticCurveTo(cx, ly + 1.6, px + pw - 1, ly);
+        c.arc(x + 1 + bw / 2 - 1.5 + ox, y + oy, 1.6, 0, Math.PI * 2);
         c.stroke();
       }
-      c.setLineDash([]);
-      // Loose sheet hanging off the front.
-      c.fillStyle = '#fbfaf6';
-      c.strokeStyle = '#6f6656';
+      // Bowl beside it.
+      c.fillStyle = '#fdfbf6';
+      c.strokeStyle = PAL.ink;
+      c.lineWidth = 0.9;
+      const ox = x + bw + 2;
+      const ow = w - bw - 3;
       c.beginPath();
-      c.moveTo(px + pw - 3, top + 4);
-      c.lineTo(px + pw + 3, top + 7);
-      c.lineTo(px + pw + 2, b - 6);
-      c.lineTo(px + pw - 3, b - 7);
+      c.moveTo(ox, b - 8);
+      c.quadraticCurveTo(ox + ow / 2, b + 2, ox + ow, b - 8);
       c.closePath();
       c.fill();
       c.stroke();
+      c.fillStyle = '#e8a33a';
+      c.beginPath();
+      c.ellipse(ox + ow / 2, b - 8.5, ow / 2 - 0.5, 1.6, 0, 0, Math.PI * 2);
+      c.fill();
+      break;
+    }
+    case 'tea': {
+      // Two stacked tea boxes and a tea bag tag.
+      const tx = x + 3;
+      const tw = w - 6;
+      const boxes: [string, string][] = [
+        ['#3f8f4a', '#e8d27a'],
+        ['#c0463a', '#f4ead8'],
+      ];
+      boxes.forEach(([main, acc], i) => {
+        const by = b - 11 - i * 11;
+        const bx = tx + (i ? 2 : 0);
+        const bw = tw - (i ? 4 : 0);
+        c.fillStyle = main;
+        c.strokeStyle = PAL.ink;
+        c.lineWidth = 0.9;
+        rr(c, bx, by, bw, 11, 1.2);
+        c.fill();
+        c.stroke();
+        c.fillStyle = acc;
+        rr(c, bx + 3, by + 2.5, bw - 6, 6, 1);
+        c.fill();
+        // Teacup icon.
+        c.fillStyle = main;
+        c.beginPath();
+        c.arc(bx + bw / 2, by + 5, 2.2, 0, Math.PI);
+        c.fill();
+        c.strokeStyle = main;
+        c.lineWidth = 0.7;
+        c.beginPath();
+        c.arc(bx + bw / 2 + 2.6, by + 5.8, 1, -1.5, 1.5);
+        c.stroke();
+      });
+      // Tea bag hanging off the top box.
+      c.strokeStyle = '#efe7d6';
+      c.lineWidth = 0.6;
+      c.beginPath();
+      c.moveTo(tx + tw - 5, b - 22);
+      c.lineTo(tx + tw + 1, b - 16);
+      c.stroke();
+      c.fillStyle = '#f4ead8';
+      c.fillRect(tx + tw - 0.5, b - 16, 3.5, 4);
+      break;
+    }
+    case 'canisters': {
+      // Sugar and flour canisters with wooden lids.
+      const items: [number, number, string, string][] = [
+        [x + 2, 16, '#ffffff', '#4d7fbf'],
+        [x + 19, 13, '#f3ead6', '#c79a3a'],
+      ];
+      items.forEach(([cx0, cw, body, band], i) => {
+        const ch = i ? 17 : 21;
+        const top = b - ch;
+        const g = c.createLinearGradient(cx0, 0, cx0 + cw, 0);
+        g.addColorStop(0, '#d6d1c6');
+        g.addColorStop(0.35, body);
+        g.addColorStop(1, '#cbc5b8');
+        c.fillStyle = g;
+        c.strokeStyle = '#5d5548';
+        c.lineWidth = 0.9;
+        rr(c, cx0, top + 3, cw, ch - 3, 2.5);
+        c.fill();
+        c.stroke();
+        c.fillStyle = band;
+        c.fillRect(cx0 + 0.5, top + 9, cw - 1, 3);
+        // Lid with knob.
+        c.fillStyle = PAL.wood;
+        rr(c, cx0 - 0.5, top, cw + 1, 4, 1.5);
+        c.fill();
+        c.strokeStyle = PAL.woodDark;
+        c.stroke();
+        c.fillStyle = PAL.woodDark;
+        c.beginPath();
+        c.arc(cx0 + cw / 2, top - 0.6, 1.6, 0, Math.PI * 2);
+        c.fill();
+      });
+      // Little icons: sugar cube, wheat ear.
+      c.fillStyle = '#4d7fbf';
+      c.fillRect(x + 8, b - 7, 4, 4);
+      c.strokeStyle = '#c79a3a';
+      c.lineWidth = 0.8;
+      c.beginPath();
+      c.moveTo(x + 25.5, b - 2);
+      c.lineTo(x + 25.5, b - 7);
+      for (const dy of [-3, -5, -7]) {
+        c.moveTo(x + 25.5, b + dy);
+        c.lineTo(x + 24, b + dy - 1.5);
+        c.moveTo(x + 25.5, b + dy);
+        c.lineTo(x + 27, b + dy - 1.5);
+      }
+      c.stroke();
+      break;
+    }
+    case 'spices': {
+      // Three spice jars: paprika, turmeric, herbs.
+      const fills = ['#c8402a', '#e6a91f', '#5c8a2e'];
+      for (let i = 0; i < 3; i++) {
+        const sx = x + 2 + i * 11.2;
+        const sh = i === 1 ? 19 : 16;
+        const top = b - sh;
+        c.fillStyle = 'rgba(220,238,245,0.5)';
+        rr(c, sx, top + 4, 10, sh - 4, 2);
+        c.fill();
+        c.fillStyle = fills[(i + variant) % 3];
+        c.fillRect(sx + 1, top + 4 + (sh - 4) * 0.35, 8, (sh - 4) * 0.65 - 1);
+        c.fillStyle = '#fbf6ea';
+        c.fillRect(sx + 1.5, top + 8, 7, 3.5);
+        c.strokeStyle = 'rgba(60,80,90,0.85)';
+        c.lineWidth = 0.8;
+        rr(c, sx, top + 4, 10, sh - 4, 2);
+        c.stroke();
+        c.fillStyle = '#232326';
+        rr(c, sx + 0.5, top, 9, 4.5, 1.2);
+        c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.25)';
+        c.fillRect(sx + 1.5, top + 1, 6, 1);
+      }
+      break;
+    }
+    case 'oliveOil': {
+      // Tall dark-green olive oil bottle and a little dish of olives.
+      const ox = x + 8;
+      const ow = 12;
+      const top = b - h - 1;
+      c.fillStyle = '#2f5a1e';
+      c.strokeStyle = '#132a08';
+      c.beginPath();
+      c.moveTo(ox + 4, top + 2);
+      c.lineTo(ox + ow - 4, top + 2);
+      c.lineTo(ox + ow - 4, top + 8);
+      c.quadraticCurveTo(ox + ow, top + 10, ox + ow, top + 13);
+      c.lineTo(ox + ow, b);
+      c.lineTo(ox, b);
+      c.lineTo(ox, top + 13);
+      c.quadraticCurveTo(ox, top + 10, ox + 4, top + 8);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#d7b347';
+      c.fillRect(ox + 4, top - 1, ow - 8, 3.5);
+      c.fillStyle = '#f2e6b8';
+      rr(c, ox + 1.5, b - 13, ow - 3, 8, 1);
+      c.fill();
+      c.fillStyle = '#5c8a2e';
+      c.beginPath();
+      c.ellipse(ox + ow / 2, b - 9, 1.8, 2.5, 0.3, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.fillRect(ox + 1.6, top + 13, 1.3, 11);
+      // Olive dish.
+      c.fillStyle = '#f4f0e6';
+      c.strokeStyle = PAL.ink;
+      c.lineWidth = 0.8;
+      c.beginPath();
+      c.ellipse(x + w - 7, b - 2, 6, 2.2, 0, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#6f8a2a';
+      for (const dx of [-3, 0, 3]) {
+        c.beginPath();
+        c.ellipse(x + w - 7 + dx, b - 3.6, 1.6, 1.2, 0, 0, Math.PI * 2);
+        c.fill();
+      }
+      break;
+    }
+    case 'honey': {
+      const hx = x + 6;
+      const hw = 19;
+      const top = b - 19;
+      // Honey.
+      c.fillStyle = '#e9a21e';
+      rr(c, hx, top + 3, hw, 16, 4);
+      c.fill();
+      c.fillStyle = 'rgba(255,220,120,0.6)';
+      c.beginPath();
+      c.ellipse(hx + 5, top + 9, 2, 4.5, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#fbf2d8';
+      rr(c, hx + 3.5, top + 9, hw - 7, 6, 1.5);
+      c.fill();
+      // Little bee stripes on the label.
+      c.fillStyle = '#2b2118';
+      c.fillRect(hx + hw / 2 - 2, top + 10.5, 1.2, 3);
+      c.fillRect(hx + hw / 2 + 0.6, top + 10.5, 1.2, 3);
+      c.strokeStyle = '#7a4d0a';
+      c.lineWidth = 0.9;
+      rr(c, hx, top + 3, hw, 16, 4);
+      c.stroke();
+      // Lid with gingham top.
+      c.fillStyle = '#d7b347';
+      rr(c, hx + 1, top, hw - 2, 4, 1);
+      c.fill();
+      c.stroke();
+      // Wooden dipper.
+      c.strokeStyle = PAL.woodDark;
+      c.lineWidth = 1.6;
+      c.beginPath();
+      c.moveTo(hx + hw - 3, top + 1);
+      c.lineTo(hx + hw + 5, top - 5);
+      c.stroke();
+      c.fillStyle = PAL.wood;
+      c.beginPath();
+      c.ellipse(hx + hw + 6, top - 6, 2.6, 2, -0.6, 0, Math.PI * 2);
+      c.fill();
+      break;
+    }
+    case 'mugs': {
+      const cols = ['#4d7fbf', '#f2b632', '#3c9a76', '#d45a7a'];
+      for (let i = 0; i < 2; i++) {
+        const mx = x + 2 + i * 17;
+        const mw = 12;
+        const mh = 14 + (i ? 0 : 2);
+        const top = b - mh;
+        const col = cols[(variant + i) % 4];
+        c.strokeStyle = PAL.ink;
+        c.lineWidth = 2.4;
+        c.beginPath();
+        c.arc(mx + mw + 0.5, top + mh / 2, 3.4, -1.4, 1.4);
+        c.stroke();
+        c.strokeStyle = col;
+        c.lineWidth = 1.2;
+        c.stroke();
+        c.fillStyle = col;
+        c.strokeStyle = PAL.ink;
+        c.lineWidth = 0.9;
+        rr(c, mx, top, mw, mh, 2);
+        c.fill();
+        c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.85)';
+        c.beginPath();
+        c.arc(mx + mw / 2, top + mh / 2 + 1, 2.4, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.35)';
+        c.fillRect(mx + 1.5, top + 1.5, 1.4, mh - 3);
+      }
+      break;
+    }
+    case 'moka': {
+      // Stovetop espresso pot: eight-sided aluminium body pinched at the waist.
+      const mx = cx - 2;
+      const top = b - 24;
+      const g = steel(c, mx - 8, 16);
+      c.fillStyle = g;
+      c.strokeStyle = PAL.ink;
+      c.lineWidth = 0.9;
+      // Bottom chamber.
+      c.beginPath();
+      c.moveTo(mx - 8, b);
+      c.lineTo(mx + 8, b);
+      c.lineTo(mx + 5, b - 10);
+      c.lineTo(mx - 5, b - 10);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      // Top chamber.
+      c.beginPath();
+      c.moveTo(mx - 5, b - 10);
+      c.lineTo(mx + 5, b - 10);
+      c.lineTo(mx + 7.5, top + 3);
+      c.lineTo(mx - 7.5, top + 3);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      // Facet lines.
+      c.strokeStyle = 'rgba(60,70,75,0.45)';
+      c.beginPath();
+      c.moveTo(mx - 2.5, b);
+      c.lineTo(mx - 1.8, b - 10);
+      c.lineTo(mx - 2.6, top + 3);
+      c.moveTo(mx + 2.5, b);
+      c.lineTo(mx + 1.8, b - 10);
+      c.lineTo(mx + 2.6, top + 3);
+      c.stroke();
+      // Lid, knob, spout and black handle.
+      c.fillStyle = '#d6dcdf';
+      c.strokeStyle = PAL.ink;
+      c.beginPath();
+      c.moveTo(mx - 7.5, top + 3);
+      c.lineTo(mx + 7.5, top + 3);
+      c.lineTo(mx + 5, top);
+      c.lineTo(mx - 5, top);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#222';
+      rr(c, mx - 1.6, top - 2.8, 3.2, 3, 1);
+      c.fill();
+      c.fillStyle = '#c6cdd2';
+      c.beginPath();
+      c.moveTo(mx - 7.5, top + 3);
+      c.lineTo(mx - 11, top + 1);
+      c.lineTo(mx - 7, top + 6);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.strokeStyle = '#1d1d1f';
+      c.lineWidth = 2.6;
+      c.beginPath();
+      c.moveTo(mx + 6.5, top + 5);
+      c.quadraticCurveTo(mx + 14, top + 6, mx + 11, b - 12);
+      c.stroke();
+      if (damage > 0) dent(c, mx + 1, b - 5);
       break;
     }
     case 'filterJug': {
