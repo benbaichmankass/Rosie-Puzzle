@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { parseHebcal, estimateCandleLighting, isCurrent, hhmm, dateLabel } from '../src/games/shabbos/logic/hebcal';
-import { newBraid, tryMove, legalMoves, isComplete, braidRows, span } from '../src/games/shabbos/logic/challah';
+import { newBraid, tryMove, legalMoves, isComplete, braidRows, span, resolveDrop } from '../src/games/shabbos/logic/challah';
 import { ITEMS, drop, isLoaded, type Placed, checkStability } from '../src/games/shabbos/logic/plata';
 import { LINES, newCall, answer, isOver, currentLine, rng } from '../src/games/shabbos/logic/calls';
 import { levelParams } from '../src/games/shabbos/logic/levels';
@@ -101,6 +101,28 @@ for (let n = 3; n <= 6; n++) {
   let t = newBraid(3, 6);
   for (let i = 0; i < 6; i++) t = tryMove(t, ...((i % 2 === 0 ? [2, 1] : [0, 1]) as [number, number])).state;
   ok(t.order.join() === '0,1,2', `3-strand period 6 ${t.order}`);
+}
+
+// Forgiving drops: an inward drag of an outside strand means "cross toward the middle", even overshooting.
+for (let n = 3; n <= 5; n++) {
+  const s0 = newBraid(n, 6);
+  ok(resolveDrop(s0, n - 1, -0.5) === n - 1 - span(n), `n=${n} small inward drag from right`);
+  ok(resolveDrop(s0, n - 1, -(n - 1)) === n - 1 - span(n), `n=${n} overshoot from right`);
+  ok(resolveDrop(s0, 0, n + 2) === span(n), `n=${n} overshoot from left`);
+  ok(resolveDrop(s0, 0, 0.1) === null, `n=${n} tiny drag ignored`);
+  ok(resolveDrop(s0, n - 1, 0.8) === n - 1, `n=${n} outward drag is a no-op`);
+  const mid = resolveDrop(s0, 1, 0.9);
+  ok(mid !== null && !tryMove(s0, 1, mid).ok, `n=${n} inner strand still rejected`);
+  // A whole braid done with sloppy overshooting drags.
+  let s = s0;
+  for (let i = 0; i < 6; i++) {
+    const right = i % 2 === 0;
+    const to = resolveDrop(s, right ? n - 1 : 0, right ? -2.7 : 2.7)!;
+    const r = tryMove(s, right ? n - 1 : 0, to);
+    ok(r.ok, `n=${n} sloppy drag ${i} accepted`);
+    s = r.state;
+  }
+  ok(isComplete(s), `n=${n} sloppy braid completes`);
 }
 
 // ---------- Plata ----------

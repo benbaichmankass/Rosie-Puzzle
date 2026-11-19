@@ -17,6 +17,7 @@ export const CSS = `
   box-shadow: 0 -6px 0 rgba(35,28,43,0.35); animation: sh-up 0.22s ease-out; }
 .g-shabbos .sh-msg { font-weight: 700; font-size: 16px; min-height: 24px; text-align: center; padding: 2px 12px 6px; color: #fdf6e7; }
 .g-shabbos .sh-shake { animation: sh-shake 0.35s; color: #ffb4a6; }
+.g-shabbos .sh-burst { transform-box: fill-box; transform-origin: center; animation: sh-burst 0.7s ease-out forwards; }
 .g-shabbos .sh-pulse { animation: sh-pulse 1s ease-in-out infinite; }
 .g-shabbos .sh-ring { animation: sh-ring 0.18s linear infinite; transform-box: fill-box; transform-origin: 50% 100%; }
 .g-shabbos .sh-waves { animation: sh-pulse 0.5s ease-in-out infinite; }
@@ -35,6 +36,7 @@ export const CSS = `
   line-height: 1.2; text-align: left; box-shadow: 0 3px 0 #231c2b; color: #231c2b; }
 .g-shabbos .sh-reply:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #231c2b; }
 .g-shabbos .sh-reply:disabled { opacity: 0.5; }
+@keyframes sh-burst { from { transform: scale(0.6); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
 @keyframes sh-blink { 50% { opacity: 0.35; } }
 @keyframes sh-up { from { transform: translateY(40%); opacity: 0.4; } to { transform: none; opacity: 1; } }
 @keyframes sh-shake { 0%,100% { transform: none; } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
