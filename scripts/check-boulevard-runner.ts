@@ -8,23 +8,23 @@ import { timeOfDay, lightAt, phaseName, DAY_LENGTH, STEPS } from '../src/games/b
 import { ROUTE_STATIONS, NORTH_END, PARK_START, LAP, TRACKS_END, numberToU, hasTracks } from '../src/games/boulevard-runner/route';
 import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
 
-const SEEDS = 40;
+const SEEDS = 32;
 const RUN = 4000; // units (metres); top speed is reached long before this
 const H = 0.25; // finer grid than the spawner uses
 
-interface Grid { tall: Uint8Array[]; low: Uint8Array[]; tram: Uint8Array[]; ramp: Uint8Array[]; n: number }
+interface Grid { tall: Uint8Array[]; low: Uint8Array[]; tram: Uint8Array[]; ramp: Uint8Array[]; duckG: Uint8Array[]; duckR: Uint8Array[]; n: number }
 
 function buildGrid(obs: Obstacle[], length: number): Grid {
   const n = Math.ceil(length / H) + 600;
   const mk = () => Array.from({ length: LANES }, () => new Uint8Array(n));
-  const tall = mk(), low = mk(), tram = mk(), ramp = mk();
+  const tall = mk(), low = mk(), tram = mk(), ramp = mk(), duckG = mk(), duckR = mk();
   for (const o of obs) {
     const a = Math.floor(o.start / H), b = Math.min(n - 1, Math.ceil(o.end / H));
-    const arr = o.tram ? tram : o.tall ? tall : low;
+    const arr = o.duck ? (o.duckLevel ? duckR : duckG) : o.tram ? tram : o.tall ? tall : low;
     for (let i = a; i <= b; i++) arr[o.lane][i] = 1;
     if (o.ramp) ramp[o.lane][a] = 1;
   }
-  return { tall, low, tram, ramp, n };
+  return { tall, low, tram, ramp, duckG, duckR, n };
 }
 
 /**
@@ -32,25 +32,35 @@ function buildGrid(obs: Obstacle[], length: number): Grid {
  * Calls out(j, lane, roof) for each state she can be in next.
  */
 function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, out: (j: number, l: number, roof: boolean) => void) {
-  const { tall, low, tram, ramp } = G;
-  const any = (ll: number, c: number) => tall[ll][c] || low[ll][c] || tram[ll][c];
+  const { tall, low, tram, ramp, duckG, duckR } = G;
+  const any = (ll: number, c: number) => tall[ll][c] || low[ll][c] || tram[ll][c] || duckG[ll][c];
   const s = speedAt(i * H);
   const kc = Math.ceil((t.laneChangeTime * s) / H);
   const kj = Math.ceil((t.jumpTime * s) / H);
   const kf = Math.ceil((t.fallTime * s) / H);
   const ja = Math.floor(t.airFrom * kj), jb = Math.ceil(t.airTo * kj);
   const ma = Math.ceil(t.mountFrom * kj), mb = Math.floor(t.mountTo * kj);
+  const kd = Math.ceil((t.duckTime * s) / H);
+  const da = Math.floor(t.duckFrom * kd), db = Math.ceil(t.duckTo * kd);
   if (!onRoof) {
-    if (tram[l][i]) { if (ramp[l][i] && !tall[l][i] && !low[l][i] && tram[l][i + 1]) out(i + 1, l, true); }
-    else if (!tall[l][i] && !low[l][i]) out(i + 1, l, false);
+    if (tram[l][i]) { if (ramp[l][i] && !tall[l][i] && !low[l][i] && !duckG[l][i] && tram[l][i + 1]) out(i + 1, l, true); }
+    else if (!tall[l][i] && !low[l][i] && !duckG[l][i]) out(i + 1, l, false);
     let ok = true, mountAt = -1;
     for (let k = 0; k < kj && ok && mountAt < 0; k++) {
       const c = i + k;
-      if (tram[l][c]) { if (k >= ma && k <= mb) mountAt = c; else ok = false; }
-      else if (tall[l][c]) ok = false;
+      if (tram[l][c]) { if (k >= ma && k <= mb && !duckR[l][c]) mountAt = c; else ok = false; }
+      else if (tall[l][c] || duckG[l][c]) ok = false;
       else if (low[l][c] && (k <= ja || k >= jb)) ok = false;
     }
     if (ok) { if (mountAt >= 0) out(mountAt, l, true); else out(i + kj, l, false); }
+    // duck under a street-level bar
+    let okd = true;
+    for (let k = 0; k < kd && okd; k++) {
+      const c = i + k;
+      if (tall[l][c] || low[l][c] || tram[l][c]) okd = false;
+      else if (duckG[l][c] && (k < da || k > db)) okd = false;
+    }
+    if (okd) out(i + kd, l, false);
     for (const nb of [l - 1, l + 1]) {
       if (nb < 0 || nb >= LANES) continue;
       let ok2 = true;
@@ -60,6 +70,15 @@ function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, 
     return;
   }
   if (!tram[l][i]) return;
+  // duck under something at roof height
+  let okd = true;
+  for (let k = 0; k <= kd && okd; k++) {
+    const c = i + k;
+    if (!tram[l][c]) okd = false;
+    else if (duckR[l][c] && (k < da || k > db)) okd = false;
+  }
+  if (okd) out(i + kd, l, true);
+  if (duckR[l][i]) return;
   if (tram[l][i + 1]) out(i + 1, l, true);
   else {
     let ok = true;
@@ -69,13 +88,13 @@ function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, 
   for (const nb of [l - 1, l + 1]) {
     if (nb < 0 || nb >= LANES) continue;
     let ok2 = true;
-    for (let k = 0; k < kc + kf && ok2; k++) if (any(nb, i + k)) ok2 = false;
+    for (let k = 0; k < kc + kf && ok2; k++) if (any(nb, i + k) || (k < kc && duckR[l][i + k])) ok2 = false;
     if (ok2) out(i + kc + kf, nb, false);
   }
   const far = 2 - l;
   if (far !== l) {
     let ok3 = true;
-    for (let k = 0; k <= 2 * kc && ok3; k++) if (!tram[far][i + k]) ok3 = false;
+    for (let k = 0; k <= 2 * kc && ok3; k++) if (!tram[far][i + k] || duckR[far][i + k] || duckR[l][i + k]) ok3 = false;
     if (ok3) out(i + 2 * kc, far, true);
   }
 }
@@ -145,6 +164,10 @@ const t0 = performance.now();
   // A ramp tram can be climbed without jumping.
   const rampOnly = [makeObstacle(1, 'tramOut', 60, 0, true), makeObstacle(2, 'walker', 60, 0), makeObstacle(3, 'tramIn', 60, 0)];
   if (!passable(rampOnly, 300, { ...CONTROLS, mountFrom: 2, mountTo: 3 }).ok) fail('ramp should let Rosie climb a tram');
+  // bars must be ducked: with ducking disabled a full row of bars is a wall, with it they're passable
+  const bars = [0, 1, 2].map((l) => makeObstacle(10 + l, 'bar', 120, 0, false, l as 0 | 1 | 2));
+  if (!passable(bars, 300).ok) fail('ducking should get under a row of bars');
+  if (passable(bars, 300, { ...CONTROLS, duckFrom: 2, duckTo: 3 }).ok) fail('check accepts bars without ducking');
 }
 
 const counts: Record<string, number> = {};

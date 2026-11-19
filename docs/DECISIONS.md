@@ -94,6 +94,13 @@ Ben's feedback (round 2):
   house numbers (No. 1 at the north end, even numbers on the east side). Landmarks: Tzahalon Hospital (No. 100),
   Al-Nuzha Mosque (No. 82), Jaffa City Hall, Bloomfield Stadium's stand and floodlights to the east, the Central
   Post Office (No. 12), the clock tower, Beit Gidi.
+Ben's feedback (round 3):
+- Duck/roll: swipe down (or the down arrow / S). Rosie crouches for ~0.55 s; in the air it cancels the jump with a
+  fast drop and she ducks on landing. Things to duck under (they can't be jumped): at street level, a ficus limb
+  drooping over the bike path or a red-white barrier boom; at tram-roof height (only matters while riding a tram),
+  overhanging ficus branches and palm fronds, low steel gantries on the southern stretch, and the station canopy
+  beams that reach over both tracks. The skateboard ducks them for you. Spawner and check script model ducking
+  (including on roofs) and prove every run passable.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,

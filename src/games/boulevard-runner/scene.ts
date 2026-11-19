@@ -33,6 +33,8 @@ export interface Player {
   /** Riding the skateboard power-up; flickering after it took a hit. */
   board: boolean;
   ghost: boolean;
+  /** 0..1 how far into a duck (crouch-roll) Rosie is. */
+  crouch: number;
 }
 
 export interface Frame {
@@ -399,7 +401,8 @@ export class Scene {
         } else {
           // squash on landing, stretch while rising, squash a touch at the top of the fall
           let sx = 1, sy = 1;
-          if (pl.landT >= 0 && pl.landT < 0.16) { const k = 1 - pl.landT / 0.16; sx = 1 + 0.2 * k; sy = 1 - 0.18 * k; }
+          if (pl.crouch > 0) { sx = 1 + 0.16 * pl.crouch; sy = 1 - 0.42 * pl.crouch; }
+          else if (pl.landT >= 0 && pl.landT < 0.16) { const k = 1 - pl.landT / 0.16; sx = 1 + 0.2 * k; sy = 1 - 0.18 * k; }
           else if (pl.airborne) { const st = Math.max(-0.08, Math.min(0.16, pl.vy * 0.022)); sy = 1 + st; sx = 1 - st * 0.6; }
           g.save();
           if (pl.ghost) g.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(this.t * 22));
@@ -1172,6 +1175,17 @@ export class Scene {
     }
     const gap = near + (far - near) * 0.5;
     if (gap + CAM_BACK < NEAR_Z + 0.3) return;
+    if (o.duck) {
+      // overhead things hang at their height (street bars ~0.65-1.9; roof things above the tram roof)
+      const seg = segmentAt(o.start);
+      let sp: Sprite, y = 0;
+      if (o.kind === 'bar') sp = o.variant % 2 === 0 && seg !== 'kaufman' && seg !== 'park' ? this.sp.lowBranch : this.sp.boom;
+      else if (o.kind === 'canopy') { sp = this.sp.canopyBeam; y = ROOF_H + 0.55; }
+      else if (seg === 'south') { sp = this.sp.gantry; }
+      else { sp = seg === 'mandate' && o.variant % 2 ? this.sp.roofFrond : this.sp.roofBranch[o.variant % 2]; y = ROOF_H + 0.6; }
+      items.push({ gap: gap + 0.2, fn: () => this.sprite(g, sp, this.P(x, y, gap), gap, 0, o.variant % 4 === 1) });
+      return;
+    }
     const frame = Math.floor(fr.t * (o.kind === 'bike' ? 12 : 7) + o.id) % 4;
     let sp: Sprite;
     if (o.kind === 'walker') sp = this.sp.walkers[o.variant % this.sp.walkers.length];
