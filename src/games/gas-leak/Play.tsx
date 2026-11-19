@@ -300,6 +300,13 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
   const tense = phase === 'pooling' || (phase === 'flowing' && pressure >= 3);
   const mood = phase === 'boom' ? 'boom' : phase === 'won' ? 'relieved' : tense || (phase === 'flowing' && near(level.bentzi)) ? 'worried' : 'chill';
   const shaiMood = phase === 'boom' ? 'boom' : tense || (phase === 'flowing' && near(level.shai?.candle)) ? 'worried' : 'calm';
+  // Shai stands in the middle of his yoga mat.
+  const shaiSpot = useMemo(() => {
+    if (!level.shai) return { x: 0, y: 0 };
+    const at = level.shai.at;
+    const mat = level.furniture.find((f) => f.kind === 'mat' && at.r >= f.r && at.r < f.r + f.h && at.c >= f.c && at.c < f.c + f.w);
+    return mat ? { x: X0 + (mat.c + mat.w / 2) * CELL, y: Y0 + (mat.r + mat.h / 2) * CELL } : { x: cx(at.c), y: cy(at.r) };
+  }, [level]);
   const boomAt = hit === 'shai' && level.shai ? level.shai.candle : level.bentzi ?? level.shai?.candle ?? null;
   const leaking = phase !== 'countdown';
   const headMs = Math.min(900, tickMs(level, live.ticks));
@@ -373,7 +380,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
             </g>
           )}
           {level.bentzi && <Bentzi r={level.bentzi.r} c={level.bentzi.c} mood={mood} />}
-          {level.shai && <Shai r={level.shai.at.r} c={level.shai.at.c} mood={shaiMood} />}
+          {level.shai && <Shai x={shaiSpot.x} y={shaiSpot.y} mood={shaiMood} />}
           {level.ac && <FanSprite r={acCell().r} c={acCell().c} dir={level.ac.dir} s={level.ac.s} fixed spinning />}
           {trail.map(({ p, i }, n) => (
             <g key={`t${p.r},${p.c}`} opacity={0.45 + (0.5 * (n + 1)) / trail.length}>

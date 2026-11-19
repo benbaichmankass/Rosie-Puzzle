@@ -89,19 +89,14 @@ export function Room({ open, source, acOn }: { open: Record<ExitId, boolean>; so
         <rect x={OUT_L} y="0" width={WALL} height={VB_H} />
         <rect x={x1} y="0" width={WALL} height={VB_H} />
       </g>
-      {/* bookshelf + lamp on the top wall */}
-      <g>
-        <rect x={X0 + 60} y="2" width="92" height="8" rx="1" fill="#7a5233" />
-        {Array.from({ length: 15 }, (_, i) => (
-          <rect
-            key={i}
-            x={X0 + 62 + i * 6}
-            y={3 + (i % 3)}
-            width="4.5"
-            height={6 - (i % 3)}
-            fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc', '#b56576'][i % 6]}
-          />
+      {/* the tall white bookcase against the top wall, plus the wall lamp */}
+      <g filter="url(#gl-shadow)">
+        <rect x={X0 + 74} y="1" width="42" height="13" rx="1.5" fill="#fbfbf8" stroke="#bdb8ae" strokeWidth="1.2" />
+        {Array.from({ length: 8 }, (_, i) => (
+          <rect key={i} x={X0 + 77 + i * 4.7} y={6 + (i % 3)} width="3.6" height={7 - (i % 3)} rx="0.6" fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#b56576', '#f08a4b'][i % 6]} />
         ))}
+      </g>
+      <g>
         <circle cx={X0 + 190} cy="7" r="4.5" fill="#ffe7a3" stroke="#2b2b2b" strokeWidth="1.2" />
         <circle cx={X0 + 190} cy="7" r="9" fill="#fff3c4" opacity="0.35" />
       </g>
@@ -360,7 +355,7 @@ function ShaiHead({ soot, worried }: { soot: boolean; worried: boolean }) {
 }
 
 /** Shai on his mat cycling through yoga poses (downward dog, tree, warrior). */
-export function Shai({ r, c, mood }: { r: number; c: number; mood: 'calm' | 'worried' | 'boom' }) {
+export function Shai({ x, y, mood }: { x: number; y: number; mood: 'calm' | 'worried' | 'boom' }) {
   const soot = mood === 'boom';
   const skin = soot ? '#5a5048' : SH.skin;
   const shirt = SH.shirt;
@@ -368,7 +363,7 @@ export function Shai({ r, c, mood }: { r: number; c: number; mood: 'calm' | 'wor
   const legs = { stroke: '#3d4a5c', strokeWidth: 4, strokeLinecap: 'round' as const, fill: 'none' };
   const still = mood !== 'calm';
   return (
-    <g transform={`translate(${cx(c)} ${cy(r) + 2})`}>
+    <g transform={`translate(${x} ${y}) scale(1.25)`}>
       {/* tree pose: standing on one leg, hands together overhead */}
       <g className={still ? '' : 'gl-pose gl-pose-1'} opacity={still ? 1 : undefined}>
         <path d="M0 6 L-1 17" {...legs} />
@@ -381,12 +376,12 @@ export function Shai({ r, c, mood }: { r: number; c: number; mood: 'calm' | 'wor
       </g>
       {!still && (
         <>
-          {/* downward dog: an upside-down V, head between the arms */}
+          {/* downward dog, side view: hands and feet on the mat, hips high */}
           <g className="gl-pose gl-pose-2">
-            <path d="M2 -4 L12 12" {...legs} />
-            <path d="M2 -4 L-9 12" {...limb} />
-            <rect x="-3" y="-8" width="9" height="9" rx="3.5" fill={shirt} transform="rotate(30 1 -4)" />
-            <g transform="translate(-6 6) scale(0.7)">
+            <path d="M4 -9 L13 12" {...legs} />
+            <path d="M4 -9 L-4 3" stroke={shirt} strokeWidth="7" strokeLinecap="round" />
+            <path d="M-4 3 L-11 12" {...limb} />
+            <g transform="translate(-7 7) rotate(25) scale(0.62)">
               <ShaiHead soot={false} worried={false} />
             </g>
           </g>
@@ -556,20 +551,42 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
         </g>
       );
     case 'cabinet':
-    default:
+    default: {
+      // Tall white bookcases, one compact unit per tile, book spines on the side facing the room.
+      const horiz = f.w >= f.h;
+      const front: Dir = horiz ? (f.r < ROWS / 2 ? 2 : 0) : f.c < COLS / 2 ? 1 : 3;
+      const units: { ux: number; uy: number }[] = [];
+      for (let i = 0; i < f.w; i++) for (let j = 0; j < f.h; j++) units.push({ ux: x + i * CELL, uy: y + j * CELL });
       return (
         <g filter="url(#gl-shadow)">
-          <rect x={x + 2} y={y + 2} width={w - 4} height={h - 4} rx="2" fill="#a8774d" stroke="#6b4428" strokeWidth="1.2" />
-          {f.w >= f.h
-            ? Array.from({ length: Math.floor((w - 10) / 6) }, (_, i) => (
-                <rect key={i} x={x + 5 + i * 6} y={y + 6} width="4.5" height={h - 12} fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc'][i % 5]} />
-              ))
-            : Array.from({ length: Math.floor((h - 10) / 6) }, (_, i) => (
-                <rect key={i} x={x + 6} y={y + 5 + i * 6} width={w - 12} height="4.5" fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc'][i % 5]} />
-              ))}
+          {units.map(({ ux, uy }, n) => (
+            <g key={n}>
+              <BookcaseUnit x={ux} y={uy} front={front} seed={n + f.r * 7 + f.c * 3} />
+            </g>
+          ))}
         </g>
       );
+    }
   }
+}
+
+const BOOKS = ['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#b56576', '#f08a4b', '#6c5b7b'];
+
+/** One tall white bookcase seen from above: a deep white top, shelves of colourful spines at the front. */
+function BookcaseUnit({ x, y, front, seed }: { x: number; y: number; front: Dir; seed: number }) {
+  const ins = 4;
+  return (
+    <g transform={`rotate(${ROT[front]} ${x + CELL / 2} ${y + CELL / 2})`}>
+      {/* drawn with the front facing up, then rotated */}
+      <rect x={x + ins} y={y + ins} width={CELL - ins * 2} height={CELL - ins * 2} rx="2" fill="#fbfbf8" stroke="#bdb8ae" strokeWidth="1.3" />
+      <rect x={x + ins + 2} y={y + ins + 2} width={CELL - ins * 2 - 4} height="11" rx="1" fill="#e9e6df" />
+      {Array.from({ length: 6 }, (_, i) => (
+        <rect key={i} x={x + ins + 3 + i * 4.8} y={y + ins + 3 + ((i + seed) % 3)} width="3.6" height={9 - ((i + seed) % 3)} rx="0.6" fill={BOOKS[(i + seed) % BOOKS.length]} />
+      ))}
+      <path d={`M${x + ins + 3} ${y + CELL - ins - 6} h${CELL - ins * 2 - 6}`} stroke="#e4e0d7" strokeWidth="1.2" />
+      <path d={`M${x + ins + 3} ${y + CELL - ins - 10} h${CELL - ins * 2 - 6}`} stroke="#e4e0d7" strokeWidth="1.2" />
+    </g>
+  );
 }
 
 function RosieSleeping({ x, y }: { x: number; y: number }) {
