@@ -76,11 +76,13 @@ Ben's feedback (round 1):
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
 hold to spray (water stream with arc). Cats run along the tree, wall and ground: +points. A chicken sometimes pops
 up from behind the wall: big bonus. Bunnies and turtles wander through: hitting them costs points. 60-second rounds,
-best score kept. Look (Ben's call): old western. The same yard as a dusty sun-bleached showdown (adobe wall, plank
-fence, desert tree, mesas beyond the wall, tumbleweeds and dust), cut-paper characters: outlaw cats in bandit masks and
-bandanas, the chicken as a bonus "outlaw" in a hat, the real bunnies and turtles unchanged. The nozzle is held like a
-six-shooter; READY/STEADY/DRAW countdown; wanted-poster start and game-over screens, score on a wooden sign, sheriff-star
-timer, twangy guitar sounds. The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
+best score kept. Look (Ben's call): toned-down old western set in the real garden (cream walls, the tree with the
+colander, dirt with dry leaves, teal hose, green wire fencing, pallet planters, potted plants, cable-spool table), no
+desert. The "from the past" feel comes from a gentle vintage grade (warm sepia tint, film grain, old-photo vignette)
+and western touches: slab-serif wild-west fonts, wanted-poster start and game-over screens, wooden score sign,
+sheriff-star timer, READY/STEADY/DRAW, the nozzle held like a six-shooter with a cowboy cuff, guitar twangs, cowboy hats
+and bandanas on the cats and the outlaw hen, an occasional tumbleweed. The real bunnies and turtles stay unchanged.
+The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
 
 ## Garden Defense (yard, bunny wall)
 Side view of the bed along the yard's left wall, with the apartment block across the street (windows, nosy

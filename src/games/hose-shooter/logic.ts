@@ -288,7 +288,7 @@ export function createGame(H: number, seed: number, demo = false): GameState {
     lastTick: ROUND_SECONDS + 1,
     countdown: demo ? 0 : COUNTDOWN_SECONDS,
     weeds: [],
-    weedTimer: lerp(1, 3, rng()),
+    weedTimer: lerp(8, 16, rng()),
   };
 }
 
@@ -802,7 +802,7 @@ function soak(g: GameState, e: Ent) {
 
 function updateWeeds(g: GameState, dt: number) {
   g.weedTimer -= dt;
-  if (g.weedTimer <= 0 && g.weeds.length < 2) {
+  if (g.weedTimer <= 0 && g.weeds.length < 1) {
     const fromLeft = g.rng() < 0.5;
     const depth = lerp(0.05, 0.9, g.rng());
     g.weeds.push({
@@ -814,7 +814,7 @@ function updateWeeds(g: GameState, dt: number) {
       hopT: g.rng(),
       seed: g.rng() * 100,
     });
-    g.weedTimer = lerp(5, 11, g.rng());
+    g.weedTimer = lerp(16, 28, g.rng());
   }
   for (const w of g.weeds) {
     const s = groundAt(g.L, w.depth).s;
