@@ -4,6 +4,7 @@ import { ExitButton } from '../../shared/ExitButton';
 import { getHighScore, submitScore, load, save } from '../../shared/storage';
 import { meta } from './meta';
 import { Run } from './sim';
+import { timeOfDay } from './daynight';
 import { Scene } from './scene';
 import { Sfx } from './audio';
 import type { Obstacle } from './spawner';
@@ -161,6 +162,7 @@ export default function Game({ onExit }: GameProps) {
     let prev = performance.now();
     let hudTimer = 0;
     const idleObstacles: Obstacle[] = [];
+    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const dt = Math.min(1 / 30, (now - prev) / 1000);
@@ -172,7 +174,7 @@ export default function Game({ onExit }: GameProps) {
       if (s === 'play' && run) {
         const ev = run.update(dt);
         // Local playtest aid only: window.__brGod = true makes Rosie pass through everything.
-        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        if (local) {
           const w = window as unknown as { __brGod?: boolean; __brRun?: Run };
           w.__brRun = run;
           if (w.__brGod && run.crashed) { run.crashed = false; run.hit = null; ev.length = 0; }
@@ -235,6 +237,8 @@ export default function Game({ onExit }: GameProps) {
       }
       a.shake = Math.max(0, a.shake - dt * 2.5);
       const useRun = s !== 'start' && run;
+      // local playtest aid: window.__brTod (0..1) pins the time of day
+      const todOverride = local ? (window as unknown as { __brTod?: number }).__brTod : undefined;
       // camera rises with Rosie when she is up on a tram roof
       const liftTarget = useRun ? Math.max(0, run.base - 0.4) * 0.55 : 0;
       a.camLift += (liftTarget - a.camLift) * Math.min(1, dt * 5);
@@ -246,6 +250,7 @@ export default function Game({ onExit }: GameProps) {
         showObstacles: !!useRun,
         shake: a.shake,
         camLift: a.camLift,
+        tod: todOverride ?? timeOfDay(useRun ? run.d : 0),
         pickups: useRun ? run.spawner.pickups : [],
         taken: useRun ? run.taken : new Map(),
         magnet: !!(useRun && run.power?.kind === 'magnet'),

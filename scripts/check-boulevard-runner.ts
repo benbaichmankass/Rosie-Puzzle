@@ -4,6 +4,7 @@
 // tram, run along its roof, drop off the end, hop down to the bike path, or leap across to the other track.
 // It also proves the search is not vacuous (a hand-made wall is rejected), checks determinism and density,
 // and that no distance is blocked by tall obstacles in all three lanes. Exits non-zero on failure.
+import { timeOfDay, lightAt, phaseName, DAY_LENGTH, STEPS } from '../src/games/boulevard-runner/daynight';
 import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
 
 const SEEDS = 40;
@@ -188,6 +189,22 @@ if (perKm < 40) fail(`too few obstacles: ${perKm.toFixed(1)} per km`);
 if (!ramps) fail('no ramp trams generated');
 if (treats / SEEDS < 50) fail(`too few treats: ${(treats / SEEDS).toFixed(0)} per run`);
 if (!powers) fail('no power-ups generated');
+
+// Day/night: a run starts in daylight and passes sunset, night and dawn in order within one day's walk,
+// with no sudden jumps in the sky colours between steps.
+{
+  if (phaseName(timeOfDay(0)) !== 'day') fail('runs should start in daylight');
+  const seen: string[] = [];
+  for (let d = 0; d <= DAY_LENGTH; d += 5) { const ph = phaseName(timeOfDay(d)); if (seen[seen.length - 1] !== ph) seen.push(ph); }
+  if (seen.join('>') !== 'day>sunset>night>dawn>day') fail(`day/night order is ${seen.join('>')}`);
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  for (let i = 0; i < STEPS; i++) {
+    const a = lightAt(i / STEPS), b = lightAt(((i + 1) % STEPS) / STEPS);
+    const jump = Math.max(...rgb(a.skyTop).map((v, j) => Math.abs(v - rgb(b.skyTop)[j])), ...rgb(a.tint).map((v, j) => Math.abs(v - rgb(b.tint)[j])));
+    if (jump > 60) fail(`day/night colour jump of ${jump} at step ${i}`);
+  }
+  if (lightAt(0.6).lamps < 0.9 || lightAt(0.1).lamps > 0.01) fail('lamps should be on at night and off by day');
+}
 
 const ms = performance.now() - t0;
 console.log(
