@@ -1,6 +1,6 @@
 /**
- * The yard's back wall as a dusty old-western showdown street: sun-bleached sky, mesas over the wall,
- * adobe render, a weathered plank fence, a gnarled desert tree. Cut-paper shapes, pre-rendered per resize.
+ * The real yard's back wall, drawn as layered construction paper (the old-western feel comes from the
+ * vintage grade, fonts and costumes, not the setting). Pre-rendered once per resize.
  */
 import { groundAt, type Layout } from './logic';
 import { blob, ellipsePath, hn, limb, makeGrain, mix, noShadow, paperShadow, poly, type Ctx } from './paper';
@@ -63,23 +63,15 @@ export function plank(ctx: Ctx, x: number, y: number, w: number, h: number, base
   ctx.restore();
 }
 
-function saguaro(ctx: Ctx, x: number, base: number, h: number, col: string) {
-  const w = h * 0.16;
-  limb(ctx, [x, base, x, base - h], w, col);
-  limb(ctx, [x - w * 0.5, base - h * 0.45, x - w * 1.8, base - h * 0.48, x - w * 1.8, base - h * 0.78], w * 0.75, col);
-  limb(ctx, [x + w * 0.5, base - h * 0.6, x + w * 1.6, base - h * 0.62, x + w * 1.6, base - h * 0.9], w * 0.7, col);
-}
-
-function windmill(ctx: Ctx, x: number, base: number, h: number, col: string) {
-  limb(ctx, [x - h * 0.16, base, x, base - h], 1.6, col);
-  limb(ctx, [x + h * 0.16, base, x, base - h], 1.6, col);
-  limb(ctx, [x - h * 0.11, base - h * 0.35, x + h * 0.11, base - h * 0.35], 1.2, col);
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    limb(ctx, [x, base - h, x + Math.cos(a) * h * 0.3, base - h + Math.sin(a) * h * 0.3], 1.4, col);
+function palm(ctx: Ctx, x: number, base: number, h: number, seed: number) {
+  limb(ctx, [x, base, x + h * 0.08, base - h * 0.5, x + h * 0.04, base - h], 6, '#8b6a45');
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI / 2 + (i - 3) * 0.5;
+    const len = h * (0.42 + 0.08 * hn(seed, i));
+    const ex = x + h * 0.04 + Math.cos(a) * len;
+    const ey = base - h + Math.sin(a) * len * 0.6 + len * 0.25;
+    limb(ctx, [x + h * 0.04, base - h, (x + ex) / 2, base - h - len * 0.25, ex, ey], 5, i % 2 ? '#3f8a4a' : '#4f9e52');
   }
-  limb(ctx, [x, base - h, x + h * 0.42, base - h + 2], 2, col);
-  poly(ctx, [x + h * 0.36, base - h - 4, x + h * 0.5, base - h - 6, x + h * 0.5, base - h + 9, x + h * 0.36, base - h + 6], col, 4);
 }
 
 export function renderBackground(L: Layout, px: number): Sprite | null {
@@ -88,163 +80,133 @@ export function renderBackground(L: Layout, px: number): Sprite | null {
   const { ctx } = lay;
   const { H, wallTop, wallBase } = L;
 
-  // ---- sun-bleached sky
+  // ---- sky
   const sky = ctx.createLinearGradient(0, 0, 0, wallTop);
-  sky.addColorStop(0, '#de8648');
-  sky.addColorStop(0.55, '#f3cd8f');
-  sky.addColorStop(1, '#f8e6bd');
+  sky.addColorStop(0, '#6cc4ea');
+  sky.addColorStop(1, '#c4ecf6');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, L.W, wallTop + 4);
-  // the sun with a hazy halo
-  for (let i = 4; i >= 1; i--) {
-    ctx.globalAlpha = 0.12;
-    blob(ctx, 300, 70, 26 + i * 16, 26 + i * 16, '#fff2c8', 80 + i, 0.02);
+  paperShadow(ctx, px, 0.6);
+  blob(ctx, 330, 48, 26, 26, '#ffd85a', 3, 0.03);
+  for (const [cx, cy, s] of [[90, 60, 1], [250, 92, 0.75], [360, 120, 0.6]] as const) {
+    blob(ctx, cx, cy, 34 * s, 13 * s, '#fbfdff', cx, 0.06);
+    blob(ctx, cx - 16 * s, cy - 8 * s, 16 * s, 12 * s, '#fbfdff', cx + 1, 0.06);
+    blob(ctx, cx + 10 * s, cy - 11 * s, 18 * s, 14 * s, '#fbfdff', cx + 2, 0.06);
   }
-  ctx.globalAlpha = 1;
-  paperShadow(ctx, px, 0.5);
-  blob(ctx, 300, 70, 28, 28, '#fff4d0', 3, 0.02);
-  noShadow(ctx);
-  // long wispy clouds
-  ctx.globalAlpha = 0.75;
-  for (const [cx, cy, w] of [[110, 52, 70], [210, 96, 56], [360, 132, 40], [60, 120, 34]] as const) {
-    blob(ctx, cx, cy, w, 4.5, '#fbe9cc', cx, 0.08);
-    blob(ctx, cx + w * 0.3, cy - 5, w * 0.55, 3.5, '#fdf1dc', cx + 1, 0.08);
-  }
-  ctx.globalAlpha = 1;
-  // mesas and buttes beyond the wall, far ones paler
-  poly(ctx, [-10, wallTop + 4, -10, wallTop - 36, 40, wallTop - 40, 58, wallTop - 62, 128, wallTop - 64, 142, wallTop - 42, 220, wallTop - 38, 232, wallTop + 4], '#d9a27c', 11, 1.2);
-  poly(ctx, [190, wallTop + 4, 214, wallTop - 52, 236, wallTop - 86, 300, wallTop - 88, 318, wallTop - 56, 352, wallTop - 50, 366, wallTop - 70, 400, wallTop - 72, 410, wallTop + 4], '#c98a66', 12, 1.2);
-  ctx.globalAlpha = 0.35;
-  for (let i = 0; i < 5; i++) limb(ctx, [240 + i * 12, wallTop - 84 + i * 2, 238 + i * 12, wallTop - 10], 1, '#a86a4e');
-  ctx.globalAlpha = 1;
-  poly(ctx, [-10, wallTop + 4, -10, wallTop - 14, 90, wallTop - 20, 180, wallTop - 12, 300, wallTop - 22, 410, wallTop - 16, 410, wallTop + 4], '#b97a58', 13, 1.5);
-  saguaro(ctx, 330, wallTop + 2, 46, '#7f6a3c');
-  saguaro(ctx, 186, wallTop + 2, 30, '#8a7444');
-  windmill(ctx, 262, wallTop + 2, 54, '#6a4a34');
+  // distant roof with a solar water heater, palms peeking over the wall
+  poly(ctx, [236, wallTop + 2, 236, wallTop - 34, 312, wallTop - 34, 312, wallTop + 2], '#e9d3b4', 21);
+  poly(ctx, [232, wallTop - 34, 316, wallTop - 34, 316, wallTop - 40, 232, wallTop - 40], '#c9b392', 22);
+  poly(ctx, [252, wallTop - 40, 262, wallTop - 58, 288, wallTop - 58, 278, wallTop - 40], '#3d5a8a', 23);
+  blob(ctx, 293, wallTop - 52, 13, 6, '#f4f4f0', 24, 0.03);
+  for (let i = 0; i < 3; i++) poly(ctx, [244 + i * 22, wallTop - 26, 256 + i * 22, wallTop - 26, 256 + i * 22, wallTop - 14, 244 + i * 22, wallTop - 14], '#7aa7c4', 25 + i);
+  palm(ctx, 205, wallTop + 4, 92, 1);
+  palm(ctx, 372, wallTop + 4, 120, 2);
 
-  // ---- adobe wall (sandy render, dusty lower band)
+  // ---- back wall (cream render, dirty lower band)
+  noShadow(ctx);
   const wall = ctx.createLinearGradient(0, wallTop, 0, wallBase);
-  wall.addColorStop(0, '#ecd2a2');
-  wall.addColorStop(0.55, '#e4c38f');
-  wall.addColorStop(0.82, '#d2a670');
-  wall.addColorStop(1, '#a87648');
+  wall.addColorStop(0, '#efe4cb');
+  wall.addColorStop(0.55, '#e8dbbd');
+  wall.addColorStop(0.82, '#d6c09a');
+  wall.addColorStop(1, '#a98a66');
   ctx.fillStyle = wall;
   ctx.fillRect(0, wallTop, L.W, wallBase - wallTop + 4);
+  // render blotches and hairline cracks
   for (let i = 0; i < 26; i++) {
     const x = (hn(i, 1) * 0.5 + 0.5) * L.W;
     const y = wallTop + 12 + (hn(i, 2) * 0.5 + 0.5) * (wallBase - wallTop - 30);
-    ctx.globalAlpha = 0.2;
-    blob(ctx, x, y, 14 + hn(i, 3) * 8, 8 + hn(i, 4) * 4, i % 2 ? '#f7e3bd' : '#c99a64', i, 0.12);
+    ctx.globalAlpha = 0.18;
+    blob(ctx, x, y, 14 + hn(i, 3) * 8, 8 + hn(i, 4) * 4, i % 2 ? '#fff6e2' : '#d9c8a6', i, 0.12);
   }
-  // patches where the render has fallen off, showing adobe bricks
-  for (const [bx, by] of [[300, wallTop + 70], [40, wallBase - 70], [200, wallTop + 30]] as const) {
-    ctx.globalAlpha = 1;
-    blob(ctx, bx + 14, by + 8, 26, 15, '#c08b5c', bx, 0.2);
-    for (let r = 0; r < 3; r++)
-      for (let c = 0; c < 3; c++) {
-        const ox = bx - 4 + c * 14 + (r % 2) * 7;
-        const oy = by - 4 + r * 8;
-        if (Math.hypot(ox + 6 - bx - 14, oy + 3 - by - 8) > 20) continue;
-        poly(ctx, [ox, oy, ox + 12, oy, ox + 12, oy + 6, ox, oy + 6], r % 2 ? '#a96f45' : '#b57a4d', bx + r * 3 + c, 0.5);
-      }
-  }
-  ctx.globalAlpha = 0.5;
-  limb(ctx, [118, wallTop + 40, 126, wallTop + 70, 120, wallTop + 96], 0.8, '#8c6440');
-  limb(ctx, [340, wallBase - 70, 330, wallBase - 50, 338, wallBase - 34], 0.8, '#8c6440');
+  ctx.globalAlpha = 0.45;
+  limb(ctx, [118, wallTop + 40, 126, wallTop + 70, 120, wallTop + 96], 0.8, '#9c876a');
+  limb(ctx, [340, wallBase - 70, 330, wallBase - 50, 338, wallBase - 34], 0.8, '#9c876a');
   ctx.globalAlpha = 1;
-  // the desert tree's long late-afternoon shadow on the wall
-  ctx.globalAlpha = 0.13;
-  for (let i = 0; i < 14; i++) blob(ctx, 60 + hn(i, 7) * 50 + i * 10, wallTop + 30 + (hn(i, 8) * 0.5 + 0.5) * 120, 15, 9, '#5a3820', 40 + i, 0.2);
+  // the tree's dappled shadow on the wall
+  ctx.globalAlpha = 0.12;
+  for (let i = 0; i < 14; i++) blob(ctx, 40 + hn(i, 7) * 60 + i * 9, wallTop + 30 + (hn(i, 8) * 0.5 + 0.5) * 120, 16, 10, '#5a4a30', 40 + i, 0.2);
   ctx.globalAlpha = 1;
 
-  // weathered plank fence on top of the right half of the wall
-  const fx0 = 226;
-  paperShadow(ctx, px, 0.6);
-  plank(ctx, fx0 - 4, wallTop - 30, L.W - fx0 + 14, 6, '#9d8466', 101);
-  for (let x = fx0, i = 0; x < L.W + 10; x += 15, i++) {
-    const h = 36 + hn(i, 1) * 5 + (i % 3 === 1 ? -6 : 0);
-    plank(ctx, x, wallTop - h, 13, h, i % 2 ? '#a58c6c' : '#958063', 110 + i);
-    poly(ctx, [x, wallTop - h, x + 6.5, wallTop - h - 5, x + 13, wallTop - h], i % 2 ? '#a58c6c' : '#958063', 140 + i, 0.4);
+  // wire mesh fence on top of the right half of the wall
+  const fx0 = 228;
+  const fTop = wallTop - 38;
+  ctx.strokeStyle = '#3c7a46';
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.9;
+  for (let x = fx0; x <= L.W + 10; x += 9) {
+    ctx.beginPath();
+    ctx.moveTo(x, fTop);
+    ctx.lineTo(x, wallTop);
+    ctx.stroke();
   }
-  plank(ctx, fx0 - 4, wallTop - 14, L.W - fx0 + 14, 6, '#8e7559', 102);
+  for (let y = fTop; y <= wallTop; y += 9) {
+    ctx.beginPath();
+    ctx.moveTo(fx0, y);
+    ctx.lineTo(L.W + 10, y + hn(y, 3) * 0.6);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  paperShadow(ctx, px, 0.5);
+  for (let x = fx0; x <= L.W + 10; x += 58) poly(ctx, [x - 2, fTop - 4, x + 2, fTop - 4, x + 2, wallTop, x - 2, wallTop], '#2f5f37', x);
   // coping along the top of the wall (the cats' running track)
-  poly(ctx, [-6, wallTop - 4, 406, wallTop - 4, 406, wallTop + 8, -6, wallTop + 8], '#cfa877', 31, 0.8);
+  poly(ctx, [-6, wallTop - 4, 406, wallTop - 4, 406, wallTop + 8, -6, wallTop + 8], '#d9caa8', 31, 0.8);
   noShadow(ctx);
-  ctx.fillStyle = '#f2dcb2';
+  ctx.fillStyle = '#f4ead4';
   ctx.fillRect(-6, wallTop - 4, 412, 2.5);
 
-  // brass garden tap
+  // garden tap on the wall
   paperShadow(ctx, px, 0.6);
-  poly(ctx, [248, wallBase - 64, 262, wallBase - 64, 262, wallBase - 54, 248, wallBase - 54], '#b8893a', 41);
-  blob(ctx, 255, wallBase - 68, 7, 3, '#8a3a22', 42, 0.05);
+  poly(ctx, [248, wallBase - 64, 262, wallBase - 64, 262, wallBase - 54, 248, wallBase - 54], '#9aa1a6', 41);
+  blob(ctx, 255, wallBase - 68, 7, 3, '#c0392b', 42, 0.05);
 
-  // ---- dusty ground (layered torn paper, far darker)
+  // ---- ground (layered torn paper, far darker)
   noShadow(ctx);
-  tornBand(ctx, wallBase - 2, H, '#9a5a34', 1, 1.5);
-  tornBand(ctx, wallBase + 30, H, '#a6643a', 2, 2);
-  tornBand(ctx, wallBase + 95, H, '#b06e42', 3, 2.5);
-  tornBand(ctx, wallBase + 190, H, '#ba794a', 4, 3);
-  tornBand(ctx, wallBase + 300, H, '#c28452', 5, 3);
+  tornBand(ctx, wallBase - 2, H, '#7c5a40', 1, 1.5);
+  tornBand(ctx, wallBase + 30, H, '#86603f', 2, 2);
+  tornBand(ctx, wallBase + 95, H, '#916843', 3, 2.5);
+  tornBand(ctx, wallBase + 190, H, '#9b7048', 4, 3);
+  tornBand(ctx, wallBase + 300, H, '#a5784e', 5, 3);
+  // wall-base dirt shadow
   const ws = ctx.createLinearGradient(0, wallBase - 4, 0, wallBase + 24);
-  ws.addColorStop(0, 'rgba(70,32,10,0.35)');
-  ws.addColorStop(1, 'rgba(70,32,10,0)');
+  ws.addColorStop(0, 'rgba(40,24,10,0.35)');
+  ws.addColorStop(1, 'rgba(40,24,10,0)');
   ctx.fillStyle = ws;
   ctx.fillRect(0, wallBase - 4, L.W, 28);
-  // cracked earth
-  ctx.globalAlpha = 0.25;
-  for (let i = 0; i < 18; i++) {
-    const d = hn(i, 21) * 0.5 + 0.5;
-    const { y, s } = groundAt(L, d * 1.2);
-    const x = (hn(i, 22) * 0.5 + 0.5) * L.W;
-    limb(ctx, [x, y, x + 9 * s, y + 2 * s, x + 14 * s, y - 1 * s], 0.8 * s, '#6e4224');
-    limb(ctx, [x + 9 * s, y + 2 * s, x + 11 * s, y + 6 * s], 0.8 * s, '#6e4224');
-  }
-  ctx.globalAlpha = 1;
-  // pebbles, dry grass tufts and dry leaves, bigger nearer
-  for (let i = 0; i < 150; i++) {
+
+  // gravel and dry leaves, bigger nearer
+  for (let i = 0; i < 160; i++) {
     const d = (hn(i, 11) * 0.5 + 0.5) ** 0.8;
     const { y, s } = groundAt(L, d * 1.25);
     if (y > H - 4) continue;
     const x = (hn(i, 12) * 0.5 + 0.5) * L.W;
-    if (i % 4 === 0) {
-      blob(ctx, x, y, 2.4 * s, 1.6 * s, i % 8 ? '#e2cba4' : '#8a6a52', i, 0.15);
-    } else if (i % 4 === 1) {
-      ctx.globalAlpha = 0.85;
-      for (let k = -2; k <= 2; k++) limb(ctx, [x, y, x + k * 2.2 * s, y - (6 + Math.abs(hn(i, k)) * 4) * s], 0.9 * s, k % 2 ? '#d9b45e' : '#b8913f');
-      ctx.globalAlpha = 1;
+    if (i % 3 === 0) {
+      blob(ctx, x, y, 2.2 * s, 1.5 * s, i % 2 ? '#b9ad9c' : '#6e6258', i, 0.15);
     } else {
-      const col = ['#c08a3e', '#9a6a2c', '#a98a4e', '#7f5230'][i % 4];
+      const col = ['#c08a3e', '#8f6a2c', '#a9a24e', '#6f4a2a', '#d0a35a'][i % 5];
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(hn(i, 13) * 3);
-      blob(ctx, 0, 0, 5 * s, 2.2 * s, col, i, 0.1);
+      blob(ctx, 0, 0, 5.5 * s, 2.4 * s, col, i, 0.1);
+      ctx.globalAlpha = 0.4;
+      limb(ctx, [-5 * s, 0, 5 * s, 0], 0.6, '#3a2a14');
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
-  // a lucky horseshoe in the dirt
-  ctx.save();
-  ctx.translate(300, groundAt(L, 0.62).y);
-  ctx.rotate(0.3);
-  ctx.beginPath();
-  ctx.arc(0, 0, 7, Math.PI * 0.05, Math.PI * 0.95, true);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#6d6a66';
-  ctx.stroke();
-  ctx.restore();
 
   // ---- props along the wall base
-  // weathered pallet planter with dusty sage, rusty low wire fencing
+  // pallet planter with herbs and low green wire fencing
   paperShadow(ctx, px, 0.7);
   const pb = wallBase + 10;
-  for (let i = 0; i < 6; i++) plank(ctx, 118 + i * 16, pb - 46, 14, 46, i % 2 ? '#a99377' : '#9a8468', 50 + i);
-  plank(ctx, 114, pb - 34, 102, 6, '#7d6850', 57);
-  plank(ctx, 114, pb - 14, 102, 6, '#7d6850', 58);
+  for (let i = 0; i < 6; i++) plank(ctx, 118 + i * 16, pb - 46, 14, 46, i % 2 ? '#b89a72' : '#a88a63', 50 + i);
+  plank(ctx, 114, pb - 34, 102, 6, '#8d7150', 57);
+  plank(ctx, 114, pb - 14, 102, 6, '#8d7150', 58);
   for (let i = 0; i < 7; i++) {
     const x = 122 + i * 14;
-    for (let k = 0; k < 4; k++) blob(ctx, x + hn(i, k) * 5, pb - 50 - k * 4, 7 - k, 5, k % 2 ? '#8a9a62' : '#a7b27a', i * 10 + k, 0.2);
+    for (let k = 0; k < 4; k++) blob(ctx, x + hn(i, k) * 5, pb - 50 - k * 4, 7 - k, 5, k % 2 ? '#5a9a4a' : '#7ab35a', i * 10 + k, 0.2);
   }
   noShadow(ctx);
-  ctx.strokeStyle = '#8a5a34';
+  ctx.strokeStyle = '#2f7a3e';
   ctx.lineWidth = 1;
   const fy = pb + 6;
   for (let x = 108; x <= 224; x += 7) {
@@ -259,25 +221,34 @@ export function renderBackground(L: Layout, px: number): Sprite | null {
     ctx.lineTo(224, y);
     ctx.stroke();
   }
-  // green tin watering can
+  // watering can
   paperShadow(ctx, px, 0.7);
-  poly(ctx, [228, pb + 4, 250, pb + 4, 248, pb - 18, 230, pb - 18], '#5d8a4c', 60);
-  limb(ctx, [248, pb - 6, 264, pb - 22], 3, '#5d8a4c');
-  limb(ctx, [232, pb - 18, 239, pb - 30, 246, pb - 18], 2.2, '#3f6a36');
+  poly(ctx, [228, pb + 4, 250, pb + 4, 248, pb - 18, 230, pb - 18], '#3f9a4c', 60);
+  limb(ctx, [248, pb - 6, 264, pb - 22], 3, '#3f9a4c');
+  limb(ctx, [232, pb - 18, 239, pb - 30, 246, pb - 18], 2.2, '#2f7a3e');
 
-  // the turtles' sunken pond, edged with old trough planks
+  // potted herbs by the wall
+  for (const [x, h, sd] of [[272, 16, 1], [205, 12, 2]] as const) {
+    paperShadow(ctx, px, 0.7);
+    poly(ctx, [x - 9, pb + 6, x + 9, pb + 6, x + 11, pb + 6 - h, x - 11, pb + 6 - h], '#c4673a', 80 + sd);
+    noShadow(ctx);
+    poly(ctx, [x - 12, pb + 6 - h, x + 12, pb + 6 - h, x + 12, pb + 2 - h, x - 12, pb + 2 - h], '#a9542e', 82 + sd);
+    paperShadow(ctx, px, 0.5);
+    for (let i = 0; i < 5; i++) blob(ctx, x - 8 + i * 4, pb - h - 2 - (i % 2) * 6, 6, 4, i % 2 ? '#5a9a4a' : '#7ab35a', 84 + sd * 10 + i, 0.2, (i - 2) * 0.35);
+  }
+
+  // sunken turtle pond in the right corner
   noShadow(ctx);
   const py0 = wallBase + 4;
   const py1 = wallBase + 34;
-  poly(ctx, [L.pondX0, py1, L.pondX1 + 12, py1, L.pondX1 + 8, py0, L.pondX0 + 10, py0], '#8c6c4c', 70, 0.5);
-  poly(ctx, [L.pondX0 + 6, py1 - 4, L.pondX1 + 6, py1 - 4, L.pondX1 + 3, py0 + 4, L.pondX0 + 13, py0 + 4], '#4d5a40', 71, 0.5);
-  ctx.globalAlpha = 0.4;
-  blob(ctx, L.pondX0 + 40, py0 + 12, 14, 3, '#f4d9a0', 72, 0.1);
-  blob(ctx, L.pondX0 + 74, py0 + 20, 10, 2, '#f4d9a0', 73, 0.1);
+  poly(ctx, [L.pondX0, py1, L.pondX1 + 12, py1, L.pondX1 + 8, py0, L.pondX0 + 10, py0], '#c7cdd0', 70, 0.5);
+  poly(ctx, [L.pondX0 + 6, py1 - 3, L.pondX1 + 6, py1 - 3, L.pondX1 + 3, py0 + 3, L.pondX0 + 13, py0 + 3], '#41543f', 71, 0.5);
+  ctx.globalAlpha = 0.35;
+  blob(ctx, L.pondX0 + 40, py0 + 12, 14, 3, '#cfe8e0', 72, 0.1);
+  blob(ctx, L.pondX0 + 74, py0 + 20, 10, 2, '#cfe8e0', 73, 0.1);
   ctx.globalAlpha = 1;
   paperShadow(ctx, px, 0.5);
-  plank(ctx, L.pondX0 - 2, py1 - 3, L.pondX1 - L.pondX0 + 16, 6, '#7a5c40', 75);
-  blob(ctx, L.pondX1 - 10, py0 + 9, 13, 5, '#a58f78', 74, 0.1);
+  blob(ctx, L.pondX1 - 10, py0 + 9, 13, 5, '#9a958a', 74, 0.1);
 
   // teal hose lying across the dirt from the tap
   paperShadow(ctx, px, 0.6);
@@ -290,7 +261,7 @@ export function renderBackground(L: Layout, px: number): Sprite | null {
   limb(ctx, [180, wallBase + 198, 250, wallBase + 278, 300, H + 18], 1.6, '#bff0f2');
   ctx.globalAlpha = 1;
 
-  grain(ctx, L, 0.12);
+  grain(ctx, L, 0.09);
   return { c: lay.c, x: lay.x, y: lay.y };
 }
 
@@ -306,108 +277,108 @@ function grain(ctx: Ctx, L: Layout, alpha: number) {
   ctx.restore();
 }
 
-/** The corner desert tree (in front of the wall): gnarled trunk, crooked branch, sparse canopy, colander. */
+/** The corner tree (in front of the wall): trunk, branch, canopy and the hanging colander. */
 export function renderTree(L: Layout, px: number): Sprite | null {
   const lay = layer(L, px, 0, 0, 280, L.treeBaseY + 24);
   if (!lay) return null;
   const { ctx } = lay;
   const { treeX, treeBaseY, branchY, branchEndX, wallTop } = L;
   paperShadow(ctx, px, 1.2);
-  const bark = '#6a4e3a';
-  const barkLite = '#94735a';
-  // gnarled, leaning trunk
+  const bark = '#6b4a2e';
+  const barkLite = '#8a6440';
+  // trunk
   poly(
     ctx,
-    [treeX - 22, treeBaseY + 4, treeX - 10, branchY + 40, treeX - 20, branchY - 10, treeX - 8, wallTop - 10, treeX - 34, 20, treeX - 22, 14, treeX + 2, wallTop - 30, treeX + 18, 30, treeX + 28, 34, treeX + 12, wallTop + 4, treeX + 16, branchY - 4, treeX + 6, branchY + 50, treeX + 24, treeBaseY + 4],
+    [treeX - 20, treeBaseY + 4, treeX - 13, branchY + 30, treeX - 16, wallTop - 30, treeX - 30, -10, treeX + 2, -10, treeX + 14, wallTop - 20, treeX + 13, branchY, treeX + 22, treeBaseY + 4],
     bark,
     1,
     1,
   );
   noShadow(ctx);
-  limb(ctx, [treeX - 8, treeBaseY - 10, treeX - 2, branchY + 30, treeX - 10, branchY - 8, treeX - 4, wallTop], 2.5, barkLite);
-  limb(ctx, [treeX + 10, treeBaseY - 30, treeX + 4, branchY + 46], 1.4, '#4a3324');
-  limb(ctx, [treeX - 14, treeBaseY - 50, treeX - 8, treeBaseY - 80], 1.2, '#4a3324');
-  blob(ctx, treeX + 2, branchY + 70, 4, 6, '#4a3324', 9, 0.2);
+  limb(ctx, [treeX - 6, treeBaseY - 10, treeX - 2, branchY + 20, treeX - 8, wallTop - 20], 3, barkLite);
+  limb(ctx, [treeX + 8, treeBaseY - 30, treeX + 6, branchY + 40], 1.5, '#4f351f');
   // roots
   paperShadow(ctx, px, 0.8);
-  poly(ctx, [treeX - 22, treeBaseY + 4, treeX - 44, treeBaseY + 12, treeX - 10, treeBaseY - 4], bark, 2);
-  poly(ctx, [treeX + 24, treeBaseY + 4, treeX + 44, treeBaseY + 10, treeX + 12, treeBaseY - 4], bark, 3);
-  // crooked branch the cats walk along
-  poly(ctx, [treeX + 8, branchY - 6, treeX + 70, branchY - 9, branchEndX - 20, branchY - 3, branchEndX + 8, branchY - 12, branchEndX - 14, branchY + 3, treeX + 70, branchY + 2, treeX + 10, branchY + 8], bark, 4, 0.8);
-  limb(ctx, [branchEndX - 50, branchY - 4, branchEndX - 40, branchY - 18, branchEndX - 28, branchY - 30], 3, bark);
-  limb(ctx, [treeX + 60, branchY - 6, treeX + 70, branchY - 24], 2.2, bark);
+  poly(ctx, [treeX - 20, treeBaseY + 4, treeX - 38, treeBaseY + 12, treeX - 10, treeBaseY - 2], bark, 2);
+  poly(ctx, [treeX + 22, treeBaseY + 4, treeX + 40, treeBaseY + 10, treeX + 12, treeBaseY - 2], bark, 3);
+  // branch the cats walk along
+  poly(ctx, [treeX + 8, branchY - 6, branchEndX - 20, branchY - 3, branchEndX + 6, branchY - 9, branchEndX - 16, branchY + 3, treeX + 10, branchY + 8], bark, 4, 0.8);
+  limb(ctx, [branchEndX - 50, branchY - 4, branchEndX - 34, branchY - 26], 3, bark);
   noShadow(ctx);
   limb(ctx, [treeX + 14, branchY - 3, branchEndX - 30, branchY - 2], 1.2, barkLite);
-  // colander hanging on a string, catching the sun
+  // colander hanging on a string
   const cx = L.colanderX;
   const cy = branchY + 30;
-  limb(ctx, [cx, branchY + 2, cx - 2, cy - 12], 1, '#3a2a1e');
+  limb(ctx, [cx, branchY + 2, cx - 2, cy - 12], 1, '#3a3a3a');
   paperShadow(ctx, px, 0.9);
   ctx.beginPath();
   ctx.moveTo(cx - 16, cy - 9);
   ctx.quadraticCurveTo(cx, cy + 18, cx + 16, cy - 9);
   ctx.closePath();
   const steel = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
-  steel.addColorStop(0, '#a89a86');
-  steel.addColorStop(0.45, '#fff2d2');
-  steel.addColorStop(1, '#9a8a74');
+  steel.addColorStop(0, '#9aa3aa');
+  steel.addColorStop(0.45, '#e4e9ec');
+  steel.addColorStop(1, '#8a939a');
   ctx.fillStyle = steel;
   ctx.fill();
-  blob(ctx, cx, cy - 9, 17, 3, '#e0d0b0', 5, 0.03);
+  blob(ctx, cx, cy - 9, 17, 3, '#c8d0d5', 5, 0.03);
   noShadow(ctx);
-  for (let i = 0; i < 7; i++) blob(ctx, cx - 9 + i * 3, cy - 1 + Math.abs(i - 3) * -1.2, 0.9, 0.9, '#6d5e4c', i, 0);
-  limb(ctx, [cx - 16, cy - 9, cx - 21, cy - 11], 2, '#9a8a74');
-  // sparse, dusty desert canopy
-  const greens = ['#5f6a38', '#717c42', '#87904e', '#9ea25e'];
+  for (let i = 0; i < 7; i++) blob(ctx, cx - 9 + i * 3, cy - 1 + Math.abs(i - 3) * -1.2, 0.9, 0.9, '#5d666c', i, 0);
+  limb(ctx, [cx - 16, cy - 9, cx - 21, cy - 11], 2, '#8a939a');
+  // canopy: overlapping leaf blobs, darker at the back
+  const greens = ['#2f6b34', '#3b7e3c', '#4b9145', '#5ea54f'];
   paperShadow(ctx, px, 1);
-  const clumps: [number, number, number][] = [
-    [-10, 30, 30], [30, 20, 28], [72, 34, 30], [114, 26, 26], [154, 42, 24], [194, 52, 20],
-    [8, 64, 24], [52, 70, 26], [98, 64, 22], [138, 76, 20], [-14, 88, 20], [226, 66, 16], [178, 80, 16],
-  ];
-  for (let layerI = 0; layerI < 3; layerI++) {
-    clumps.forEach(([x, y, r], i) => {
-      if ((i + layerI) % 3 === 2 && layerI > 0) return;
-      blob(ctx, x + layerI * 6, y + layerI * 6, r - layerI * 4, (r - layerI * 4) * 0.62, greens[layerI + (i % 2)], i * 7 + layerI, 0.16);
-    });
+  for (let layerI = 0; layerI < 4; layerI++) {
+    for (let i = 0; i < 9; i++) {
+      const k = layerI * 9 + i;
+      const x = -20 + i * 26 + hn(k, 1) * 12 + layerI * 6;
+      if (x > 240 - layerI * 18) continue;
+      const y = 8 + layerI * 22 + hn(k, 2) * 14 + Math.max(0, x - 120) * 0.25;
+      blob(ctx, x, y, 30 - layerI * 3, 22 - layerI * 2, greens[layerI], k, 0.1);
+    }
   }
   noShadow(ctx);
-  ctx.globalAlpha = 0.55;
-  for (let i = 0; i < 18; i++) blob(ctx, hn(i, 5) * 110 + 100, hn(i, 6) * 30 + 60, 4, 2.2, '#c4c27c', i, 0.15, hn(i, 7));
+  ctx.globalAlpha = 0.5;
+  for (let i = 0; i < 18; i++) {
+    const x = hn(i, 5) * 100 + 100;
+    const y = hn(i, 6) * 30 + 50;
+    blob(ctx, x, y, 5, 3, '#8cc46a', i, 0.15, hn(i, 7));
+  }
   ctx.globalAlpha = 1;
+  // a couple of leaf clumps on the branch tip
   paperShadow(ctx, px, 0.8);
-  blob(ctx, branchEndX - 28, branchY - 34, 12, 7, '#87904e', 90, 0.15);
-  blob(ctx, branchEndX - 16, branchY - 40, 9, 6, '#9ea25e', 91, 0.15);
+  blob(ctx, branchEndX - 34, branchY - 30, 14, 10, '#4b9145', 90, 0.12);
+  blob(ctx, branchEndX - 22, branchY - 36, 11, 8, '#5ea54f', 91, 0.12);
   noShadow(ctx);
-  grain(ctx, L, 0.07);
+  grain(ctx, L, 0.06);
   return { c: lay.c, x: lay.x, y: lay.y };
 }
 
-/** Foreground: the weathered cable-spool table in the near-left corner with a potted cactus. */
+/** Foreground: the cable-spool table in the near-left corner. */
 export function renderForeground(L: Layout, px: number): Sprite | null {
   const lay = layer(L, px, 0, L.groundNear - 20, 110, L.H - L.groundNear + 20);
   if (!lay) return null;
   const { ctx } = lay;
   const y = L.groundNear + 18;
   paperShadow(ctx, px, 1.4);
-  plank(ctx, -20, y + 34, 56, 76, '#8f6c4a', 1);
-  blob(ctx, 8, y + 112, 62, 14, '#6e5136', 2, 0.03);
-  blob(ctx, 8, y + 30, 70, 17, '#b8946a', 3, 0.03);
+  // spool: drum and top disc, cut off by the screen edge
+  poly(ctx, [-20, y + 34, 36, y + 34, 36, y + 110, -20, y + 110], '#9a7650', 1, 1);
+  blob(ctx, 8, y + 112, 62, 14, '#7d5d3c', 2, 0.03);
+  blob(ctx, 8, y + 30, 70, 17, '#c9a273', 3, 0.03);
   noShadow(ctx);
-  ctx.globalAlpha = 0.4;
-  for (let i = 0; i < 5; i++) limb(ctx, [-50 + i * 24, y + 20 + i * 1.5, -40 + i * 24, y + 42 - i * 1.5], 1, '#5e3f24');
+  ctx.globalAlpha = 0.35;
+  for (let i = 0; i < 5; i++) limb(ctx, [-50 + i * 24, y + 20 + i * 1.5, -40 + i * 24, y + 42 - i * 1.5], 1, '#6b4a2a');
   ctx.globalAlpha = 1;
   ctx.beginPath();
   ellipsePath(ctx, 8, y + 30, 70, 17, 3, 0.03);
-  ctx.strokeStyle = mix('#b8946a', '#4a2f18', 0.45);
+  ctx.strokeStyle = mix('#c9a273', '#5a3d22', 0.4);
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // potted barrel cactus
+  // a potted herb on the spool
   paperShadow(ctx, px, 1);
-  poly(ctx, [10, y + 26, 34, y + 26, 30, y + 6, 14, y + 6], '#b8603a', 4);
-  blob(ctx, 22, y - 2, 11, 12, '#6f8a48', 5, 0.06);
+  poly(ctx, [10, y + 26, 34, y + 26, 30, y + 6, 14, y + 6], '#c4673a', 4);
+  for (let i = 0; i < 6; i++) blob(ctx, 14 + i * 3.4, y + 2 - (i % 2) * 6, 6, 4, i % 2 ? '#5a9a4a' : '#7ab35a', 10 + i, 0.2, (i - 3) * 0.3);
   noShadow(ctx);
-  for (let i = -2; i <= 2; i++) limb(ctx, [22 + i * 4, y - 12, 22 + i * 4.6, y + 6], 0.8, '#4f6a34');
-  blob(ctx, 22, y - 14, 4, 2.5, '#e86a8a', 6, 0.1);
-  grain(ctx, L, 0.07);
+  grain(ctx, L, 0.06);
   return { c: lay.c, x: lay.x, y: lay.y };
 }

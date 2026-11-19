@@ -21,18 +21,28 @@ const CATS: CatColors[] = [
 
 const WET = '#5d7f9e';
 
-/** Outlaw gear for the cat being drawn: 0 mask, 1 bandana, 2 both. */
+/** Outlaw gear for the cat being drawn: 0 cowboy hat, 1 bandana, 2 both. */
 let gear = 0;
-const hasMask = () => gear !== 1;
+let hatColor = '#7a4a2a';
+const hasHat = () => gear !== 1;
 const hasBandana = () => gear !== 0;
+const HATS = ['#7a4a2a', '#3a2c2a', '#b88a52'];
 
-/** Bandit eye mask, with ties trailing behind the head (side view when `tie` is set). */
-function banditMask(ctx: Ctx, x: number, y: number, w: number, h: number, seed: number, tie: number, color = '#1d1a1f') {
-  if (tie) {
-    limb(ctx, [x - w * 0.9, y, x - w * 1.5, y - 4 + Math.sin(seed * 3) * 2], 2.4, color);
-    limb(ctx, [x - w * 0.9, y + 1, x - w * 1.4, y + 6], 2.4, color);
-  }
-  blob(ctx, x, y, w, h, color, seed, 0.06);
+/** Cut-paper cowboy hat sitting on a head at (x, y) (the brim line), w = brim half-width. */
+function cowboyHat(ctx: Ctx, x: number, y: number, w: number, color: string, seed: number, tilt = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tilt);
+  const dark = mix(color, '#120a06', 0.35);
+  // brim with curled-up sides
+  blob(ctx, 0, 0, w, w * 0.17, color, seed, 0.04);
+  blob(ctx, -w * 0.86, -w * 0.12, w * 0.2, w * 0.13, color, seed + 1, 0.05, -0.6);
+  blob(ctx, w * 0.86, -w * 0.12, w * 0.2, w * 0.13, color, seed + 2, 0.05, 0.6);
+  // crown with a pinched dent on top
+  poly(ctx, [-w * 0.5, -1, -w * 0.56, -w * 0.62, -w * 0.18, -w * 0.72, 0, -w * 0.58, w * 0.18, -w * 0.72, w * 0.56, -w * 0.62, w * 0.5, -1], color, seed + 3, 0.4);
+  // hat band
+  poly(ctx, [-w * 0.52, -w * 0.08, w * 0.52, -w * 0.08, w * 0.53, -w * 0.22, -w * 0.53, -w * 0.22], dark, seed + 4, 0.2);
+  ctx.restore();
 }
 
 /** Red outlaw neckerchief with white polka dots. */
@@ -136,7 +146,6 @@ function catSide(ctx: Ctx, c: CatColors, frame: number, seed: number, wet: numbe
   if (c.patch) blob(ctx, hx - 7, hy - 6, 8, 7, c.patch, seed + 15, 0.1);
   blob(ctx, hx + 8, hy + 6, 9, 6, belly, seed + 16, 0.06);
   if (hasBandana()) neckerchief(ctx, hx - 6, hy + 11, 10, seed + 30);
-  if (hasMask()) banditMask(ctx, hx + 5, hy - 3, 13, 6, seed + 31, 1);
   if (wet > 0) {
     eyes(ctx, hx + 5, hy - 3, 6, seed + 20, 0.2, -0.2, '#111', 0.18);
     // angry brows
@@ -152,6 +161,7 @@ function catSide(ctx: Ctx, c: CatColors, frame: number, seed: number, wet: numbe
   limb(ctx, [hx + 12, hy + 6, hx + 26, hy + 3], 1, '#222');
   limb(ctx, [hx + 12, hy + 8, hx + 25, hy + 10], 1, '#222');
   ctx.globalAlpha = 1;
+  if (hasHat()) cowboyHat(ctx, hx - 1, hy - 11, 22, wet > 0 ? wetten(hatColor, 1) : hatColor, seed + 40, -0.14);
 }
 
 function catSit(ctx: Ctx, c: CatColors, t: number, seed: number) {
@@ -174,8 +184,7 @@ function catSit(ctx: Ctx, c: CatColors, t: number, seed: number) {
   }
   blob(ctx, 0, hy + 6, 9, 6, c.belly, seed + 16, 0.06);
   if (hasBandana()) neckerchief(ctx, 0, hy + 14, 11, seed + 30);
-  if (hasMask()) banditMask(ctx, 0, hy - 3, 14, 6.5, seed + 31, 0);
-  const blink = !hasMask() && (t * 0.7 + seed) % 3 < 0.12;
+  const blink = (t * 0.7 + seed) % 3 < 0.12;
   if (blink) {
     limb(ctx, [-9, hy - 3, -2, hy - 3], 2, '#111');
     limb(ctx, [2, hy - 3, 9, hy - 3], 2, '#111');
@@ -185,6 +194,7 @@ function catSit(ctx: Ctx, c: CatColors, t: number, seed: number) {
   limb(ctx, [-5, hy + 6, -20, hy + 3], 1, '#222');
   limb(ctx, [5, hy + 6, 20, hy + 3], 1, '#222');
   ctx.globalAlpha = 1;
+  if (hasHat()) cowboyHat(ctx, 0, hy - 11, 24, hatColor, seed + 40, 0.05);
 }
 
 /** Soaked: stiff, fur flattened, wide-eyed and furious. */
@@ -207,19 +217,21 @@ function catSoaked(ctx: Ctx, c: CatColors, t: number, seed: number) {
   poly(ctx, [5, hy - 9, 17, hy - 14, 15, hy + 2], body, seed + 12);
   blob(ctx, 0, hy, 16, 14, body, seed + 14, 0.06);
   if (hasBandana()) neckerchief(ctx, 0, hy + 13, 10, seed + 30, mix('#b8322a', WET, 0.35));
-  if (hasMask()) banditMask(ctx, 0, hy - 3, 15, 7, seed + 31, 0);
   eyes(ctx, 0, hy - 3, 6.5, seed + 20, 0, 0, '#111', 0.16);
   limb(ctx, [-12, hy - 13, -3, hy - 9], 2.4, '#111');
   limb(ctx, [3, hy - 9, 12, hy - 13], 2.4, '#111');
   blob(ctx, 0, hy + 8, 6, 4.5, '#7a1f2a', seed + 21, 0.1);
   poly(ctx, [-4, hy + 5, -2, hy + 8, 0, hy + 5, 2, hy + 8, 4, hy + 5], '#fff', seed + 22, 0.2);
+  // the hat gets knocked askew by the water
+  if (hasHat()) cowboyHat(ctx, 7, hy - 15 - Math.min(1, t * 6) * 4, 22, wetten(hatColor, 1), seed + 40, 0.45);
   drips(ctx, 34, 60, t, seed);
 }
 
 export function drawCat(ctx: Ctx, e: Ent, t: number, px: number) {
   const c = CATS[e.variant % CATS.length];
-  // the black cat wears a bandana (a black mask wouldn't show); the rest get a mix
-  gear = e.variant === 1 ? 1 : e.id % 3;
+  gear = e.id % 3;
+  // pick a hat that shows up against the coat (no black hat on the black cat)
+  hatColor = e.variant === 1 ? HATS[2] : HATS[(e.id + e.variant) % 3];
   const boil = Math.floor(t * 8);
   const seed = e.id * 7 + (boil % 3) * 0.37;
   groundShadow(ctx, e, 34);
