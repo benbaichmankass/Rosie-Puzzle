@@ -32,7 +32,7 @@ plant beds. A big wooden cable-spool used as a table, wooden pallet planters alo
 watering can, potted herbs. The sunken turtle pond in the corner.
 
 ## The living room
-White walls, a dark grey L-shaped sofa with cushions, a glass coffee table, a wall shelf with books, a wall
+White walls, a dark grey L-shaped sofa with cushions, a glass coffee table, a TALL WHITE bookcase full of books (not a long low shelf), a wall
 lamp, an AC unit above the window, a door to the yard. Rosie often sleeps on the sofa.
 
 ## Jerusalem Boulevard, Yafo
