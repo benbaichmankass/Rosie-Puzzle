@@ -7,7 +7,7 @@ import * as S from './sim';
 import { CART_L, CART_R, CART_TOP, TRAY_Y, Y, bedAt } from './geom';
 import { INK, type Ctx, type Pt, ellipsePts, hatchPoly, inkLine, rectPts, rng, wash } from './ink';
 
-const METAL = '#5fa59c';
+const METAL = '#8a2a35';
 const LIP = 13;
 
 function roundRect(x0: number, y0: number, x1: number, y1: number, r: number): Pt[] {
@@ -52,7 +52,7 @@ export function spark(c: Ctx, x: number, y: number, size: number, r: () => numbe
 function post(c: Ctx, x: number, floorY: number, seed: number, back: boolean): void {
   const pts: Pt[] = [[x, floorY - 12], [x, CART_TOP + 8], [x + (x < (CART_L + CART_R) / 2 ? 4 : -4), CART_TOP]];
   inkLine(c, pts, seed, 0.2, 5.4, INK);
-  inkLine(c, pts, seed + 1, 0.2, 3.4, back ? '#4d8a83' : METAL);
+  inkLine(c, pts, seed + 1, 0.2, 3.4, back ? '#6b1f2a' : METAL);
 }
 
 function castor(c: Ctx, x: number, floorY: number, seed: number): void {
@@ -73,7 +73,7 @@ function trayFront(c: Ctx, ty: number, seed: number): void {
 function trayBack(c: Ctx, ty: number, seed: number): void {
   // the inside back rim of the tray, seen just above the front lip
   const pts = roundRect(CART_L + 2, ty - LIP - 5, CART_R - 2, ty - LIP + 4, 4);
-  wash(c, pts, '#4d8a83', seed, 0.75, 0.2, 1);
+  wash(c, pts, '#6b1f2a', seed, 0.75, 0.2, 1);
   inkLine(c, pts, seed + 1, 0.3, 0.9, INK, true);
 }
 
