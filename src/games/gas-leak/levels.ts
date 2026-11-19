@@ -9,12 +9,17 @@ const KINDS: Record<string, FurnitureKind> = {
   v: 'tv',
   d: 'dogbed',
   k: 'cabinet',
+  D: 'dining',
+  c: 'counter',
+  l: 'lamp',
+  h: 'chair',
 };
 
 /**
  * Levels are drawn as 7x9 ASCII maps:
  *  . floor   s sofa   B Bentzi on the sofa   t glass coffee table   p plant   a armchair
- *  v TV stand   d Rosie's dog bed   k cabinet / bookcase   @ ceiling fan (gas passes under it)
+ *  v TV stand   d Rosie's dog bed   k bookcase   D dining table   c kitchen counter   l floor lamp   h chair
+ *  @ ceiling fan (gas passes under it)
  * Blocks of the same letter become rectangles of furniture.
  */
 function parse(map: string[]): Pick<Level, 'furniture' | 'ceilingFans' | 'bentzi'> {
@@ -51,12 +56,12 @@ const DOOR = { window: false, door: true, acWindow: false };
 const TOP = { window: true, door: false, acWindow: false };
 const ACW = { window: false, door: false, acWindow: true };
 
-interface Draft extends Omit<Level, 'furniture' | 'ceilingFans' | 'bentzi' | 'source'> {
+export interface Draft extends Omit<Level, 'furniture' | 'ceilingFans' | 'bentzi' | 'source'> {
   map: string[];
 }
 
 /** The gas source is marked with '<' at the end of its row. */
-function level(d: Draft): Level {
+export function level(d: Draft): Level {
   const source = d.map.findIndex((row) => row.endsWith('<'));
   if (source < 0) throw new Error(`level ${d.id} has no gas source`);
   const map = d.map.map((row) => row.replace('<', ''));

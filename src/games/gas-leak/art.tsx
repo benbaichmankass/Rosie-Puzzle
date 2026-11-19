@@ -246,6 +246,72 @@ export function CeilingFan({ r, c }: { r: number; c: number }) {
   );
 }
 
+/** The dark grey L-sofa, drawn as one piece from all its parts, backrests on the outer edges. */
+export function SofaSet({ pieces, rosie }: { pieces: Furniture[]; rosie?: { r: number; c: number } | null }) {
+  if (!pieces.length) return null;
+  const cells: { r: number; c: number; p: Furniture }[] = [];
+  for (const p of pieces) for (let r = p.r; r < p.r + p.h; r++) for (let c = p.c; c < p.c + p.w; c++) cells.push({ r, c, p });
+  const has = (r: number, c: number) => cells.some((q) => q.r === r && q.c === c);
+  const top = Math.min(...cells.map((q) => q.r));
+  const bottom = Math.max(...cells.map((q) => q.r));
+  const left = Math.min(...cells.map((q) => q.c));
+  const right = Math.max(...cells.map((q) => q.c));
+  const horizontal = (p: Furniture) => p.w > p.h || (p.w === p.h && !has(p.r - 1, p.c) && !has(p.r + 1, p.c));
+  const backs = cells.map(({ r, c, p }) => {
+    const b = new Set<Dir>();
+    if (horizontal(p)) {
+      b.add(r === top || (r !== bottom && r - top < bottom - r) ? 0 : 2);
+      // the corner of an L also carries the leg's backrest
+      for (const dr of [-1, 1]) {
+        const leg = cells.find((q) => q.r === r + dr && q.c === c && !horizontal(q.p));
+        if (leg) b.add(c === left ? 3 : c === right ? 1 : c - left <= right - c ? 3 : 1);
+      }
+    } else b.add(c === left || (c !== right && c - left <= right - c) ? 3 : 1);
+    return b;
+  });
+  const BK = 9;
+  return (
+    <g filter="url(#gl-shadow)">
+      {cells.map(({ r, c }, i) => {
+        const x = X0 + c * CELL;
+        const y = Y0 + r * CELL;
+        const l = has(r, c - 1) ? -1 : 1;
+        const t = has(r - 1, c) ? -1 : 1;
+        const rr = has(r, c + 1) ? CELL + 1 : CELL - 1;
+        const bb = has(r + 1, c) ? CELL + 1 : CELL - 1;
+        return <rect key={`b${i}`} x={x + l} y={y + t} width={rr - l} height={bb - t} rx="5" fill="#3f4348" />;
+      })}
+      {cells.map(({ r, c }, i) => {
+        const x = X0 + c * CELL;
+        const y = Y0 + r * CELL;
+        const b = backs[i];
+        return (
+          <g key={`k${i}`} fill="#2f3236">
+            {b.has(0) && <rect x={x + (has(r, c - 1) ? -1 : 1)} y={y + 1} width={CELL + (has(r, c - 1) ? 1 : -1) + (has(r, c + 1) ? 1 : -1)} height={BK} rx="4" />}
+            {b.has(2) && <rect x={x + (has(r, c - 1) ? -1 : 1)} y={y + CELL - 1 - BK} width={CELL + (has(r, c - 1) ? 1 : -1) + (has(r, c + 1) ? 1 : -1)} height={BK} rx="4" />}
+            {b.has(3) && <rect x={x + 1} y={y + (has(r - 1, c) ? -1 : 1)} width={BK} height={CELL + (has(r - 1, c) ? 1 : -1) + (has(r + 1, c) ? 1 : -1)} rx="4" />}
+            {b.has(1) && <rect x={x + CELL - 1 - BK} y={y + (has(r - 1, c) ? -1 : 1)} width={BK} height={CELL + (has(r - 1, c) ? 1 : -1) + (has(r + 1, c) ? 1 : -1)} rx="4" />}
+          </g>
+        );
+      })}
+      {cells.map(({ r, c }, i) => {
+        const b = backs[i];
+        const x0 = X0 + c * CELL + (b.has(3) ? BK + 2 : 4);
+        const y0 = Y0 + r * CELL + (b.has(0) ? BK + 2 : 4);
+        const x1 = X0 + (c + 1) * CELL - (b.has(1) ? BK + 2 : 4);
+        const y1 = Y0 + (r + 1) * CELL - (b.has(2) ? BK + 2 : 4);
+        return <rect key={`s${i}`} x={x0} y={y0} width={x1 - x0} height={y1 - y0} rx="5" fill="#575c62" stroke="#4b5056" strokeWidth="0.8" />;
+      })}
+      {(() => {
+        // a beige throw pillow on the end cell furthest from Rosie
+        const end = cells[cells.length - 1];
+        return <rect x={X0 + end.c * CELL + 22} y={Y0 + end.r * CELL + 13} width="10" height="9" rx="3" fill="#e9d9a6" transform={`rotate(12 ${X0 + end.c * CELL + 27} ${Y0 + end.r * CELL + 17})`} />;
+      })()}
+      {rosie && has(rosie.r, rosie.c) && <RosieSleeping x={cx(rosie.c)} y={cy(rosie.r) + 2} />}
+    </g>
+  );
+}
+
 /** Top-down furniture. */
 export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number; c: number } | null }) {
   const x = X0 + f.c * CELL;
@@ -317,6 +383,58 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
           {[-7, 7].map((d) => (
             <circle key={d} cx={x + w / 2 + d} cy={y + h / 2} r="2.6" fill="#fff" />
           ))}
+        </g>
+      );
+    case 'dining':
+      return (
+        <g filter="url(#gl-shadow)">
+          {/* chairs around a wooden table */}
+          {Array.from({ length: f.w }, (_, i) => (
+            <g key={i} fill="#7a5233">
+              <rect x={x + i * CELL + 12} y={y + 1} width="16" height="9" rx="3" />
+              <rect x={x + i * CELL + 12} y={y + h - 10} width="16" height="9" rx="3" />
+            </g>
+          ))}
+          {f.h > 1 &&
+            Array.from({ length: f.h }, (_, i) => (
+              <g key={`s${i}`} fill="#7a5233">
+                <rect x={x + 1} y={y + i * CELL + 12} width="9" height="16" rx="3" />
+                <rect x={x + w - 10} y={y + i * CELL + 12} width="9" height="16" rx="3" />
+              </g>
+            ))}
+          <rect x={x + 8} y={y + 8} width={w - 16} height={h - 16} rx="4" fill="#b98656" stroke="#7a5233" strokeWidth="1.4" />
+          <path d={`M${x + 12} ${y + h / 2} h${w - 24}`} stroke="#a77446" strokeWidth="1" />
+          <circle cx={x + w / 2} cy={y + h / 2} r="5" fill="#fff" stroke="#c9c2b6" />
+          <circle cx={x + w / 2} cy={y + h / 2} r="2.5" fill="#e2574c" />
+        </g>
+      );
+    case 'counter':
+      return (
+        <g filter="url(#gl-shadow)">
+          <rect x={x + 1} y={y + 1} width={w - 2} height={h - 2} rx="2" fill="#e9e6e0" stroke="#9c958a" strokeWidth="1.2" />
+          <path d={`M${x + 6} ${y + 8} l${w - 20} ${h - 20}`} stroke="#d6d1c8" strokeWidth="1" />
+          {f.w >= f.h ? (
+            <rect x={x + w / 2 - 9} y={y + h / 2 - 7} width="18" height="14" rx="3" fill="#c7d3da" stroke="#8a949c" />
+          ) : (
+            <rect x={x + w / 2 - 7} y={y + h / 2 - 9} width="14" height="18" rx="3" fill="#c7d3da" stroke="#8a949c" />
+          )}
+          <circle cx={x + w / 2} cy={y + h / 2} r="1.6" fill="#6b7680" />
+          <circle cx={x + 9} cy={y + 9} r="4" fill="#f2c14e" stroke="#b8862a" />
+        </g>
+      );
+    case 'lamp':
+      return (
+        <g filter="url(#gl-shadow)">
+          <circle cx={x + w / 2} cy={y + h / 2} r="15" fill="#fff3c4" opacity="0.45" />
+          <circle cx={x + w / 2} cy={y + h / 2} r="10" fill="#f7e7b4" stroke="#b9a26a" strokeWidth="1.5" />
+          <circle cx={x + w / 2} cy={y + h / 2} r="3" fill="#3b2f22" />
+        </g>
+      );
+    case 'chair':
+      return (
+        <g filter="url(#gl-shadow)">
+          <rect x={x + 9} y={y + 8} width={w - 18} height={h - 16} rx="4" fill="#9a6b45" stroke="#6b4428" strokeWidth="1.2" />
+          <rect x={x + 9} y={y + 8} width={w - 18} height="6" rx="3" fill="#6b4428" />
         </g>
       );
     case 'cabinet':
