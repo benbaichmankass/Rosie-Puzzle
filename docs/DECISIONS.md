@@ -102,8 +102,10 @@ with their doors swung open (antique-brass bow handles), white shelves inside, t
 boards, the copper-handled pan and a trailing fern, and the glossy black marble backsplash behind the play area.
 The bamboo cutting-board paddle runs along the black speckled granite counter (white base cabinets with a drawer
 stack, gooseneck tap, white stove at the end). Bricks are that kitchen's things: dish-rack plates, glasses of water,
-steel bowls, the green colander, Spark soap + pump, the pink French press, paper towels, the filter jug, pickles
-(1 hit); kettle, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
+steel bowls, the green colander, Spark soap + pump, the pink French press, the filter jug, pickles, plus pantry
+things: coffee bag + bean jar, cereal, tea boxes, sugar/flour canisters, spice jars, olive oil, honey, mugs (1 hit);
+kettle, moka pot, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
+No paper rolls (Ben: they read as toilet paper).
 
 ## Getting Ready for Shabbos (kitchen counter)
 Shabbat candle-lighting time for Tel Aviv from Hebcal (no key, CORS ok):
