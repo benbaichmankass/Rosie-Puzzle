@@ -134,6 +134,58 @@ export class Sfx {
     this.pluck(this.scale[1], 0.18, 0.28, 1.8);
     this.pluck(this.scale[0] / 2, 0.36, 0.22, 2);
   }
+  /** Frisky bunnies: a cartoon "boing-boing". */
+  frisky() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sine';
+      const st = t + i * 0.22;
+      o.frequency.setValueAtTime(320, st);
+      o.frequency.exponentialRampToValueAtTime(760, st + 0.12);
+      o.frequency.exponentialRampToValueAtTime(420, st + 0.2);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(0.12, st + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.21);
+      o.connect(g).connect(this.master);
+      o.start(st);
+      o.stop(st + 0.22);
+    }
+  }
+  /** A splash of water. */
+  splash() {
+    if (!this.ctx || !this.master || !this.noise) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(5000, t);
+    f.frequency.exponentialRampToValueAtTime(600, t + 0.35);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.4, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + 0.42);
+  }
+  /** A baby bunny pops out. */
+  pop() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.frequency.setValueAtTime(500, t);
+    o.frequency.exponentialRampToValueAtTime(1300, t + 0.08);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    o.connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.13);
+    this.pluck(this.scale[7], 0.1, 0.12, 0.8);
+  }
   tall() {
     [3, 5, 7].forEach((n, i) => this.pluck(this.scale[n], i * 0.08, 0.18, 1));
   }

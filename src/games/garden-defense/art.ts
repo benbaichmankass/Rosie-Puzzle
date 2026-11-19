@@ -222,31 +222,8 @@ export function paintBackground(ctx: CanvasRenderingContext2D, L: Layout) {
     }
   }
 
-  // Ink branch reaching in from the top-left corner (the yard tree).
-  ctx.save();
-  ctx.lineCap = 'round';
-  const branch = (x0: number, y0: number, x1: number, y1: number, w: number) => {
-    for (let i = 0; i < 3; i++) {
-      ctx.strokeStyle = `rgba(50,40,34,${0.35 + i * 0.12})`;
-      ctx.lineWidth = w * (1 - i * 0.28);
-      ctx.beginPath();
-      ctx.moveTo(x0 + (rng() - 0.5), y0 + (rng() - 0.5));
-      ctx.quadraticCurveTo((x0 + x1) / 2 + 8 * s, (y0 + y1) / 2 - 10 * s, x1, y1);
-      ctx.stroke();
-    }
-  };
-  const by0 = L.targetY;
-  branch(-10, by0 * 0.55, W * 0.36, by0 * 0.35, 6 * s);
-  branch(W * 0.18, by0 * 0.48, W * 0.3, by0 * 0.85, 3 * s);
-  branch(W * 0.3, by0 * 0.38, W * 0.48, by0 * 0.5, 2.5 * s);
-  ctx.restore();
-  for (let i = 0; i < 26; i++) {
-    const t = rng();
-    const x = lerp(0, W * 0.5, t) + (rng() - 0.5) * 30 * s;
-    const y = lerp(by0 * 0.55, by0 * 0.4, t) + (rng() - 0.5) * 34 * s;
-    const pts = leafShape(x, y, (8 + rng() * 6) * s, (3 + rng() * 2) * s, rng() * TAU);
-    wash(ctx, pts, rng() < 0.6 ? '86,120,80' : '120,140,84', 0.5, rng, 0.8, 2, 0.6);
-  }
+  // The yard tree: trunk up the left side, a branch overhanging the scene (with the old colander on it).
+  paintTree(ctx, L, rng);
 
   // Plant bed: dark soil.
   wash(ctx, band(-20, W + 20, L.soilY - 2 * s, L.fenceBottom + 6 * s, rng, 6 * s, 14), '104,72,50', 0.9, rng, 3, 4, 0.4);
@@ -330,7 +307,7 @@ export function paintBackground(ctx: CanvasRenderingContext2D, L: Layout) {
   ctx.restore();
 }
 
-/** The apartment block across the street, peeking over the yard wall: the view the hedges must hide. */
+/** The neighbours' apartment across the street, peeking over the yard wall: one facade, two windows. */
 function paintApartments(ctx: CanvasRenderingContext2D, L: Layout, rng: Rng) {
   const { W, s } = L;
   const sky = ctx.createLinearGradient(0, 0, 0, L.targetY);
@@ -340,125 +317,244 @@ function paintApartments(ctx: CanvasRenderingContext2D, L: Layout, rng: Rng) {
   ctx.fillRect(0, 0, W, L.wallTop + 6);
   wash(ctx, band(-20, W + 20, -20, L.targetY * 0.5, rng, 16), '178,204,214', 0.35, rng, 8, 3, 0);
 
-  const rowTop0 = L.targetY + 8 * s;
-  const rowStep = (L.wallTop - L.targetY - 6 * s) / 3;
-  const winH = rowStep * 0.6;
-  const blocks = [
-    { x0: -12, x1: W * 0.56, roof: L.targetY - 22 * s, col: '226,198,156', trim: '196,164,120' },
-    { x0: W * 0.56, x1: W + 12, roof: L.targetY - 34 * s, col: '234,216,200', trim: '204,180,164' },
-  ];
-  blocks.forEach((bk, bi) => {
-    // Facade, parapet and roof clutter (solar water heaters, antennas).
-    wash(ctx, band(bk.x0, bk.x1, bk.roof, L.wallTop + 12, rng, 2 * s, 30), bk.col, 0.9, rng, 1.5, 3, 0.4);
-    wash(ctx, band(bk.x0, bk.x1, bk.roof - 2 * s, bk.roof + 6 * s, rng, 1.5 * s, 30), bk.trim, 0.8, rng, 1, 2, 0.4);
-    const heaters = bi === 0 ? [0.25, 0.68] : [0.4];
-    for (const f of heaters) {
-      const hx = lerp(bk.x0, bk.x1, f);
-      const hy = bk.roof - 2 * s;
-      ctx.strokeStyle = 'rgba(70,64,60,0.7)';
-      ctx.lineWidth = 1.2 * s;
-      ctx.beginPath();
-      ctx.moveTo(hx - 12 * s, hy);
-      ctx.lineTo(hx - 10 * s, hy - 14 * s);
-      ctx.moveTo(hx + 12 * s, hy);
-      ctx.lineTo(hx + 10 * s, hy - 14 * s);
-      ctx.stroke();
-      // Tank.
-      wash(ctx, blob(hx, hy - 17 * s, 15 * s, 5 * s, rng, 14, 0.04), '236,236,232', 0.95, rng, 0.6, 2, 0.6);
-      // Tilted panel.
-      wash(
-        ctx,
-        [
-          [hx - 26 * s, hy],
-          [hx - 14 * s, hy - 12 * s],
-          [hx + 2 * s, hy - 12 * s],
-          [hx - 8 * s, hy],
-        ],
-        '60,78,110',
-        0.85,
-        rng,
-        0.5,
-        2,
-        0.5,
-      );
-    }
-    ctx.strokeStyle = 'rgba(60,55,50,0.7)';
-    ctx.lineWidth = 1 * s;
-    const ax = lerp(bk.x0, bk.x1, bi === 0 ? 0.47 : 0.8);
-    ctx.beginPath();
-    ctx.moveTo(ax, bk.roof);
-    ctx.lineTo(ax, bk.roof - 26 * s);
-    ctx.moveTo(ax - 8 * s, bk.roof - 20 * s);
-    ctx.lineTo(ax + 8 * s, bk.roof - 20 * s);
-    ctx.moveTo(ax - 5 * s, bk.roof - 14 * s);
-    ctx.lineTo(ax + 5 * s, bk.roof - 14 * s);
-    ctx.stroke();
+  // One house front: warm Jaffa sandstone render with a flat roof.
+  const x0 = W * 0.08;
+  const x1 = W * 0.94;
+  const roof = L.targetY - 30 * s;
+  wash(ctx, band(x0, x1, roof, L.wallTop + 12, rng, 2 * s, 30), '230,204,164', 0.92, rng, 1.5, 3, 0.4);
+  for (let i = 0; i < 5; i++)
+    wash(
+      ctx,
+      blob(lerp(x0, x1, rng()), lerp(roof + 20 * s, L.wallTop, rng()), (30 + rng() * 50) * s, (10 + rng() * 14) * s, rng, 12, 0.25),
+      '214,184,140',
+      0.25,
+      rng,
+      4,
+      2,
+      0,
+    );
+  wash(ctx, band(x0 - 4 * s, x1 + 4 * s, roof - 4 * s, roof + 6 * s, rng, 1.5 * s, 30), '196,166,124', 0.85, rng, 1, 2, 0.4);
+  // Roof: a solar water heater and a TV antenna.
+  const hx = lerp(x0, x1, 0.72);
+  const hy = roof - 4 * s;
+  ctx.strokeStyle = 'rgba(70,64,60,0.7)';
+  ctx.lineWidth = 1.2 * s;
+  ctx.beginPath();
+  ctx.moveTo(hx - 12 * s, hy);
+  ctx.lineTo(hx - 10 * s, hy - 14 * s);
+  ctx.moveTo(hx + 12 * s, hy);
+  ctx.lineTo(hx + 10 * s, hy - 14 * s);
+  ctx.stroke();
+  wash(ctx, blob(hx, hy - 17 * s, 15 * s, 5 * s, rng, 14, 0.04), '236,236,232', 0.95, rng, 0.6, 2, 0.6);
+  wash(
+    ctx,
+    [
+      [hx - 28 * s, hy],
+      [hx - 16 * s, hy - 12 * s],
+      [hx + 2 * s, hy - 12 * s],
+      [hx - 10 * s, hy],
+    ],
+    '60,78,110',
+    0.85,
+    rng,
+    0.5,
+    2,
+    0.5,
+  );
+  const ax = lerp(x0, x1, 0.3);
+  ctx.strokeStyle = 'rgba(60,55,50,0.7)';
+  ctx.lineWidth = 1 * s;
+  ctx.beginPath();
+  ctx.moveTo(ax, roof - 4 * s);
+  ctx.lineTo(ax, roof - 30 * s);
+  ctx.moveTo(ax - 9 * s, roof - 24 * s);
+  ctx.lineTo(ax + 9 * s, roof - 24 * s);
+  ctx.moveTo(ax - 6 * s, roof - 17 * s);
+  ctx.lineTo(ax + 6 * s, roof - 17 * s);
+  ctx.stroke();
 
-    // Windows, row by row, with a concrete ledge under each row.
-    const cols = Math.max(2, Math.round((bk.x1 - bk.x0) / (72 * s)));
-    const cw = (bk.x1 - bk.x0) / cols;
-    for (let r = 0; r < 3; r++) {
-      const y = rowTop0 + r * rowStep;
-      wash(ctx, band(bk.x0, bk.x1, y + winH + 3 * s, y + winH + 8 * s, rng, 1 * s, 30), bk.trim, 0.75, rng, 0.8, 2, 0.4);
-      wash(ctx, band(bk.x0, bk.x1, y + winH + 8 * s, y + winH + 12 * s, rng, 1 * s, 30), '120,96,70', 0.18, rng, 1, 2, 0);
-      for (let c = 0; c < cols; c++) {
-        const cx = bk.x0 + (c + 0.5) * cw;
-        const ww = Math.min(cw * 0.6, 40 * s);
-        const x0 = cx - ww / 2;
-        // Frame and glass.
-        wash(ctx, band(x0 - 3 * s, x0 + ww + 3 * s, y - 3 * s, y + winH + 3 * s, rng, 0.8 * s, ww), '246,240,228', 0.9, rng, 0.5, 2, 0.3);
-        wash(ctx, band(x0, x0 + ww, y, y + winH, rng, 0.8 * s, ww / 2), '92,114,138', 0.72, rng, 0.6, 3, 0.4);
-        wash(
-          ctx,
-          [
-            [x0 + ww * 0.15, y + winH * 0.1],
-            [x0 + ww * 0.32, y + winH * 0.1],
-            [x0 + ww * 0.12, y + winH * 0.9],
-            [x0 + ww * 0.02, y + winH * 0.9],
-          ],
-          '200,214,224',
-          0.25,
-          rng,
-          0.3,
-          1,
-          0,
-        );
-        // Some roller shutters (trisim) part way down.
-        const shut = rng();
-        if (shut < 0.35) {
-          const sh = winH * (0.25 + rng() * 0.5);
-          wash(ctx, band(x0 - 1 * s, x0 + ww + 1 * s, y - 1 * s, y + sh, rng, 0.5 * s, ww), '206,196,176', 0.95, rng, 0.4, 2, 0.4);
-          ctx.strokeStyle = 'rgba(120,104,84,0.45)';
-          ctx.lineWidth = 0.7 * s;
-          for (let k = y + 3 * s; k < y + sh; k += 3 * s) {
-            ctx.beginPath();
-            ctx.moveTo(x0, k);
-            ctx.lineTo(x0 + ww, k);
-            ctx.stroke();
-          }
-        } else if (shut < 0.7) {
-          paintNeighbour(ctx, cx, y + winH, ww, winH, rng, s);
-        }
-        // The odd AC unit hanging beside a window.
-        if (rng() < 0.18) {
-          const ux = cx + cw * 0.38;
-          wash(ctx, band(ux - 9 * s, ux + 9 * s, y + winH * 0.4, y + winH * 0.4 + 11 * s, rng, 0.5 * s, 18 * s), '240,240,236', 0.95, rng, 0.4, 2, 0.6);
-          ctx.strokeStyle = 'rgba(100,100,100,0.5)';
-          ctx.lineWidth = 0.6 * s;
-          ctx.beginPath();
-          ctx.arc(ux, y + winH * 0.4 + 5.5 * s, 3.5 * s, 0, TAU);
-          ctx.stroke();
-        }
+  // Two big windows with nosy neighbours, each with a sill and part-open shutters.
+  const top = L.targetY + 10 * s;
+  const wh = Math.min((L.wallTop - L.targetY) * 0.62, 150 * s);
+  const ww = Math.min(W * 0.22, 90 * s);
+  const looks = [
+    { cx: W * 0.3, binoculars: true, cat: false },
+    { cx: W * 0.72, binoculars: false, cat: true },
+  ];
+  for (const lk of looks) {
+    const wx0 = lk.cx - ww / 2;
+    // Arched Jaffa window: frame, dark interior, a shutter leaf on each side.
+    wash(ctx, band(wx0 - 6 * s, wx0 + ww + 6 * s, top - 6 * s, top + wh + 6 * s, rng, 0.8 * s, ww), '246,240,228', 0.92, rng, 0.5, 2, 0.35);
+    wash(ctx, band(wx0, wx0 + ww, top, top + wh, rng, 0.8 * s, ww / 2), '84,96,112', 0.78, rng, 0.6, 3, 0.4);
+    wash(ctx, band(wx0, wx0 + ww, top, top + wh * 0.35, rng, 0.8 * s, ww / 2), '120,136,150', 0.3, rng, 0.6, 2, 0);
+    for (const side of [-1, 1]) {
+      const sx0 = side < 0 ? wx0 - 6 * s - ww * 0.22 : wx0 + ww + 6 * s;
+      wash(ctx, band(sx0, sx0 + ww * 0.22, top - 4 * s, top + wh + 4 * s, rng, 0.5 * s, ww * 0.22), '104,150,140', 0.9, rng, 0.4, 2, 0.5);
+      ctx.strokeStyle = 'rgba(60,96,90,0.55)';
+      ctx.lineWidth = 0.8 * s;
+      for (let y = top + 2 * s; y < top + wh; y += 5 * s) {
+        ctx.beginPath();
+        ctx.moveTo(sx0 + 2 * s, y);
+        ctx.lineTo(sx0 + ww * 0.22 - 2 * s, y);
+        ctx.stroke();
       }
     }
-  });
-  // Soft atmospheric haze so the far block sits back behind the yard.
-  ctx.fillStyle = 'rgba(232,226,214,0.22)';
+    paintNeighbour(ctx, lk.cx, top + wh, ww, wh, rng, s, lk.binoculars, lk.cat);
+    // Sill.
+    wash(ctx, band(wx0 - 10 * s, wx0 + ww + 10 * s, top + wh + 3 * s, top + wh + 10 * s, rng, 0.8 * s, ww), '206,180,140', 0.9, rng, 0.5, 2, 0.5);
+    // A pot of geraniums on the sill.
+    const px = lk.cx + (lk.cat ? -ww * 0.3 : ww * 0.3);
+    wash(ctx, band(px - 7 * s, px + 7 * s, top + wh - 8 * s, top + wh + 3 * s, rng, 0.5 * s, 14 * s), '176,96,62', 0.9, rng, 0.4, 2, 0.5);
+    for (let i = 0; i < 5; i++)
+      wash(ctx, blob(px + (rng() - 0.5) * 14 * s, top + wh - 12 * s - rng() * 6 * s, 3.5 * s, 3 * s, rng, 8, 0.2), '210,60,70', 0.85, rng, 0.4, 2, 0);
+  }
+  // Soft atmospheric haze so the house sits back behind the yard.
+  ctx.fillStyle = 'rgba(232,226,214,0.18)';
   ctx.fillRect(0, 0, W, L.wallTop);
 }
 
+/** The yard tree: an ink-and-wash trunk up the left edge and a branch overhanging the top of the scene. */
+function paintTree(ctx: CanvasRenderingContext2D, L: Layout, rng: Rng) {
+  const { W, H, s } = L;
+  const base = L.soilY + 8 * s;
+  // Trunk as a tapered, slightly bent polygon.
+  const pts: Pt[] = [];
+  const steps = 14;
+  const curve = (t: number) => -4 * s + Math.sin(t * 2.4) * 10 * s + t * 14 * s;
+  const yAt = (t: number) => lerp(base, H * 0.06, t);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    pts.push([curve(t) + lerp(34, 12, t) * s, yAt(t)]);
+  }
+  for (let i = steps; i >= 0; i--) {
+    const t = i / steps;
+    pts.push([curve(t) - lerp(34, 12, t) * s, yAt(t)]);
+  }
+  wash(ctx, pts, '78,64,52', 0.97, rng, 1, 3, 0.8);
+  wash(
+    ctx,
+    pts
+      .map(([x, y]) => [x - 6 * s, y] as Pt)
+      .slice(0, steps + 1)
+      .concat(pts.slice(steps + 1)),
+    '48,38,32',
+    0.25,
+    rng,
+    1,
+    2,
+    0,
+  );
+  // Bark: dry-brush ink strokes.
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 18; i++) {
+    const t = rng();
+    const y = yAt(t);
+    const x = curve(t) + (rng() - 0.5) * lerp(30, 10, t) * s;
+    ctx.strokeStyle = `rgba(40,32,28,${0.25 + rng() * 0.3})`;
+    ctx.lineWidth = (0.8 + rng() * 1.4) * s;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rng() - 0.5) * 3 * s, y - (8 + rng() * 16) * s);
+    ctx.stroke();
+  }
+  // The overhanging branch and its twigs.
+  const bx0 = curve(0.92);
+  const by0 = yAt(0.92);
+  const limb = (x0: number, y0: number, x1: number, y1: number, w: number, bend: number) => {
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = `rgba(60,48,40,${0.3 + i * 0.18})`;
+      ctx.lineWidth = w * (1 - i * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + bend, x1, y1);
+      ctx.stroke();
+    }
+  };
+  const tipX = W * 0.82;
+  const tipY = H * 0.075;
+  limb(bx0, by0, tipX, tipY, 13 * s, -18 * s);
+  const twigs: [number, number, number, number][] = [
+    [0.25, -1, 26, 2.5],
+    [0.4, 1, 30, 3],
+    [0.55, -1, 22, 2.2],
+    [0.7, 1, 28, 2.5],
+    [0.85, -1, 18, 2],
+  ];
+  const along = (t: number): Pt => [lerp(bx0, tipX, t), lerp(by0, tipY, t) - Math.sin(t * Math.PI) * 9 * s];
+  for (const [t, dir, len, w] of twigs) {
+    const [x, y] = along(t);
+    limb(x, y, x + len * 0.6 * s, y + dir * len * s, w * s, dir * 4 * s);
+  }
+  ctx.restore();
+
+  // The metal colander hanging from the branch on a string.
+  const [cx, cyTop] = along(0.47);
+  const cy = Math.min(cyTop + 30 * s, L.targetY - 14 * s);
+  ctx.strokeStyle = 'rgba(70,60,50,0.7)';
+  ctx.lineWidth = 0.9 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx, cyTop);
+  ctx.lineTo(cx, cy - 8 * s);
+  ctx.stroke();
+  wash(
+    ctx,
+    [
+      [cx - 13 * s, cy - 7 * s],
+      [cx + 13 * s, cy - 7 * s],
+      [cx + 9 * s, cy + 5 * s],
+      [cx - 9 * s, cy + 5 * s],
+    ],
+    '178,184,190',
+    0.95,
+    rng,
+    0.4,
+    2,
+    0.7,
+  );
+  ctx.fillStyle = 'rgba(70,74,80,0.55)';
+  for (let i = 0; i < 9; i++) {
+    ctx.beginPath();
+    ctx.arc(cx - 8 * s + (i % 5) * 4 * s, cy - 3 * s + Math.floor(i / 5) * 4 * s, 0.9 * s, 0, TAU);
+    ctx.fill();
+  }
+
+  // Foliage: clusters of small ficus leaves along the branch and over the top of the trunk.
+  for (let i = 0; i < 26; i++) {
+    const [x, y] = along(rng());
+    wash(
+      ctx,
+      blob(x + (rng() - 0.5) * 40 * s, y + (rng() - 0.6) * 26 * s, (12 + rng() * 10) * s, (8 + rng() * 6) * s, rng, 12, 0.25),
+      rng() < 0.5 ? '78,112,72' : '108,140,86',
+      0.45,
+      rng,
+      2,
+      2,
+      0.4,
+    );
+  }
+  for (let i = 0; i < 130; i++) {
+    const t = rng();
+    const [x, y] = along(t);
+    const lx = x + (rng() - 0.5) * 50 * s;
+    const ly = y + (rng() - 0.6) * 40 * s;
+    const leaf = leafShape(lx, ly, (9 + rng() * 6) * s, (3.5 + rng() * 2) * s, rng() * TAU);
+    wash(ctx, leaf, ['70,108,70', '96,132,82', '122,150,92'][Math.floor(rng() * 3)], 0.6, rng, 0.6, 2, 0.6);
+  }
+}
+
 /** A neighbour peering out of a window (head and shoulders, sometimes with binoculars or a cat on the sill). */
-function paintNeighbour(ctx: CanvasRenderingContext2D, cx: number, sill: number, ww: number, wh: number, rng: Rng, s: number) {
+function paintNeighbour(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  sill: number,
+  ww: number,
+  wh: number,
+  rng: Rng,
+  s: number,
+  binoculars: boolean,
+  cat: boolean,
+) {
   const skins = ['232,190,160', '214,166,130', '176,124,92', '240,206,180'];
   const shirts = ['190,70,60', '70,110,150', '230,200,90', '120,150,100', '200,200,196'];
   const hairs = ['50,36,28', '30,24,22', '150,110,70', '200,196,190'];
@@ -468,8 +564,7 @@ function paintNeighbour(ctx: CanvasRenderingContext2D, cx: number, sill: number,
   wash(ctx, blob(x, sill - wh * 0.08, ww * 0.34, wh * 0.26, rng, 14, 0.06), shirts[Math.floor(rng() * shirts.length)], 0.9, rng, 0.4, 2, 0.4);
   wash(ctx, blob(x, hy, headR, headR * 1.1, rng, 14, 0.05), skins[Math.floor(rng() * skins.length)], 0.95, rng, 0.3, 2, 0.4);
   wash(ctx, blob(x, hy - headR * 0.55, headR * 1.05, headR * 0.6, rng, 12, 0.1), hairs[Math.floor(rng() * hairs.length)], 0.9, rng, 0.3, 2, 0.3);
-  const extra = rng();
-  if (extra < 0.4) {
+  if (binoculars) {
     // Binoculars, nosy.
     ctx.fillStyle = 'rgba(30,30,34,0.9)';
     ctx.beginPath();
@@ -483,7 +578,7 @@ function paintNeighbour(ctx: CanvasRenderingContext2D, cx: number, sill: number,
     ctx.arc(x + headR * 0.35, hy + headR * 0.05, 1.1 * s, 0, TAU);
     ctx.fill();
   }
-  if (extra > 0.75) {
+  if (cat) {
     // A cat on the sill.
     const kx = cx + ww * 0.28;
     wash(ctx, blob(kx, sill - 4 * s, 7 * s, 4.5 * s, rng, 10, 0.08), '70,66,64', 0.95, rng, 0.3, 2, 0);
@@ -948,9 +1043,38 @@ export interface BunnyPose {
 }
 
 /** Works out the puppet's joint angles from the simulation state. */
-export function bunnyPose(b: Bunny, now: number, biteAge: number, hopHeight: number): BunnyPose {
+export function bunnyPose(b: Bunny, now: number, biteAge: number, hopHeight: number, wetAge = 99): BunnyPose {
   const ph = (Math.sin(now * 0.7 + b.id * 2.1) + Math.sin(now * 1.9 + b.id)) * 0.5;
   const twitch = Math.max(0, Math.sin(now * 3.1 + b.id * 5) - 0.92) * 6;
+  if (wetAge < 0.7 && !(b.mode === 'hop' && b.hop > 0)) {
+    // Just got sprayed: a fast shake-off, ears flapping.
+    const k = 1 - wetAge / 0.7;
+    const sh = Math.sin(now * 55) * k;
+    return {
+      bodyRot: sh * 0.12,
+      hindRot: 0,
+      frontRot: 0.1,
+      headRot: sh * 0.5,
+      earRot: sh * 1.2,
+      earFarRot: -sh * 1.2,
+      lift: Math.abs(sh) * 2,
+      squash: 1 - 0.05 * k,
+    };
+  }
+  if (b.mode === 'frisky') {
+    // Love-struck: a comic wiggle and bounce, ears up, nuzzling forward.
+    const w = Math.sin(now * 16 + b.id * 1.7);
+    return {
+      bodyRot: -0.12 + w * 0.09,
+      hindRot: -0.15 + w * 0.15,
+      frontRot: -0.3 - w * 0.2,
+      headRot: 0.05 + Math.sin(now * 8 + b.id) * 0.12,
+      earRot: -0.35 + w * 0.12,
+      earFarRot: -0.2 - w * 0.12,
+      lift: Math.max(0, w) * 3,
+      squash: 1 + w * 0.04,
+    };
+  }
   if (b.mode === 'hop' && b.hop > 0) {
     const h = b.hop;
     const sinh = Math.sin(Math.PI * h);
@@ -1384,4 +1508,71 @@ export function drawPlantTag(ctx: CanvasRenderingContext2D, L: Layout, p: Plant,
     }
   }
   ctx.restore();
+}
+
+function heartPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.9);
+  ctx.bezierCurveTo(x - r * 1.5, y - r * 0.1, x - r * 0.75, y - r * 1.25, x, y - r * 0.45);
+  ctx.bezierCurveTo(x + r * 0.75, y - r * 1.25, x + r * 1.5, y - r * 0.1, x, y + r * 0.9);
+  ctx.closePath();
+}
+
+/**
+ * Over a frisky pair: hearts floating up and a big heart that fills as the baby countdown runs out, with the
+ * seconds left inside and a blue ring showing how close the spray is to breaking them up.
+ */
+export function drawPairMeter(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  s: number,
+  fill: number,
+  secondsLeft: number,
+  wet: number,
+  now: number,
+  font: string,
+) {
+  // Floating hearts.
+  for (let i = 0; i < 4; i++) {
+    const t = (now * 0.6 + i / 4) % 1;
+    const hx = x + Math.sin((t + i) * 6) * 14 * s + (i - 1.5) * 8 * s;
+    const hy = y + 10 * s - t * 46 * s;
+    ctx.globalAlpha = Math.sin(t * Math.PI) * 0.85;
+    heartPath(ctx, hx, hy, (4 + t * 3) * s);
+    ctx.fillStyle = i % 2 ? '#e2566a' : '#f08aa0';
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // The countdown heart, pulsing faster as it fills.
+  const my = y - 40 * s;
+  const r = 15 * s * (1 + 0.06 * Math.sin(now * (6 + fill * 14)));
+  ctx.save();
+  heartPath(ctx, x + 1.5 * s, my + 2 * s, r);
+  ctx.fillStyle = 'rgba(60,30,30,0.25)';
+  ctx.fill();
+  heartPath(ctx, x, my, r);
+  ctx.fillStyle = '#fbefe6';
+  ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = '#d93d55';
+  const top = my + r * 0.9 - fill * r * 2.2;
+  ctx.fillRect(x - r * 2, top, r * 4, r * 3);
+  ctx.restore();
+  heartPath(ctx, x, my, r);
+  ctx.strokeStyle = '#7d2219';
+  ctx.lineWidth = 1.6 * s;
+  ctx.stroke();
+  ctx.fillStyle = fill > 0.5 ? '#fff' : '#7d2219';
+  ctx.font = `800 ${13 * s}px ${font}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(Math.max(1, Math.ceil(secondsLeft))), x, my - 1 * s);
+  if (wet > 0) {
+    ctx.strokeStyle = 'rgba(70,140,200,0.9)';
+    ctx.lineWidth = 3 * s;
+    ctx.beginPath();
+    ctx.arc(x, my - 1 * s, r + 6 * s, -Math.PI / 2, -Math.PI / 2 + wet * TAU);
+    ctx.stroke();
+  }
 }

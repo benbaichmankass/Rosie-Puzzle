@@ -108,14 +108,17 @@ and bandanas on the cats and the outlaw hen, an occasional tumbleweed. The real 
 The "characters on a bike" note in the spec is unclear; ignore it unless Ben clarifies.
 
 ## Garden Defense (yard, bunny wall)
-Side view of the bed along the yard's left wall, with the apartment block across the street (windows, nosy
-neighbours) showing over the wall. 5 hedges, the 3 real bunnies. Goal (Ben's call): grow the hedges tall enough to
-hide the apartments. Tap/hold a hedge to water it (watering can); watered hedges grow taller and fuller. Bunnies hop
-to hedges and eat leaves; a hedge with no leaves dies (it leaves a gap). Tapping a bunny does nothing (you can only
-water). Bunnies get faster/greedier over time; the same 3 bunnies move on to the remaining hedges. WIN when every
-hedge still alive reaches the red target line (hedges saved shown on the win screen); LOSE when the bunnies kill all
-the hedges. Result screen: win/lose, time, hedges saved; best = most hedges saved, then fastest win. A good player
-wins in about 2-3 minutes. Look: Japanese watercolor with paper-puppet (jointed cut-paper) animation.
+Side view of the bed along the yard's left wall. Over the wall: one neighbouring apartment with two windows and nosy
+neighbours; the yard tree reaches in from the left with a branch overhanging the scene. 5 hedges, starting with the 3
+real bunnies. Goal (Ben's call): grow the hedges tall enough to hide the neighbours. Each hedge covers its own part of
+the view, so all five must reach the red target line to win; if the bunnies eat any hedge bare it dies, the gap lets
+the neighbours see in, and the game is lost. Tap/hold a hedge to water it (watering can); watered hedges grow taller
+and fuller. Bunnies hop to hedges and eat leaves, and get faster/greedier over time. Breeding (Ben's call, kept PG):
+from time to time two bunnies pair up in the yard (hearts, comic wiggle, heart countdown meter); spraying them with the
+can breaks them up (they shake off and hop away); if not sprayed in time a baby bunny (one of the three coats) pops
+out, grows up in a few seconds and joins the hedge-eating. Bunnies are capped at 7. Tapping a bunny that is not
+pairing does nothing. Result screen: win/lose and time; best = fastest win. A good player wins in about 2-3 minutes.
+Look: Japanese watercolor with paper-puppet (jointed cut-paper) animation.
 
 ## Cabinet Breaker (kitchen)
 Classic brick-breaker in portrait. Paddle at the bottom (drag). Multiple level shapes, ball speeds up. A slug (slow,
