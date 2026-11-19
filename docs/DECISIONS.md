@@ -134,7 +134,7 @@ small-talk replies you tap; the right answers end the call sooner, while the oth
 cues: buzzing/vibrating phone, urn steam, ticking clock, stations flash red when they need attention (ringing phone,
 urn not on with boil time running short, a topple, anything unfinished in the last 15 s). Levels get tighter (more
 strands and crosses, trickier balance on a narrower plata, more calls). Look: BoJack Horseman-like flat 2D cartoon
-(kitchen restyle pending Ben's house video).
+(no kitchen restyle: Ben is not sending a house video).
 
 ## Squeegee Survival (bathroom)
 Side/top view: floor slopes from the shower down toward the sink; shower is on, water flows downhill. The player
