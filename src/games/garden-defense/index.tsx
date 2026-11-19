@@ -598,7 +598,7 @@ export default function Game({ onExit }: GameProps) {
               </p>
               <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
               <p className="text-[13px] mt-2 opacity-75">
-                {result.bunnies > 3 ? `The bunnies multiplied to ${result.bunnies}.` : 'No baby bunnies. Well sprayed!'}
+                {result.bunnies > 3 ? `The bunnies multiplied to ${result.bunnies}.` : result.won ? 'No baby bunnies. Well sprayed!' : ''}
               </p>
               <p className="text-[13px] mt-2 tracking-[0.12em]">{result.newBest ? 'NEW BEST!' : best > 0 ? `BEST ${fmt(best)}` : 'Win to set a best.'}</p>
               <div className="flex justify-center gap-3 mt-4">

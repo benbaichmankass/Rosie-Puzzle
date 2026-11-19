@@ -116,7 +116,9 @@ the neighbours see in, and the game is lost. Tap/hold a hedge to water it (water
 and fuller. Bunnies hop to hedges and eat leaves, and get faster/greedier over time. Breeding (Ben's call, kept PG):
 from time to time two bunnies pair up in the yard (hearts, comic wiggle, heart countdown meter); spraying them with the
 can breaks them up (they shake off and hop away); if not sprayed in time a baby bunny (one of the three coats) pops
-out, grows up in a few seconds and joins the hedge-eating. Bunnies are capped at 7. Tapping a bunny that is not
+out, grows up in a few seconds and joins the hedge-eating. Bunnies are capped at 7. Flowers (Ben's call): leafy, well-watered
+hedges bloom now and then (pink, yellow, white, purple, up to 4 per hedge); bunnies like to eat a flower first, and a
+flower bite costs the hedge half a leaf. Tapping a bunny that is not
 pairing does nothing. Result screen: win/lose and time; best = fastest win. A good player wins in about 2-3 minutes.
 Look: Japanese watercolor with paper-puppet (jointed cut-paper) animation.
 

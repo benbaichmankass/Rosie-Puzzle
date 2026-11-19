@@ -1569,7 +1569,7 @@ export function drawPairMeter(
   ctx.globalAlpha = 1;
   // The countdown heart, pulsing faster as it fills.
   const my = y - 40 * s;
-  const r = 15 * s * (1 + 0.06 * Math.sin(now * (6 + fill * 14)));
+  const r = 19 * s * (1 + 0.06 * Math.sin(now * (6 + fill * 14)));
   ctx.save();
   heartPath(ctx, x + 1.5 * s, my + 2 * s, r);
   ctx.fillStyle = 'rgba(60,30,30,0.25)';
@@ -1587,7 +1587,7 @@ export function drawPairMeter(
   ctx.lineWidth = 1.6 * s;
   ctx.stroke();
   ctx.fillStyle = fill > 0.5 ? '#fff' : '#7d2219';
-  ctx.font = `800 ${13 * s}px ${font}`;
+  ctx.font = `800 ${16 * s}px ${font}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(Math.max(1, Math.ceil(secondsLeft))), x, my - 1 * s);
@@ -1620,7 +1620,7 @@ function drawFlowers(
     const fs = shape.flowerSlots[k];
     const age = now - (bloomAt[k] ?? -10);
     const pop = age < 0.5 ? Math.sin(Math.min(1, age / 0.35) * Math.PI * 0.5) * (1 + 0.25 * Math.sin(Math.min(1, age / 0.5) * Math.PI)) : 1;
-    const r = 5.2 * s * pop;
+    const r = 6.4 * s * pop;
     if (r <= 0.2) return;
     const x = bx + fs.u * halfW + sway * fs.v;
     const y = by - Math.max(14 * s, fs.v * hPx);

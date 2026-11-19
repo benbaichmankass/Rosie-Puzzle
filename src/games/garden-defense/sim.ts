@@ -285,7 +285,7 @@ function startPair(s: GameState) {
   ] as const) {
     bn.pair = pair.id;
     bn.target = -1;
-    bn.tx = pair.x + side * 0.06;
+    bn.tx = pair.x + side * 0.07;
     bn.td = pair.d;
     bn.mode = 'hop';
   }
