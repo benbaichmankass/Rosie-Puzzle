@@ -135,6 +135,7 @@ export function Play({ levelIdx, best, bestTime, muted, toggleMute, onExit, onCl
               stopHiss();
               sfx.win();
               const seconds = Math.round(k.elapsed / 100) / 10;
+              setElapsed(seconds);
               const stars = starsFor(seconds, par);
               const prev = cb.current.bestTime;
               setResult({ seconds, stars, newBest: prev === null || seconds < prev });
