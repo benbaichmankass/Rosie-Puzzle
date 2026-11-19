@@ -1,4 +1,5 @@
 /** One run of the boulevard: Rosie's movement, jumping, tram roofs, collisions and score. Pure TS. */
+import { lapOf, lapU, PARK_START } from './route';
 import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, TREAT_POINTS, POWERUP_POINTS, BOARD_TIME, MAGNET_TIME, BOARD_SPEED, type Obstacle, type Pickup } from './spawner';
 
 export { JUMP_H, ROOF_H };
@@ -10,7 +11,9 @@ const JUMP_V = (4 * JUMP_H) / CONTROLS.jumpTime;
 /** Speed Rosie scrambles up onto a roof she reached mid-jump (units/s). */
 const CLIMB_V = 16;
 
-export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount' | 'treat' | 'power' | 'shield' | 'powerEnd';
+export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount' | 'treat' | 'power' | 'shield' | 'powerEnd' | 'park' | 'lap';
+/** Bonus for reaching Charles Clore Park on each lap. */
+export const PARK_BONUS = 500;
 export interface Power { kind: 'board' | 'magnet'; until: number; total: number }
 
 export class Run {
@@ -39,6 +42,9 @@ export class Run {
   ghostUntil = -1;
   /** Ids of pickups already collected, and the time each was taken (for the pop animation). */
   taken = new Map<number, number>();
+  /** Laps completed and parks reached (milestones). */
+  lap = 0;
+  parks = 0;
   spawner: Spawner;
   private warned = new Set<number>();
   private bells = new Set<number>();
@@ -167,6 +173,11 @@ export class Run {
       }
     }
     this.base = base;
+
+    // --- route milestones: Charles Clore Park, then back to HaBesht one tier faster ---
+    const lap = lapOf(this.d);
+    if (lap > this.lap) { this.lap = lap; ev.push('lap'); }
+    if (this.parks <= lap && lapU(this.d) >= PARK_START) { this.parks = lap + 1; this.bonus += PARK_BONUS; ev.push('park'); }
 
     // --- power-ups ---
     if (this.power && this.t >= this.power.until) { this.power = null; ev.push('powerEnd'); }

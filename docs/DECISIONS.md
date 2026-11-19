@@ -82,6 +82,18 @@ Ben's feedback (round 2):
   Sky, sun, moon and stars change smoothly; the whole street takes the light's tint; at night street lamps and
   the lamps on the catenary poles light pools on the ground, windows and shop fronts glow, trams light up their
   windows and headlights, station shelters are lit. Rosie and Bentzi's arm stay a little brighter than the world.
+- The real route, northbound: HaBesht, Isakov, Ehrlich, Bloomfield Stadium, Shalma (station spacing from OSM,
+  scaled x0.7), the north end of the boulevard (the tram turns off east), a short crossing with the Jaffa clock
+  tower seen to the west, then Charles Clore Park (Beit Gidi, lawns, the sea to the left): "Charles Clore Park!"
+  banner, +500. Then the run loops back to HaBesht one speed tier faster (endless, best score kept).
+- Accuracy (OSM / Wikipedia / Commons reference, nothing copied): trams run either side of a central promenade
+  with ficus trees, planters and the two-way bike path; one-lane roads, sidewalks and buildings outside the
+  tracks. Stations are island platforms in the median (the middle lane runs over the platform). South of Ehrlich:
+  plain post-1948 housing blocks, asphalt roads, tamarisks; Ehrlich to Shalma: the brick-paved pedestrian mall
+  with shops and dense ficus; toward the north end: older Jaffa stone buildings and palms. Shops sit at their
+  house numbers (No. 1 at the north end, even numbers on the east side). Landmarks: Tzahalon Hospital (No. 100),
+  Al-Nuzha Mosque (No. 82), Jaffa City Hall, Bloomfield Stadium's stand and floodlights to the east, the Central
+  Post Office (No. 12), the clock tower, Beit Gidi.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,

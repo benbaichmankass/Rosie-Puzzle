@@ -4,7 +4,8 @@
  */
 import { type Obstacle, type Pickup, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
 import { lightAt, type Light } from './daynight';
-import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN, SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
+import { SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
+import { pieces, segmentAt, lapU, lapOf, LAP, TRACKS_END, stationsIn, station, platformStart, PLATFORM_LEN, numberToU, LANDMARKS, hasTracks, type Segment } from './route';
 import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, drawBoardUnder, fogc, shade, HAZE } from './art';
 
 export const LANE_W = 1.9;
@@ -63,6 +64,9 @@ function hash2(a: number, b: number): number {
 
 const BUILDING_COLORS = ['#ead9b8', '#e3c79a', '#efe6d4', '#e6bf91', '#e9c9b4', '#d9cdb5', '#f0dcc0'];
 const SHUTTERS = ['#5d7f8f', '#7a8f6a', '#8a6f55', '#6c7a8a', '#b9b2a2'];
+/** Plain plaster of the post-1948 housing blocks, and Jaffa limestone of the older buildings. */
+const PLAIN_COLORS = ['#e8e2d4', '#ddd6c6', '#e6dccd', '#d9d3c4', '#ece6d8'];
+const STONE_COLORS = ['#dcc49c', '#d2b88e', '#e3cfa9', '#cdb489'];
 const AWNINGS = ['#c8462f', '#2f7f8a', '#e0a63a', '#3f6b45', '#b8563a'];
 /** Shop sign colour pairs (board, lettering). */
 const SIGN_COLORS: [string, string][] = [
@@ -121,6 +125,7 @@ export class Scene {
     if (L.step !== this.tintStep) {
       this.tintStep = L.step;
       this.tintCache.clear();
+      this.litCache.clear();
       const n = parseInt(L.tint.slice(1), 16);
       this.tintRGB = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
     }
@@ -414,10 +419,10 @@ export class Scene {
     // wires go over the far scenery but under near trees/trams
     let wiresDrawn = false;
     for (const it of items) {
-      if (!wiresDrawn && it.gap < 18) { this.drawWires(g); wiresDrawn = true; }
+      if (!wiresDrawn && it.gap < 18) { this.drawWires(g, fr.d); wiresDrawn = true; }
       it.fn();
     }
-    if (!wiresDrawn) this.drawWires(g);
+    if (!wiresDrawn) this.drawWires(g, fr.d);
 
     // leash + Bentzi's arm (he walks too: his hand bobs, gets tugged sideways and lifted)
     const rp = this.P(px, pl.y, 0);
@@ -473,9 +478,21 @@ export class Scene {
     g.fill();
   }
   /** Lit colour: between the tinted day colour and a warm glow, by how dark it is. */
+  private litCache = new Map<string, string>();
+  private textW = new Map<string, number>();
   private litColor(day: string, glowHex: string, k: number): string {
+    if (k <= 0.01) return this.tc(day);
+    const kq = Math.round(k * 16) / 16;
+    const key = day + glowHex + kq;
+    const hit = this.litCache.get(key);
+    if (hit) return hit;
+    const v = this.litColorRaw(day, glowHex, kq);
+    if (this.litCache.size > 4000) this.litCache.clear();
+    this.litCache.set(key, v);
+    return v;
+  }
+  private litColorRaw(day: string, glowHex: string, k: number): string {
     const t = this.tc(day);
-    if (k <= 0.01) return t;
     const m = t[0] === '#' ? null : t.match(/[\d.]+/g);
     let r: number, g: number, b: number;
     if (m) { r = +m[0]; g = +m[1]; b = +m[2]; } else { const n = parseInt(t.slice(1, 7), 16); r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255; }
@@ -499,63 +516,95 @@ export class Scene {
   private drawGround(g: CanvasRenderingContext2D, fr: Frame) {
     const d = fr.d;
     const gN = NEAR_Z - CAM_BACK + 0.01, gF = FAR - CAM_BACK;
-    // haze gradient on the far ground is painted at the end
-    for (const side of [-1, 1]) {
-      this.strip(g, side * 8.1, side * 9.7, gN, gF, '#d6cab5'); // sidewalk
-      this.strip(g, side * 2.95, side * 8.1, gN, gF, '#d9b27c'); // sandy park strip
-      this.strip(g, side * 2.62, side * 2.95, gN, gF, '#c4b9a6'); // concrete edge
-      this.strip(g, side * 1.18, side * 2.62, gN, gF, '#958f86'); // track bed
-      this.strip(g, side * 0.85, side * 1.1, gN, gF, '#cdbca2'); // pavers beside the bike path
-    }
-    this.strip(g, -0.85, 0.85, gN, gF, '#a9604c'); // bike path (red asphalt)
-    // sand: lighter worn path near the benches, speckles
-    for (const side of [-1, 1]) this.strip(g, side * 4.6, side * 6.1, gN, gF, '#e0bf8d');
-    const z0 = Math.floor(d / 1.5);
-    for (let k = z0; k < z0 + 34; k++) {
-      const gap = k * 1.5 - d;
-      if (gap + CAM_BACK < NEAR_Z + 0.2) continue;
-      for (let j = 0; j < 6; j++) {
-        const side = j % 2 ? 1 : -1;
-        const x = side * (3.1 + hash2(k, j) * 4.9);
-        const p = this.P(x, 0, gap + hash2(j, k) * 1.4);
-        const r = Math.max(0.8, p.s * 0.05);
-        g.fillStyle = j % 3 ? 'rgba(150,105,60,0.35)' : 'rgba(255,240,210,0.45)';
-        g.fillRect(p.x - r, p.y - r * 0.4, r * 2, r * 0.8);
+    const segs = pieces(d + gN, d + gF);
+    // base strips for each stretch of the route (far pieces first)
+    for (let i = segs.length - 1; i >= 0; i--) {
+      const { seg } = segs[i];
+      const a = segs[i].a - d, b = segs[i].b - d;
+      const S = (x1: number, x2: number, c: string) => this.strip(g, x1, x2, a, b, c);
+      if (seg === 'south' || seg === 'mall' || seg === 'mandate') {
+        const outer = seg === 'south' ? '#6f6b66' : seg === 'mall' ? '#b88f72' : '#c7ae8b';
+        for (const side of [-1, 1]) {
+          S(side * 7.3, side * 12, seg === 'south' ? '#d3c9b6' : outer);        // sidewalk
+          S(side * 2.62, side * 5.5, outer);                                     // one-lane road / shared paving
+          if (seg === 'south') { S(side * 5.5, side * 5.62, '#cbc4b8'); S(side * 5.62, side * 7.3, '#d3c9b6'); }
+          else S(side * 5.5, side * 7.3, seg === 'mall' ? '#c49c80' : '#d2bb98');
+          S(side * 1.18, side * 2.62, seg === 'south' ? '#958f86' : seg === 'mall' ? '#a98068' : '#b8a07f'); // track bed
+          S(side * 0.85, side * 1.1, '#cdbca2');                                 // planter edge / pavers
+        }
+        S(-0.85, 0.85, '#a9604c');                                               // two-way bike path
+      } else if (seg === 'kaufman') {
+        S(-12, 12, '#6a6763');                                                   // street crossing
+        for (const side of [-1, 1]) S(side * 9.5, side * 14, '#cfc5b3');
+      } else {
+        // Charles Clore Park: promenade, paths, lawns; the sea opens up to the west (left)
+        S(-1.1, 1.1, '#ddd2bb');
+        for (const side of [-1, 1]) S(side * 1.1, side * 2.7, '#e6dcc6');
+        S(2.7, 30, '#7fae55');
+        S(-5.2, -2.7, '#7fae55');
+        S(-6.3, -5.2, '#cfc6b5');                                                // sea-wall promenade
+        S(-7.0, -6.3, '#8f8a80');                                                // rock armour
+        S(-400, -7.0, '#3f86b8');                                                // the Mediterranean
       }
     }
-    // promenade paving rows (alternate shades), red-white curbs, track joints
+    // details per row (paving joints, curbs, bike-path lines, zebra crossings, sea glints)
     const t0 = Math.floor(d / 1.2);
-    for (let k = t0; k < t0 + 60; k++) {
+    for (let k = t0; k < t0 + 62; k++) {
       const a = k * 1.2 - d, b = a + 1.2;
       if (b + CAM_BACK < NEAR_Z) continue;
-      if (a + CAM_BACK > 75) break;
+      if (a + CAM_BACK > 78) break;
       const fg = this.fog(a);
-      for (const side of [-1, 1]) {
-        if (k % 2 === 0) this.strip(g, side * 0.85, side * 1.04, a, b, fogc('#bfae94', fg));
-        this.strip(g, side * 1.04, side * 1.18, a, b, fogc(k % 2 ? '#d8d2c8' : '#c94a3c', fg));
-        if (k % 2 === 0) this.strip(g, side * 1.28, side * 2.52, a, a + 0.18, fogc('#857f77', fg));
+      const seg = segmentAt(d + a);
+      if (seg === 'south' || seg === 'mall' || seg === 'mandate') {
+        for (const side of [-1, 1]) {
+          if (k % 2 === 0) this.strip(g, side * 0.85, side * 1.04, a, b, fogc('#bfae94', fg));
+          this.strip(g, side * 1.04, side * 1.18, a, b, fogc(k % 2 ? '#d8d2c8' : '#9a958c', fg));
+          if (seg === 'south') { if (k % 2 === 0) this.strip(g, side * 1.28, side * 2.52, a, a + 0.18, fogc('#857f77', fg)); }
+          else if (k % 2 === 0) {
+            // brick courses across the paved mall
+            this.strip(g, side * 1.18, side * 7.3, a, a + 0.08, fogc(seg === 'mall' ? '#9c7660' : '#a88f70', fg));
+          }
+          if (seg === 'south' && k % 4 < 2) this.strip(g, side * 2.75, side * 2.8, a, b, fogc('#e9e4da', fg)); // road edge line
+        }
+        if (k % 3 === 0) this.strip(g, -0.035, 0.035, a, a + 1.4, fogc('#f4efe6', fg));
+        for (const side of [-1, 1]) this.strip(g, side * 0.78, side * 0.82, a, b, fogc('#efe8dc', fg));
+      } else if (seg === 'kaufman') {
+        // zebra crossings across the junction, and lane lines
+        const u = lapU(d + a);
+        if (Math.floor(u / 1.2) % 40 < 6) for (let x = -8; x < 8; x += 1.0) this.strip(g, x, x + 0.55, a, b, fogc('#ece8e0', fg));
+        else if (k % 3 === 0) for (const x of [-3.8, 3.8]) this.strip(g, x - 0.05, x + 0.05, a, a + 1.4, fogc('#e9e4da', fg));
+      } else {
+        if (k % 2 === 0) this.strip(g, -1.1, 1.1, a, b, fogc('#d2c6ad', fg));
+        if (k % 5 === 0) for (let j = 0; j < 3; j++) {
+          const x = -8 - hash2(k, j) * 60;
+          this.strip(g, x, x + 1.5 + hash2(j, k) * 3, a, a + 0.15, fogc('#9fd0ea', fg)); // glints on the water
+        }
       }
-      // dashed white centre line of the two-way bike path
-      if (k % 3 === 0) this.strip(g, -0.035, 0.035, a, a + 1.4, fogc('#f4efe6', fg));
-      // white edge lines
-      for (const side of [-1, 1]) this.strip(g, side * 0.78, side * 0.82, a, b, fogc('#efe8dc', fg));
     }
-    // painted bicycle symbols on both halves of the path
+    // painted bicycle symbols on the bike path
     const bk0 = Math.floor(d / 14);
     for (let k = bk0; k < bk0 + 6; k++) {
       const gap = k * 14 - d + 7;
       if (gap + CAM_BACK < NEAR_Z + 1 || gap + CAM_BACK > 70) continue;
+      const seg = segmentAt(d + gap);
+      if (seg === 'kaufman' || seg === 'park') continue;
       const fg = this.fog(gap);
       this.bikeSymbol(g, -0.42, gap, fogc('#f4efe6', fg), 1);
       this.bikeSymbol(g, 0.42, gap + 5, fogc('#f4efe6', fg), -1);
     }
-    // rails (with warning glow when a tram is near)
-    for (const lane of [0, 2]) {
-      const c = (lane - 1) * LANE_W;
-      const warn = fr.showObstacles ? this.laneWarn(fr, lane) : 0;
-      for (const off of [-0.42, 0.42]) {
-        this.strip(g, c + off - 0.05, c + off + 0.05, gN, gF, '#5b5650');
-        this.strip(g, c + off - 0.022, c + off + 0.022, gN, gF, warn > 0 ? `rgba(255,${Math.round(200 - warn * 120)},${Math.round(160 - warn * 140)},1)` : '#e8e2d8');
+    // rails where there is track (with warning glow when a tram is near)
+    for (const pc of segs) {
+      const a = pc.a - d;
+      const bEnd = Math.min(pc.b, lapOf(pc.a) * LAP + TRACKS_END) - d;
+      if (pc.seg === 'kaufman' || pc.seg === 'park' || bEnd <= a) continue;
+      const flush = pc.seg !== 'south';
+      for (const lane of [0, 2]) {
+        const c = (lane - 1) * LANE_W;
+        const warn = fr.showObstacles ? this.laneWarn(fr, lane) : 0;
+        for (const off of [-0.42, 0.42]) {
+          if (!flush) this.strip(g, c + off - 0.05, c + off + 0.05, a, bEnd, '#5b5650');
+          this.strip(g, c + off - 0.022, c + off + 0.022, a, bEnd, warn > 0 ? `rgba(255,${Math.round(200 - warn * 120)},${Math.round(160 - warn * 140)},1)` : flush ? '#8d8a86' : '#e8e2d8');
+        }
       }
     }
     // far haze over the ground
@@ -604,87 +653,141 @@ export class Scene {
   }
 
   // ---------- buildings ----------
+  /** Real shops at their house numbers: even numbers on the east (right) side, odd on the west (left). */
+  private shopsByU = [
+    ...SHOPS_EVEN.map((sh) => ({ sh, side: 1, u: numberToU(sh.no) })),
+    ...SHOPS_ODD.map((sh) => ({ sh, side: -1, u: numberToU(sh.no) })),
+  ].sort((a, b) => a.u - b.u);
+
   private drawBuildings(g: CanvasRenderingContext2D, d: number, side: number) {
     const BL = 13;
     const k0 = Math.floor((d - CAM_BACK) / BL);
     const kEnd = Math.floor((d + FAR) / BL);
-    const X = side * 9.6;
+    const X = side * 7.35;
     for (let k = kEnd; k >= k0; k--) {
+      const z0 = k * BL;
+      const seg = segmentAt(z0 + BL / 2);
+      if (seg === 'park' || seg === 'kaufman') continue; // open junction, then the park and the sea
+      const u0 = lapU(z0), u1 = u0 + BL;
+      const lm = LANDMARKS.find((l) => l.side === side && l.u >= u0 && l.u < u1 && (l.kind === 'hospital' || l.kind === 'cityhall' || l.kind === 'postoffice'));
       const r = hash2(k, side + 5);
-      const alley = r < 0.12;
-      if (alley) continue;
-      const g0 = k * BL - d + (hash2(k, side) < 0.3 ? 1.2 : 0);
-      const g1 = (k + 1) * BL - d;
+      if (!lm && r < 0.1) continue; // side street
+      const g0 = z0 - d + (!lm && hash2(k, side) < 0.3 ? 1.2 : 0);
+      const g1 = z0 + BL - d;
       if (g1 + CAM_BACK < NEAR_Z) continue;
-      const floors = 3 + Math.floor(hash2(k, side + 11) * 3);
+      // style by stretch: plain post-1948 housing blocks (south), 1950s-60s blocks with shops (mall), older Jaffa stone (mandate)
+      let floors = seg === 'mall' ? 4 + Math.floor(hash2(k, side + 11) * 2) : seg === 'south' ? 3 + Math.floor(hash2(k, side + 11) * 2) : 2 + Math.floor(hash2(k, side + 11) * 2);
+      const palette = seg === 'mandate' ? STONE_COLORS : seg === 'south' ? PLAIN_COLORS : BUILDING_COLORS;
+      let col = palette[Math.floor(hash2(k, side + 21) * palette.length)];
+      if (lm?.kind === 'hospital') { col = '#f1f1ee'; floors = 5; }
+      if (lm?.kind === 'cityhall') { col = '#ece2c9'; floors = 3; }
+      if (lm?.kind === 'postoffice') { col = '#dcc49c'; floors = 2; }
+      const stone = seg === 'mandate' || lm?.kind === 'postoffice';
       const h = 3.6 + floors * 3.1;
-      const col = BUILDING_COLORS[Math.floor(hash2(k, side + 21) * BUILDING_COLORS.length)];
       const fg = this.fog(Math.max(0, g0)) * 0.65;
       const n0 = Math.max(g0, NEAR_Z - CAM_BACK + 0.05);
-      // end wall facing the camera (seen when taller than the next building)
       if (g0 + CAM_BACK > NEAR_Z + 0.1) {
         this.quad(g, this.P(X, 0, g0), this.P(X + side * 9, 0, g0), this.P(X + side * 9, h, g0), this.P(X, h, g0), fogc(shade(col, -0.22), fg));
       }
-      // facade
       this.quad(g, this.P(X, 0, n0), this.P(X, h, n0), this.P(X, h, g1), this.P(X, 0, g1), fogc(col, fg));
-      // roof edge
       this.quad(g, this.P(X, h, n0), this.P(X, h + 0.35, n0), this.P(X, h + 0.35, g1), this.P(X, h, g1), fogc(shade(col, 0.25), fg));
+      if (stone) for (const y of [3.4, h - 0.3]) this.quad(g, this.P(X - side * 0.12, y, n0), this.P(X - side * 0.12, y + 0.25, n0), this.P(X - side * 0.12, y + 0.25, g1), this.P(X - side * 0.12, y, g1), fogc(shade(col, -0.12), fg));
       if (g0 + CAM_BACK > 95) continue;
-      // ground-floor shops: glass + awning
+      // ground floor: real shops where a shop's house number falls in this block, else flats / arcades
+      const here = this.shopsByU.filter((e) => e.side === side && e.u >= u0 && e.u < u1);
+      const used = new Set<number>();
+      const slotShop: (Shop | null)[] = [null, null, null];
+      for (const e of here) {
+        let slot = Math.min(2, Math.floor(((e.u - u0) / BL) * 3));
+        while (used.has(slot) && slot < 2) slot++;
+        if (!used.has(slot)) { used.add(slot); slotShop[slot] = e.sh; }
+      }
       const aw = AWNINGS[Math.floor(hash2(k, side + 31) * AWNINGS.length)];
       for (let s = 0; s < 3; s++) {
         const a = g0 + 0.6 + s * 4.1, b = a + 3.3;
         if (b + CAM_BACK < NEAR_Z) continue;
         const a2 = Math.max(a, NEAR_Z - CAM_BACK + 0.05);
         if (b <= a2) continue;
-        this.quadLit(g, this.P(X, 0.2, a2), this.P(X, 2.2, a2), this.P(X, 2.2, b), this.P(X, 0.2, b), this.litColor(fogc('#3d4650', fg), '#ffd98f', this.L.lamps * 0.9));
-        this.quadLit(g, this.P(X, 1.3, a2), this.P(X, 2.1, a2), this.P(X, 2.1, b), this.P(X, 1.3, b), this.litColor(fogc('#6f8193', fg), '#fff0c8', this.L.lamps * 0.9));
-        // shop sign above the window (real shops on the boulevard), below the tree canopies
-        if (a2 === a && a + CAM_BACK < 80) {
-          const list = side < 0 ? SHOPS_EVEN : SHOPS_ODD;
-          const n = k * 3 + s;
-          const shop = list[((n % list.length) + list.length) % list.length];
-          this.shopSign(g, X, side, a - 0.2, b + 0.2, shop, fg);
-          // hanging blade sign sticking out from the wall, facing the street
-          if (a + CAM_BACK > NEAR_Z + 1) this.bladeSign(g, X - side * 0.12, X - side * 2.5, a + 0.15, shop, fg);
+        const shop = slotShop[s];
+        const shopfront = !!shop || (seg === 'mall' && !lm && hash2(k * 3 + s, side) < 0.75);
+        if (shopfront) {
+          this.quadLit(g, this.P(X, 0.2, a2), this.P(X, 2.2, a2), this.P(X, 2.2, b), this.P(X, 0.2, b), this.litColor(fogc('#3d4650', fg), '#ffd98f', this.L.lamps * 0.9));
+          this.quadLit(g, this.P(X, 1.3, a2), this.P(X, 2.1, a2), this.P(X, 2.1, b), this.P(X, 1.3, b), this.litColor(fogc('#6f8193', fg), '#fff0c8', this.L.lamps * 0.9));
+          if (shop && a2 === a && a + CAM_BACK < 80) {
+            this.shopSign(g, X, side, a - 0.2, b + 0.2, shop, fg);
+            if (a + CAM_BACK > NEAR_Z + 1) this.bladeSign(g, X - side * 0.12, X - side * 2.5, a + 0.15, shop, fg);
+          }
+          this.quad(g, this.P(X, 2.25, a2), this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.95, b), this.P(X, 2.25, b), fogc(aw, fg));
+          this.quad(g, this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.75, a2), this.P(X - side * 0.9, 1.75, b), this.P(X - side * 0.9, 1.95, b), fogc(shade(aw, -0.25), fg));
+        } else if (stone) {
+          // arcade of tall arched openings
+          for (let j = 0; j < 2; j++) {
+            const aa = a + 0.2 + j * 1.6, bb = aa + 1.1;
+            if (aa < a2) continue;
+            this.quad(g, this.P(X, 0.1, aa), this.P(X, 2.4, aa), this.P(X, 2.4, bb), this.P(X, 0.1, bb), fogc('#5b4b3a', fg));
+            this.quad(g, this.P(X, 2.4, aa + 0.15), this.P(X, 2.75, aa + 0.4), this.P(X, 2.75, bb - 0.4), this.P(X, 2.4, bb - 0.15), fogc('#5b4b3a', fg));
+          }
+        } else {
+          // ground-floor flats / entrance: windows with shutters
+          const lit = this.L.lamps * (hash2(k * 5 + s, side) < 0.5 ? 1 : 0);
+          this.quadLit(g, this.P(X, 0.9, a + 0.6), this.P(X, 2.3, a + 0.6), this.P(X, 2.3, b - 0.6), this.P(X, 0.9, b - 0.6), this.litColor(fogc('#4a4f55', fg), '#ffc867', lit));
         }
-        // awning sticks out toward the street
-        this.quad(g, this.P(X, 2.25, a2), this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.95, b), this.P(X, 2.25, b), fogc(aw, fg));
-        this.quad(g, this.P(X - side * 0.9, 1.95, a2), this.P(X - side * 0.9, 1.75, a2), this.P(X - side * 0.9, 1.75, b), this.P(X - side * 0.9, 1.95, b), fogc(shade(aw, -0.25), fg));
       }
-      // upper floors: windows with shutters and balconies
+      if (lm?.kind === 'postoffice' && a2ok(g0)) this.facadeWord(g, X, side, g0 + 3, g0 + 9, 'דואר', fg);
+      if (lm?.kind === 'cityhall' && g0 + CAM_BACK > NEAR_Z + 1) {
+        // flagpole on the roof
+        const pp = this.P(X + side * 1.5, h + 0.35, g0 + 6), pt = this.P(X + side * 1.5, h + 4, g0 + 6);
+        g.strokeStyle = this.tc('#7a7a7a'); g.lineWidth = Math.max(1, pp.s * 0.06);
+        g.beginPath(); g.moveTo(pp.x, pp.y); g.lineTo(pt.x, pt.y); g.stroke();
+        const wv = Math.sin(this.t * 3) * 0.08;
+        this.quad(g, this.P(X + side * 1.5, h + 4, g0 + 6), this.P(X + side * 1.5 - side * 1.5, h + 4 + wv, g0 + 6), this.P(X + side * 1.5 - side * 1.5, h + 3 + wv, g0 + 6), this.P(X + side * 1.5, h + 3, g0 + 6), '#f4f4f4');
+        this.quad(g, this.P(X + side * 1.5, h + 3.85, g0 + 6), this.P(X, h + 3.85 + wv, g0 + 6), this.P(X, h + 3.75 + wv, g0 + 6), this.P(X + side * 1.5, h + 3.75, g0 + 6), '#2a5db0');
+        this.quad(g, this.P(X + side * 1.5, h + 3.25, g0 + 6), this.P(X, h + 3.25 + wv, g0 + 6), this.P(X, h + 3.15 + wv, g0 + 6), this.P(X + side * 1.5, h + 3.15, g0 + 6), '#2a5db0');
+      }
+      // upper floors
       const sh = SHUTTERS[Math.floor(hash2(k, side + 41) * SHUTTERS.length)];
-      const balc = hash2(k, side + 51) < 0.6;
+      const balc = !stone && lm?.kind !== 'hospital' && hash2(k, side + 51) < (seg === 'south' ? 0.8 : 0.6);
       for (let f = 0; f < floors; f++) {
         const y0 = 3.6 + f * 3.1;
+        if (lm?.kind === 'hospital') {
+          // long horizontal window bands
+          const lit = this.L.lamps * 0.8;
+          this.quadLit(g, this.P(X, y0 + 0.9, n0 + 0.4), this.P(X, y0 + 2.2, n0 + 0.4), this.P(X, y0 + 2.2, g1 - 0.4), this.P(X, y0 + 0.9, g1 - 0.4), this.litColor(fogc('#7d9bb3', fg), '#eaf4ff', lit));
+          continue;
+        }
         for (let c = 0; c < 4; c++) {
-          const a = g0 + 0.9 + c * 3.0, b = a + 1.7;
+          const a = g0 + 0.9 + c * 3.0, b = a + (stone ? 1.2 : 1.7);
           if (a + CAM_BACK < NEAR_Z + 0.2) continue;
           const open = hash2(k * 7 + f, c + side * 3) < 0.55;
           const lit = this.L.lamps * (hash2(k * 13 + f, c + side * 7) < 0.6 ? 1 : 0);
+          const top = stone ? 2.7 : 2.5;
           if (lit > 0.02) {
-            // someone's home: a warm window
-            this.quadLit(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 0.7, b), this.litColor(fogc(open ? '#3a4048' : sh, fg), hash2(k, c) < 0.3 ? '#ffe7b0' : '#ffc867', lit * (1 - fg * 0.5)));
-          } else this.quad(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 0.7, b), fogc(open ? '#3a4048' : sh, fg));
-          if (open) this.quad(g, this.P(X, y0 + 1.6, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 1.6, b), fogc(sh, fg));
+            this.quadLit(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + top, a), this.P(X, y0 + top, b), this.P(X, y0 + 0.7, b), this.litColor(fogc(open ? '#3a4048' : sh, fg), hash2(k, c) < 0.3 ? '#ffe7b0' : '#ffc867', lit * (1 - fg * 0.5)));
+          } else this.quad(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + top, a), this.P(X, y0 + top, b), this.P(X, y0 + 0.7, b), fogc(open ? '#3a4048' : sh, fg));
+          if (open && !stone) this.quad(g, this.P(X, y0 + 1.6, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 1.6, b), fogc(sh, fg));
+          if (stone) this.quad(g, this.P(X - side * 0.1, y0 + 0.55, a - 0.15), this.P(X - side * 0.1, y0 + 0.7, a - 0.15), this.P(X - side * 0.1, y0 + 0.7, b + 0.15), this.P(X - side * 0.1, y0 + 0.55, b + 0.15), fogc(shade(col, -0.18), fg));
           if (balc && c % 2 === 0) {
             const bb = b + 1.3;
             this.quad(g, this.P(X, y0 + 0.15, a - 0.2), this.P(X - side * 0.9, y0 + 0.15, a - 0.2), this.P(X - side * 0.9, y0 + 0.15, bb), this.P(X, y0 + 0.15, bb), fogc(shade(col, -0.3), fg));
             this.quad(g, this.P(X - side * 0.9, y0 + 0.15, a - 0.2), this.P(X - side * 0.9, y0 + 1.1, a - 0.2), this.P(X - side * 0.9, y0 + 1.1, bb), this.P(X - side * 0.9, y0 + 0.15, bb), fogc(shade(col, -0.12), fg));
           }
-          // AC unit
-          if (hash2(k + f * 13, c) < 0.25) {
+          if (!stone && hash2(k + f * 13, c) < 0.25) {
             this.quad(g, this.P(X - side * 0.4, y0 + 0.3, b + 0.2), this.P(X - side * 0.4, y0 + 0.9, b + 0.2), this.P(X - side * 0.4, y0 + 0.9, b + 1.0), this.P(X - side * 0.4, y0 + 0.3, b + 1.0), fogc('#eeeeea', fg));
           }
         }
       }
-      // rooftop solar water heater
-      if (hash2(k, side + 61) < 0.75) {
+      if (!lm && hash2(k, side + 61) < 0.75) {
         const gp = g0 + 3 + hash2(k, 2) * 6;
         const p = this.P(X + side * 1.5, h + 0.35, gp);
         this.sprite(g, this.sp.solar, p, gp, 0);
       }
     }
+    function a2ok(g0: number) { return g0 + CAM_BACK > NEAR_Z + 1 && g0 + CAM_BACK < 80; }
+  }
+
+  /** A word in plain lettering on a facade (e.g. the post office), mapped like the shop signs. */
+  private facadeWord(g: CanvasRenderingContext2D, X: number, side: number, a: number, b: number, word: string, fg: number) {
+    this.shopSign(g, X, side, a, b, { he: word, en: 'Post Office', no: 12 }, fg);
   }
 
   // ---------- treats and power-ups ----------
@@ -742,7 +845,7 @@ export class Scene {
     if (!this.fontsHooked && typeof document !== 'undefined' && document.fonts) {
       this.fontsHooked = true;
       // re-letter the signs once Rubik (with Hebrew) has loaded
-      void document.fonts.load('800 60px Rubik', 'אבג').then(() => this.signCache.clear()).catch(() => {});
+      void document.fonts.load('800 60px Rubik', 'אבג').then(() => { this.signCache.clear(); this.textW.clear(); this.boards.clear(); }).catch(() => {});
     }
     const key = shop.en;
     let c = this.signCache.get(key);
@@ -803,76 +906,65 @@ export class Scene {
   }
 
   // ---------- light rail stations ----------
+  /** Island platforms in the median between the two tracks (the real layout): the bike path runs onto them. */
   private drawPlatforms(g: CanvasRenderingContext2D, d: number) {
     const minGap = NEAR_Z - CAM_BACK + 0.05;
-    const k0 = Math.max(0, Math.floor((d - CAM_BACK - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
-    for (let k = k0 + 1; k >= k0; k--) {
-      const g0 = stationStart(k) - d, g1 = g0 + PLATFORM_LEN;
+    const ks = stationsIn(d - CAM_BACK, d + FAR);
+    for (let i = ks.length - 1; i >= 0; i--) {
+      const g0 = platformStart(ks[i]) - d, g1 = g0 + PLATFORM_LEN;
       if (g1 < minGap || g0 + CAM_BACK > FAR) continue;
       const n0 = Math.max(g0, minGap);
       const fg = this.fog(Math.max(0, n0));
+      const top = 0.12;
+      this.quad(g, this.P(-1.12, top, n0), this.P(1.12, top, n0), this.P(1.12, top, g1), this.P(-1.12, top, g1), fogc('#d6d0c4', fg));
+      // paving joints, then the yellow safety strips along both track edges
+      for (let z = Math.ceil(n0 / 1.5) * 1.5; z < g1; z += 3) this.quad(g, this.P(-1.12, top, z), this.P(1.12, top, z), this.P(1.12, top, z + 0.1), this.P(-1.12, top, z + 0.1), fogc('#c2bbae', fg));
       for (const side of [-1, 1]) {
-        const xi = side * 2.64, xo = side * 3.95, top = 0.32;
-        // face toward the track, then the deck, then the yellow safety strip
-        this.quad(g, this.P(xi, 0, n0), this.P(xi, top, n0), this.P(xi, top, g1), this.P(xi, 0, g1), fogc('#8f8a82', fg));
-        this.quad(g, this.P(xi, top, n0), this.P(xo, top, n0), this.P(xo, top, g1), this.P(xi, top, g1), fogc('#d3cdc2', fg));
-        this.quad(g, this.P(xi, top, n0), this.P(xi + side * 0.16, top, n0), this.P(xi + side * 0.16, top, g1), this.P(xi, top, g1), fogc('#f0c43a', fg));
-        if (g0 > minGap) this.quad(g, this.P(xi, 0, g0), this.P(xo, 0, g0), this.P(xo, top, g0), this.P(xi, top, g0), fogc('#a39d93', fg));
+        this.quad(g, this.P(side * 1.12, top, n0), this.P(side * 0.95, top, n0), this.P(side * 0.95, top, g1), this.P(side * 1.12, top, g1), fogc('#f0c43a', fg));
+        this.quad(g, this.P(side * 1.12, 0, n0), this.P(side * 1.12, top, n0), this.P(side * 1.12, top, g1), this.P(side * 1.12, 0, g1), fogc('#8f8a82', fg));
       }
+      if (g0 > minGap) this.quad(g, this.P(-1.12, 0, g0), this.P(1.12, 0, g0), this.P(1.12, top, g0), this.P(-1.12, top, g0), fogc('#a39d93', fg));
     }
   }
 
   private collectStations(g: CanvasRenderingContext2D, d: number, items: { gap: number; fn: () => void }[]) {
-    const k0 = Math.max(0, Math.floor((d - CAM_BACK - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
-    for (let k = k0; k <= k0 + 1; k++) {
-      const g0 = stationStart(k) - d;
-      if (g0 + PLATFORM_LEN + CAM_BACK < NEAR_Z || g0 + CAM_BACK > FAR) continue;
-      const name = stationName(k);
-      for (const side of [-1, 1]) {
-        const c = g0 + PLATFORM_LEN * 0.55;
-        // shelter: posts, glass back wall, canopy with a red fascia
-        items.push({ gap: c, fn: () => this.shelter(g, side, c) });
-        // hanging name sign at the shelter's near end, and a totem at the platform's near end
-        items.push({ gap: c - 6.2, fn: () => this.nameSign(g, side * 2.98, side * 3.82, 2.02, 2.5, c - 6.2, name) });
-        items.push({ gap: g0 + 1.5, fn: () => this.totem(g, side * 3.45, g0 + 1.5, name) });
-      }
+    for (const k of stationsIn(d - CAM_BACK, d + FAR)) {
+      const g0 = platformStart(k) - d;
+      const name = station(k);
+      const c = g0 + PLATFORM_LEN * 0.5;
+      items.push({ gap: c + 7, fn: () => this.shelter(g, c) });
+      // hanging name signs at both ends of the canopy, and a totem at the platform's near end
+      items.push({ gap: c - 7.2, fn: () => this.nameSign(g, -0.75, 0.75, 2.05, 2.55, c - 7.2, name) });
+      items.push({ gap: g0 + 1.2, fn: () => this.totem(g, 0.82, g0 + 1.2, name) });
     }
   }
 
-  private shelter(g: CanvasRenderingContext2D, side: number, c: number) {
+  /** Platform shelter: posts at both edges of the platform, a glass canopy over the middle, a bench. */
+  private shelter(g: CanvasRenderingContext2D, c: number) {
     const minGap = NEAR_Z - CAM_BACK + 0.05;
-    const a = c - 6, b = c + 6;
+    const a = c - 7, b = c + 7;
     if (b < minGap) return;
     const a2 = Math.max(a, minGap);
     const fg = this.fog(Math.max(0, a2));
-    const xi = side * 2.95, xo = side * 3.85;
-    // glass back wall
-    g.globalAlpha = 0.45;
-    this.quad(g, this.P(xo, 0.32, a2), this.P(xo, 2.6, a2), this.P(xo, 2.6, b), this.P(xo, 0.32, b), fogc('#9fc3cf', fg));
-    g.globalAlpha = 1;
-    // posts
     g.strokeStyle = this.tc(fogc('#5c5f66', fg));
-    for (const z of [a, c, b]) {
+    for (let z = b; z >= a; z -= 3.5) {
       if (z < minGap) continue;
-      for (const x of [xi + side * 0.08, xo]) {
-        const p1 = this.P(x, 0.32, z), p2 = this.P(x, 2.72, z);
-        g.lineWidth = Math.max(1, p1.s * 0.07);
+      for (const x of [-0.98, 0.98]) {
+        const p1 = this.P(x, 0.12, z), p2 = this.P(x, 2.72, z);
+        g.lineWidth = Math.max(1, p1.s * 0.06);
         g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
       }
     }
-    // bench along the back
-    this.quad(g, this.P(xo - side * 0.35, 0.78, a2 + 2), this.P(xo, 0.78, a2 + 2), this.P(xo, 0.78, b - 2), this.P(xo - side * 0.35, 0.78, b - 2), fogc('#a8743f', fg));
-    // canopy (seen from below, it is above the camera only when Rosie is up on a roof)
-    this.quad(g, this.P(xi, 2.75, a2), this.P(xo + side * 0.1, 2.75, a2), this.P(xo + side * 0.1, 2.75, b), this.P(xi, 2.75, b), fogc('#e8e4dc', fg));
-    this.quad(g, this.P(xi, 2.55, a2), this.P(xi, 2.8, a2), this.P(xi, 2.8, b), this.P(xi, 2.55, b), fogc('#d22e2e', fg));
-    if (a > minGap) this.quad(g, this.P(xi, 2.55, a), this.P(xo + side * 0.1, 2.55, a), this.P(xo + side * 0.1, 2.8, a), this.P(xi, 2.8, a), fogc('#b82626', fg));
-    // shelter lights at night
+    // canopy underside (seen from below), red fascia along both edges
+    this.quad(g, this.P(-1.05, 2.75, a2), this.P(1.05, 2.75, a2), this.P(1.05, 2.75, b), this.P(-1.05, 2.75, b), fogc('#e8e4dc', fg));
+    for (const side of [-1, 1]) this.quad(g, this.P(side * 1.05, 2.55, a2), this.P(side * 1.05, 2.82, a2), this.P(side * 1.05, 2.82, b), this.P(side * 1.05, 2.55, b), fogc('#d22e2e', fg));
+    if (a > minGap) this.quad(g, this.P(-1.05, 2.55, a), this.P(1.05, 2.55, a), this.P(1.05, 2.82, a), this.P(-1.05, 2.82, a), fogc('#b82626', fg));
     if (this.L.lamps > 0.02) {
-      for (const z of [c - 3, c + 3]) {
+      for (const z of [c - 4, c, c + 4]) {
         if (z < minGap) continue;
-        const lp = this.P((xi + xo) / 2, 2.6, z);
-        this.glow(g, lp.x, lp.y, lp.s * 1.5, this.L.lamps, '230,240,255');
-        this.groundPool(g, this.P((xi + xo) / 2, 0.32, z), 1.4, this.L.lamps * 0.7);
+        const lp = this.P(0, 2.65, z);
+        this.glow(g, lp.x, lp.y, lp.s * 1.6, this.L.lamps, '230,240,255');
+        this.groundPool(g, this.P(0, 0.12, z), 1.3, this.L.lamps * 0.8);
       }
     }
   }
@@ -884,23 +976,31 @@ export class Scene {
     const w = B.x - A.x, h = B.y - A.y;
     if (w < 3) return;
     const fg = this.fog(gap);
-    g.fillStyle = fogc('#fbfaf6', fg);
-    g.beginPath(); g.roundRect(A.x, A.y, w, h, h * 0.12); g.fill();
-    g.fillStyle = fogc('#d22e2e', fg);
-    g.fillRect(A.x, A.y, w, h * 0.2);
-    if (h < 9) return;
-    g.fillStyle = fogc('#23262c', fg);
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.direction = 'rtl';
-    let fs = h * 0.38;
-    g.font = `800 ${fs}px Rubik, Arial, sans-serif`;
-    while (g.measureText(name.he).width > w * 0.9 && fs > 4) { fs *= 0.9; g.font = `800 ${fs}px Rubik, Arial, sans-serif`; }
-    g.fillText(name.he, A.x + w / 2, A.y + h * 0.47);
-    g.direction = 'ltr';
-    fs = h * 0.22;
-    g.font = `600 ${fs}px Rubik, Arial, sans-serif`;
-    while (g.measureText(name.en).width > w * 0.9 && fs > 3) { fs *= 0.9; g.font = `600 ${fs}px Rubik, Arial, sans-serif`; }
-    g.fillText(name.en, A.x + w / 2, A.y + h * 0.8);
+    g.drawImage(this.stationBoard(name), A.x, A.y, w, h);
+    if (fg > 0.15) { g.globalAlpha = Math.min(0.6, fg - 0.15); g.fillStyle = HAZE; g.fillRect(A.x, A.y, w, h); g.globalAlpha = 1; }
+  }
+
+  /** Station name board (white, red band, Hebrew + English), rendered once per station. */
+  private boards = new Map<string, HTMLCanvasElement>();
+  private stationBoard(name: { en: string; he: string }): HTMLCanvasElement {
+    let c = this.boards.get(name.en);
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = 360; c.height = 150;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#fbfaf6';
+    g.beginPath(); g.roundRect(0, 0, 360, 150, 16); g.fill();
+    g.fillStyle = '#d22e2e'; g.fillRect(0, 0, 360, 30);
+    g.fillStyle = '#23262c'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fit = (text: string, weight: number, maxFs: number) => {
+      g.font = `${weight} 100px Rubik, Arial, sans-serif`;
+      const fs = Math.min(maxFs, (324 * 100) / g.measureText(text).width);
+      g.font = `${weight} ${fs}px Rubik, Arial, sans-serif`;
+    };
+    g.direction = 'rtl'; fit(name.he, 800, 56); g.fillText(name.he, 180, 72);
+    g.direction = 'ltr'; fit(name.en, 600, 32); g.fillText(name.en, 180, 122);
+    this.boards.set(name.en, c);
+    return c;
   }
 
   private totem(g: CanvasRenderingContext2D, x: number, gap: number, name: { en: string; he: string }) {
@@ -933,65 +1033,80 @@ export class Scene {
 
   private collectScenery(d: number, items: { gap: number; fn: () => void }[]) {
     const g = this.ctx!;
-    const add = (spacing: number, salt: number, place: (k: number, gap: number) => void) => {
+    const add = (spacing: number, salt: number, place: (k: number, gap: number, seg: Segment) => void) => {
       const k0 = Math.floor((d - CAM_BACK) / spacing);
       const k1 = Math.ceil((d + FAR) / spacing);
       for (let k = k0; k <= k1; k++) {
         const gap = k * spacing - d + hash2(k, salt) * spacing * 0.3;
         if (gap + CAM_BACK < NEAR_Z + 0.3 || gap + CAM_BACK > FAR) continue;
-        place(k, gap);
+        place(k, gap, segmentAt(d + gap));
       }
     };
-    for (const side of [-1, 1]) {
-      // inner row: big ficus and palms right by the track
-      add(9, side * 3 + 1, (k, gap) => {
-        const r = hash2(k, side * 7);
-        if (r > 0.86) return;
-        const x = side * (4.4 + hash2(k, 9) * 0.5);
-        const sp = r < 0.42 ? this.sp.ficus[Math.abs(k) % 3] : this.sp.palms[Math.abs(k) % 3];
-        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 4) < 0.5, Math.sin(this.t * 1.3 + k * 1.7) * 0.025) });
-      });
-      // outer row: tall palms
-      add(12, side * 3 + 2, (k, gap) => {
-        if (hash2(k, side * 11) < 0.25) return;
-        const x = side * (7.0 + hash2(k, 19) * 0.5);
-        const sp = this.sp.palms[Math.abs(k + 1) % 3];
-        items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 5) < 0.5, Math.sin(this.t * 1.1 + k * 2.3) * 0.03) });
-      });
-      // benches and picnic tables in the park strip
-      add(7, side * 3 + 3, (k, gap) => {
-        const r = hash2(k, side * 17);
-        if (r < 0.45) {
-          const x = side * 5.25;
-          items.push({ gap, fn: () => this.sprite(g, this.sp.bench, this.P(x, 0, gap), gap, 0) });
-        } else if (r < 0.62) {
-          const x = side * 6.6;
-          items.push({ gap, fn: () => this.sprite(g, this.sp.picnic, this.P(x, 0, gap), gap, 0) });
+    const tree = (sp: Sprite, x: number, gap: number, k: number, sway = 0.025) =>
+      items.push({ gap, fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0, hash2(k, 4) < 0.5, Math.sin(this.t * 1.2 + k * 1.7) * sway) });
+    const lamp = (x: number, side: number, gap: number) => items.push({
+      gap,
+      fn: () => {
+        this.sprite(g, this.sp.lamp, this.P(x, 0, gap), gap, 0, side > 0);
+        const k = this.L.lamps;
+        if (k > 0.02) {
+          const head = this.P(x - side * 0.52, 4.8, gap), pool = this.P(x - side * 1.0, 0, gap);
+          this.groundPool(g, pool, 1.9, k);
+          this.glow(g, head.x, head.y, head.s * 1.6, k);
         }
+      },
+    });
+    for (const side of [-1, 1]) {
+      // the central promenade's trees, along both edges of the bike path (ficus; tamarisks on the newer
+      // southern stretch; palms mixed in toward the north end), with planters between them
+      add(8, side * 3 + 1, (k, gap, seg) => {
+        const x = side * 1.13;
+        const r = hash2(k, side * 7);
+        if (seg === 'mall') { if (r < 0.92) tree(this.sp.medianFicus[Math.abs(k) % 3], x, gap, k); }
+        else if (seg === 'south') { if (r < 0.6) tree(this.sp.tamarisk[Math.abs(k) % 2], side * 5.75, gap, k, 0.04); } // tamarisks along the sidewalk edge
+        else if (seg === 'mandate') tree(r < 0.5 ? this.sp.palms[Math.abs(k) % 3] : this.sp.medianFicus[Math.abs(k) % 3], x, gap, k);
       });
-      // street lamps on the sidewalk
-      add(16, side * 3 + 4, (_k, gap) => {
-        const x = side * 8.3;
-        items.push({
-          gap,
-          fn: () => {
-            this.sprite(g, this.sp.lamp, this.P(x, 0, gap), gap, 0, side > 0);
-            const k = this.L.lamps;
-            if (k > 0.02) {
-              const head = this.P(x - side * 0.52, 4.8, gap), pool = this.P(x - side * 1.0, 0, gap);
-              this.groundPool(g, pool, 1.9, k);
-              this.glow(g, head.x, head.y, head.s * 1.6, k);
-            }
-          },
-        });
+      add(8, side * 3 + 5, (k, gap, seg) => {
+        if (seg === 'kaufman' || seg === 'park') return;
+        if (stationsIn(d + gap - 2, d + gap + 2).length) return;
+        if (hash2(k, side * 9) < 0.5) items.push({ gap: gap + 4, fn: () => this.sprite(g, this.sp.planter, this.P(side * 1.0, 0, gap + 4), gap + 4, 0) });
       });
+      // street lamps on the sidewalks (along the promenade in the park)
+      add(16, side * 3 + 4, (_k, gap, seg) => {
+        if (seg === 'park') { if (side < 0) lamp(-5.0, side, gap); return; }
+        if (seg === 'kaufman') return;
+        lamp(side * 6.9, side, gap);
+      });
+      // Charles Clore Park: palms and tamarisks on the east lawns, benches facing the sea
+      add(9, side * 3 + 6, (k, gap, seg) => {
+        if (seg !== 'park') return;
+        if (side > 0) {
+          tree(hash2(k, 3) < 0.7 ? this.sp.palms[Math.abs(k) % 3] : this.sp.tamarisk[Math.abs(k) % 2], 4.5 + hash2(k, 8) * 5, gap, k, 0.03);
+          if (hash2(k, 5) < 0.6) tree(this.sp.palms[Math.abs(k + 1) % 3], 10 + hash2(k, 9) * 6, gap + 4, k + 1, 0.03);
+        } else if (hash2(k, 6) < 0.6) items.push({ gap, fn: () => this.sprite(g, this.sp.bench, this.P(-4.4, 0, gap), gap, 0) });
+      });
+      // a few palms at the junction by the north end
+      add(10, side * 3 + 7, (k, gap, seg) => { if (seg === 'kaufman' && hash2(k, side) < 0.6) tree(this.sp.palms[Math.abs(k) % 3], side * (10 + hash2(k, 2) * 3), gap, k); });
     }
-    // catenary poles with cantilever arms over each track
+    // landmarks
+    for (const lm of LANDMARKS) {
+      const lap0 = Math.max(0, lapOf(d - CAM_BACK)), lap1 = lapOf(d + FAR);
+      for (let lap = lap0; lap <= lap1; lap++) {
+        const gap = lap * LAP + lm.u - d;
+        if (gap + CAM_BACK < NEAR_Z + 0.5 || gap + CAM_BACK > FAR) continue;
+        const sp = lm.kind === 'mosque' ? this.sp.minaret : lm.kind === 'stadium' ? this.sp.stadium : lm.kind === 'clocktower' ? this.sp.clockTower : lm.kind === 'beitgidi' ? this.sp.beitGidi : null;
+        if (!sp) continue;
+        // set back behind the building line (the stadium ~250 m away to the east, the clock tower west down the side streets)
+        const x = lm.kind === 'stadium' ? 34 : lm.kind === 'clocktower' ? -13 : lm.kind === 'beitgidi' ? -4.2 : lm.side * 9.8;
+        items.push({ gap: gap + (lm.kind === 'stadium' ? 30 : 0), fn: () => this.sprite(g, sp, this.P(x, 0, gap), gap, 0) });
+      }
+    }
+    // catenary poles with cantilever arms over each track (only where there is track)
     const PS = 24;
     const k0 = Math.floor((d - CAM_BACK) / PS), k1 = Math.ceil((d + FAR) / PS);
     for (let k = k0; k <= k1; k++) {
       const gap = k * PS - d;
-      if (gap + CAM_BACK < NEAR_Z + 0.3 || gap + CAM_BACK > FAR) continue;
+      if (gap + CAM_BACK < NEAR_Z + 0.3 || gap + CAM_BACK > FAR || !hasTracks(d + gap)) continue;
       items.push({
         gap,
         fn: () => {
@@ -1006,14 +1121,13 @@ export class Scene {
             g.beginPath(); g.moveTo(a1.x, a1.y); g.lineTo(a2.x, a2.y); g.stroke();
             const w = this.P(side * LANE_W, WIRE_Y, gap);
             g.beginPath(); g.moveTo(a1.x, a1.y + (t.y - a1.y) * 0.5); g.lineTo(w.x, w.y); g.stroke();
-            // a street light on each pole, lighting the tracks and the bike path at night
             const k = this.L.lamps;
             if (k > 0.02) {
-              const lamp = this.P(side * 2.55, 5.45, gap);
+              const lampP = this.P(side * 2.55, 5.45, gap);
               g.fillStyle = '#fff3cf';
-              g.beginPath(); g.ellipse(lamp.x, lamp.y, Math.max(1, lamp.s * 0.18), Math.max(0.6, lamp.s * 0.06), 0, 0, Math.PI * 2); g.fill();
+              g.beginPath(); g.ellipse(lampP.x, lampP.y, Math.max(1, lampP.s * 0.18), Math.max(0.6, lampP.s * 0.06), 0, 0, Math.PI * 2); g.fill();
               this.groundPool(g, this.P(side * 1.5, 0, gap), 2.2, k * 0.8);
-              this.glow(g, lamp.x, lamp.y, lamp.s * 1.3, k * 0.8);
+              this.glow(g, lampP.x, lampP.y, lampP.s * 1.3, k * 0.8);
             }
           }
         },
@@ -1021,15 +1135,27 @@ export class Scene {
     }
   }
 
-
-  private drawWires(g: CanvasRenderingContext2D) {
-    const gN = NEAR_Z - CAM_BACK + 0.05, gF = FAR - CAM_BACK;
+  private drawWires(g: CanvasRenderingContext2D, d: number) {
+    const gN = NEAR_Z - CAM_BACK + 0.05;
+    // wires run to the end of the track (the line turns off east at the north end of the boulevard)
+    let gF = FAR - CAM_BACK;
+    if (!hasTracks(d + gN)) {
+      const next = (lapOf(d + gN) + 1) * LAP; // track starts again on the next lap
+      if (next - d > gF) return;
+      this.wireSpan(g, next - d, gF);
+      return;
+    }
+    const end = lapOf(d + gN) * LAP + TRACKS_END - d;
+    if (end < gF) { this.wireSpan(g, gN, end); const next = (lapOf(d + gN) + 1) * LAP - d; if (next < gF) this.wireSpan(g, next, gF); }
+    else this.wireSpan(g, gN, gF);
+  }
+  private wireSpan(g: CanvasRenderingContext2D, g0: number, g1: number) {
     for (const lane of [0, 2]) {
       const c = (lane - 1) * LANE_W;
-      const a = this.P(c, WIRE_Y, gN), b = this.P(c, WIRE_Y, gF);
-      g.strokeStyle = 'rgba(40,40,46,0.85)'; g.lineWidth = 1.4;
+      const a = this.P(c, WIRE_Y, g0), b = this.P(c, WIRE_Y, g1);
+      g.strokeStyle = this.tc('rgba(40,40,46,0.85)'); g.lineWidth = 1.4;
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
-      const a2 = this.P(c, WIRE_Y + 0.6, gN), b2 = this.P(c, WIRE_Y + 0.6, gF);
+      const a2 = this.P(c, WIRE_Y + 0.6, g0), b2 = this.P(c, WIRE_Y + 0.6, g1);
       g.lineWidth = 1;
       g.beginPath(); g.moveTo(a2.x, a2.y); g.lineTo(b2.x, b2.y); g.stroke();
     }

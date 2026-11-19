@@ -413,6 +413,106 @@ function drawLampPost(g: CanvasRenderingContext2D) {
   rrect(g, 0.35, -4.95, 0.35, 0.14, 0.05, '#3a3c40');
   ell(g, 0.52, -4.8, 0.12, 0.05, '#ffe9b0');
 }
+/** Median ficus: tall bare trunk so the canopy arches over the bike path and the tracks. */
+function drawMedianFicus(g: CanvasRenderingContext2D, v: number) {
+  const h = 7.4 + hash(v) * 1.2;
+  const r = 2.1 + hash(v + 3) * 0.5;
+  ell(g, 0, 0, 0.6, 0.12, 'rgba(40,30,10,0.28)');
+  g.beginPath();
+  g.moveTo(-0.32, 0); g.quadraticCurveTo(-0.16, -0.4, -0.17, -h * 0.62);
+  g.lineTo(0.17, -h * 0.62); g.quadraticCurveTo(0.16, -0.4, 0.34, 0); g.closePath();
+  g.fillStyle = '#8e8a80'; g.fill();
+  g.fillStyle = 'rgba(255,220,170,0.25)'; g.fillRect(-0.12, -h * 0.62, 0.08, h * 0.6);
+  line(g, [-0.05, -h * 0.6, -0.8, -h * 0.74], 0.12, '#7f7b72');
+  line(g, [0.05, -h * 0.6, 0.85, -h * 0.76], 0.12, '#7f7b72');
+  const cy = -h + r * 0.5;
+  const pts: [number, number, number][] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = hash(v * 31 + i) * Math.PI * 2;
+    const d = Math.sqrt(hash(v * 17 + i)) * r * 0.75;
+    pts.push([Math.cos(a) * d * 1.25, cy + Math.sin(a) * d * 0.5, r * (0.36 + hash(v * 7 + i) * 0.2)]);
+  }
+  for (const [x, y, rr] of pts) ell(g, x, y + rr * 0.12, rr, rr * 0.8, '#1f3d22');
+  for (const [x, y, rr] of pts) ell(g, x, y, rr * 0.9, rr * 0.72, '#2f5a2c');
+  for (const [x, y, rr] of pts) if (y < cy + 0.2) ell(g, x - rr * 0.15, y - rr * 0.25, rr * 0.6, rr * 0.42, '#46783a');
+  for (const [x, y, rr] of pts) if (y < cy - 0.3) ell(g, x - rr * 0.25, y - rr * 0.4, rr * 0.32, rr * 0.2, '#7fa64e');
+  for (let i = 0; i < 50; i++) {
+    const a = hash(v * 101 + i) * Math.PI * 2;
+    const d = Math.sqrt(hash(v * 103 + i)) * r * 0.95;
+    ell(g, Math.cos(a) * d * 1.25, cy + Math.sin(a) * d * 0.5, 0.07, 0.05, i % 3 ? '#5c8c41' : '#1a3320');
+  }
+}
+/** Tamarisk: feathery grey-green small tree (planted on the southern stretch). */
+function drawTamarisk(g: CanvasRenderingContext2D, v: number) {
+  const h = 4.2 + hash(v) * 1.0;
+  ell(g, 0, 0, 0.7, 0.12, 'rgba(40,30,10,0.22)');
+  line(g, [0, 0, 0.1, -h * 0.45, -0.05, -h * 0.6], 0.16, '#7a6a58');
+  line(g, [0.08, -h * 0.4, 0.6, -h * 0.7], 0.08, '#7a6a58');
+  for (let i = 0; i < 26; i++) {
+    const a = hash(v * 13 + i) * Math.PI * 2, d = Math.sqrt(hash(v * 7 + i)) * 1.5;
+    const x = Math.cos(a) * d * 1.1, y = -h * 0.72 + Math.sin(a) * d * 0.6;
+    ell(g, x, y, 0.45, 0.32, i % 3 ? '#8fa27a' : '#6f8460');
+    if (i % 4 === 0) ell(g, x - 0.1, y - 0.1, 0.2, 0.12, '#b5c49c');
+  }
+}
+/** Fenced planter with grasses (the median's planters between the trees). */
+function drawPlanter(g: CanvasRenderingContext2D) {
+  rrect(g, -0.7, -0.35, 1.4, 0.35, 0.03, '#8b8f94');
+  for (let i = 0; i < 9; i++) { const x = -0.6 + i * 0.15; line(g, [x, -0.3, x - 0.05 + hash(i) * 0.1, -0.75 - hash(i + 3) * 0.2], 0.05, i % 2 ? '#a7b56d' : '#7f9450'); }
+  line(g, [-0.7, -0.5, 0.7, -0.5], 0.03, '#5c6066');
+  for (const x of [-0.7, 0, 0.7]) line(g, [x, -0.5, x, -0.35], 0.03, '#5c6066');
+}
+function drawMinaret(g: CanvasRenderingContext2D) {
+  rrect(g, -0.45, -13, 0.9, 13, 0.05, '#e6dccb');
+  rrect(g, -0.62, -10.4, 1.24, 0.35, 0.05, '#cfc2ac');
+  rrect(g, -0.55, -12.6, 1.1, 0.3, 0.05, '#cfc2ac');
+  for (let i = 0; i < 3; i++) rrect(g, -0.12, -9.5 + i * 2.6, 0.24, 0.9, 0.12, '#5a5246');
+  g.beginPath(); g.moveTo(-0.45, -13); g.lineTo(0, -14.6); g.lineTo(0.45, -13); g.closePath(); g.fillStyle = '#4f8a6a'; g.fill();
+  line(g, [0, -14.6, 0, -15.2], 0.05, '#c9a54a');
+  // the mosque's dome below
+  g.beginPath(); g.ellipse(2.4, -5.2, 2.2, 2.0, 0, Math.PI, 0); g.fillStyle = '#4f8a6a'; g.fill();
+  rrect(g, 0.2, -5.2, 4.4, 5.2, 0.05, '#e6dccb');
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(1.1 + i * 1.3, -3.2, 0.35, 0.6, 0, Math.PI, 0); g.lineTo(1.45 + i * 1.3, -1.6); g.lineTo(0.75 + i * 1.3, -1.6); g.closePath(); g.fillStyle = '#5a5246'; g.fill(); }
+}
+function drawFloodlights(g: CanvasRenderingContext2D) {
+  // Bloomfield Stadium seen over the rooftops: a long stand roof and floodlight masts
+  g.beginPath(); g.moveTo(-9, -9); g.quadraticCurveTo(0, -11, 9, -9); g.lineTo(9, -7.6); g.quadraticCurveTo(0, -9.4, -9, -7.6); g.closePath();
+  g.fillStyle = '#d8dde2'; g.fill();
+  rrect(g, -9, -7.7, 18, 7.7, 0.05, '#9aa4ae');
+  for (let i = 0; i < 8; i++) rrect(g, -8.6 + i * 2.2, -6.8, 1.6, 0.5, 0.05, '#6f7c8a');
+  for (const x of [-8.5, 8.5]) {
+    line(g, [x, 0, x, -16], 0.18, '#7d858c');
+    rrect(g, x - 1, -17.4, 2, 1.4, 0.1, '#5c646b');
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) ell(g, x - 0.6 + i * 0.6, -17.0 + j * 0.6, 0.2, 0.2, '#f6f1d8');
+  }
+}
+function drawClockTower(g: CanvasRenderingContext2D) {
+  // Jaffa's Ottoman clock tower: pale limestone, three storeys, clock faces, crenellated top
+  const C = '#e2cfa8', D = '#c8b48c';
+  rrect(g, -1.4, -4, 2.8, 4, 0.05, C);
+  rrect(g, -1.2, -8, 2.4, 4, 0.05, C);
+  rrect(g, -1.0, -11.5, 2.0, 3.5, 0.05, C);
+  for (const y of [-4, -8, -11.5]) rrect(g, -1.5, y - 0.25, 3.0, 0.35, 0.05, D);
+  g.beginPath(); g.ellipse(0, -2.2, 0.5, 0.9, 0, Math.PI, 0); g.lineTo(0.5, -0.1); g.lineTo(-0.5, -0.1); g.closePath(); g.fillStyle = '#5b4b3a'; g.fill();
+  for (const y of [-6.2]) { g.beginPath(); g.ellipse(0, y, 0.35, 0.7, 0, Math.PI, 0); g.lineTo(0.35, y + 1.1); g.lineTo(-0.35, y + 1.1); g.closePath(); g.fillStyle = '#5b4b3a'; g.fill(); }
+  ell(g, 0, -10.0, 0.75, 0.75, '#f7f3e6');
+  g.strokeStyle = '#2b2b2b'; g.lineWidth = 0.08;
+  g.beginPath(); g.arc(0, -10.0, 0.75, 0, Math.PI * 2); g.stroke();
+  line(g, [0, -10.0, 0, -10.5], 0.08, '#2b2b2b'); line(g, [0, -10.0, 0.35, -10.0], 0.08, '#2b2b2b');
+  for (let i = 0; i < 5; i++) rrect(g, -1.05 + i * 0.47, -12.1, 0.3, 0.6, 0.02, C);
+  line(g, [0, -12.1, 0, -13.2], 0.06, '#666'); 
+}
+function drawBeitGidi(g: CanvasRenderingContext2D) {
+  // Etzel Museum: a ruined stone house with a dark glass box set on top of it
+  const S = '#d8c39a';
+  rrect(g, -3, -3.4, 6, 3.4, 0.05, S);
+  for (let i = 0; i < 4; i++) { g.beginPath(); g.ellipse(-2.1 + i * 1.4, -2.0, 0.4, 0.6, 0, Math.PI, 0); g.lineTo(-1.7 + i * 1.4, -0.4); g.lineTo(-2.5 + i * 1.4, -0.4); g.closePath(); g.fillStyle = '#6b5a44'; g.fill(); }
+  g.beginPath(); g.moveTo(-3, -3.4); g.lineTo(-2.2, -4.2); g.lineTo(-1.2, -3.6); g.lineTo(0.4, -4.4); g.lineTo(1.6, -3.7); g.lineTo(3, -4.0); g.lineTo(3, -3.4); g.closePath(); g.fillStyle = S; g.fill();
+  rrect(g, -2.6, -6.6, 5.4, 2.6, 0.05, '#2c3e4f');
+  for (let i = 0; i < 6; i++) line(g, [-2.6 + i * 0.9, -6.6, -2.6 + i * 0.9, -4.0], 0.05, '#7f99ad');
+  g.globalAlpha = 0.35; rrect(g, -2.4, -6.4, 2.2, 1.0, 0.05, '#cfe3f2'); g.globalAlpha = 1;
+}
+
 function drawSolar(g: CanvasRenderingContext2D) {
   // rooftop solar water heater ("dud shemesh"): tank + tilted panels
   line(g, [-0.6, 0, -0.6, -0.5], 0.05, '#8a8a88');
@@ -484,6 +584,13 @@ export interface Sprites {
   picnic: Sprite;
   lamp: Sprite;
   solar: Sprite;
+  medianFicus: Sprite[];
+  tamarisk: Sprite[];
+  planter: Sprite;
+  minaret: Sprite;
+  stadium: Sprite;
+  clockTower: Sprite;
+  beitGidi: Sprite;
   bone: Sprite;
   boardItem: Sprite;
   magnet: Sprite;
@@ -509,6 +616,13 @@ export function buildSprites(): Sprites {
     picnic: makeSprite(2.8, 1.0, 60, drawPicnic),
     lamp: makeSprite(1.4, 5.1, 40, drawLampPost),
     solar: makeSprite(2, 1.1, 40, drawSolar),
+    medianFicus: [1, 2, 3].map((v) => makeSprite(6.6, 9.0, 40, (g) => drawMedianFicus(g, v))),
+    tamarisk: [1, 2].map((v) => makeSprite(3.8, 5.6, 40, (g) => drawTamarisk(g, v))),
+    planter: makeSprite(1.6, 1.0, 60, drawPlanter),
+    minaret: makeSprite(5, 15.4, 24, drawMinaret),
+    stadium: makeSprite(20, 17.8, 14, drawFloodlights),
+    clockTower: makeSprite(3.2, 13.4, 26, drawClockTower),
+    beitGidi: makeSprite(6.4, 6.8, 30, drawBeitGidi),
     bone: makeSprite(0.7, 0.42, 120, drawBone),
     boardItem: makeSprite(1.0, 0.55, 110, drawBoardItem),
     magnet: makeSprite(0.65, 0.5, 120, drawMagnet),
