@@ -22,6 +22,7 @@ export function PlugCord({
   plugged,
   onPlug,
   hint,
+  scale = 1,
 }: {
   svgRef: React.RefObject<SVGSVGElement | null>;
   socket: { x: number; y: number };
@@ -30,9 +31,11 @@ export function PlugCord({
   plugged: boolean;
   onPlug: () => void;
   hint?: boolean;
+  /** Size of socket and plug (1 = full-size panel). */
+  scale?: number;
 }) {
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
-  const pos = plugged ? { x: socket.x, y: socket.y + 12 } : drag ?? rest;
+  const pos = plugged ? { x: socket.x, y: socket.y + 12 * scale } : drag ?? rest;
   const sag = Math.max(30, Math.abs(pos.x - anchor.x) * 0.35);
   const cord = `M ${anchor.x} ${anchor.y} C ${anchor.x} ${anchor.y + sag} ${pos.x} ${pos.y + 6 + sag} ${pos.x} ${pos.y + 6}`;
 
@@ -50,7 +53,7 @@ export function PlugCord({
     if (!drag) return;
     const d = Math.hypot(drag.x - socket.x, drag.y + 4 - socket.y);
     setDrag(null);
-    if (d < 42) {
+    if (d < 48 * scale) {
       sfx.plug();
       onPlug();
     }
@@ -58,20 +61,20 @@ export function PlugCord({
 
   return (
     <g>
-      <Socket x={socket.x} y={socket.y} s={1.6} />
+      <Socket x={socket.x} y={socket.y} s={1.6 * scale} />
       {!plugged && hint && !drag && (
         <g className="sh-pulse" pointerEvents="none">
-          <circle cx={socket.x} cy={socket.y} r={30} fill="none" stroke="#fff" strokeWidth={4} strokeDasharray="7 6" />
+          <circle cx={socket.x} cy={socket.y} r={30 * scale} fill="none" stroke="#fff" strokeWidth={4} strokeDasharray="7 6" />
         </g>
       )}
-      <path d={cord} stroke={INK} strokeWidth={7} fill="none" strokeLinecap="round" />
-      <path d={cord} stroke="#4a4552" strokeWidth={3} fill="none" strokeLinecap="round" />
-      <Plug x={pos.x} y={pos.y} s={1.7} />
+      <path d={cord} stroke={INK} strokeWidth={7 * scale} fill="none" strokeLinecap="round" />
+      <path d={cord} stroke="#4a4552" strokeWidth={3 * scale} fill="none" strokeLinecap="round" />
+      <Plug x={pos.x} y={pos.y} s={1.7 * scale} />
       {!plugged && (
         <circle
           cx={pos.x}
-          cy={pos.y - 4}
-          r={34}
+          cy={pos.y - 4 * scale}
+          r={Math.max(26, 34 * scale)}
           fill="transparent"
           style={{ cursor: 'grab' }}
           className="touch-none"

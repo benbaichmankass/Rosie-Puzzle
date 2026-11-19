@@ -93,7 +93,10 @@ export const sfx = {
     }
   },
   blip: () => tone(760, 0.07, 'sine', 0.08),
-  tick: () => tone(1500, 0.03, 'square', 0.05),
+  tick: (loud = false) => {
+    tone(loud ? 1700 : 1250, 0.035, 'square', loud ? 0.09 : 0.035);
+    noise(0.02, loud ? 0.12 : 0.05, 0, 5000);
+  },
   fanfare: () => {
     [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.25, 'triangle', 0.12, i * 0.12));
   },

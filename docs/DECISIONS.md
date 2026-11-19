@@ -122,11 +122,19 @@ No paper rolls (Ben: they read as toilet paper).
 Shabbat candle-lighting time for Tel Aviv from Hebcal (no key, CORS ok):
 `https://www.hebcal.com/shabbat?cfg=json&geonameid=293397&M=on`, item with `category: "candles"`. Cache it in
 storage; if offline, fall back to a computed or last-known time and say so. The clock shows the 3 hours before
-candle lighting, compressed into 60 real seconds per level. Tasks (any order): braid the challah (drag strands over
-each other in the right order), plug in and switch on the urn (10 s boil must finish), load the plata (plug in, then
-place soup pot, 2 trays, 2 challahs, 1 cake without anything toppling: simple stacking physics), answer Mom's calls
-(multiple-choice small talk; the right answers end the call sooner). Levels get tighter (more strands, trickier
-balance, more calls). Look: BoJack Horseman-like flat 2D cartoon.
+candle lighting, compressed into 60 real seconds per level, and ticks every second (louder in the last 10).
+**Everything happens at once on ONE counter screen (Ben's call: "it should feel like chaos")**: no task picker and
+no separate task screens. All four stations are visible and directly playable at the same time: the challah board,
+the coffee urn, the plata and the phone. Tasks (any order): braid the challah (drag an outside strand over toward
+the middle, alternating sides; forgiving drop, grab handles, a hint after a few idle seconds), plug in and switch on
+the urn (10 s boil runs in the background and must finish), load the plata (plug in, then drag the soup pot,
+2 trays, 2 challahs and 1 cake on without anything toppling: simple stacking physics), answer Mom's calls (the phone
+rings and buzzes across the counter until you tap it; her messages pop up as speech bubbles with multiple-choice
+small-talk replies you tap; the right answers end the call sooner, while the other stations keep running). Urgency
+cues: buzzing/vibrating phone, urn steam, ticking clock, stations flash red when they need attention (ringing phone,
+urn not on with boil time running short, a topple, anything unfinished in the last 15 s). Levels get tighter (more
+strands and crosses, trickier balance on a narrower plata, more calls). Look: BoJack Horseman-like flat 2D cartoon
+(no kitchen restyle: Ben is not sending a house video).
 
 ## Squeegee Survival (bathroom)
 Side/top view: floor slopes from the shower down toward the sink; shower is on, water flows downhill. The player

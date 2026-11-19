@@ -54,7 +54,7 @@ export function PhoneCall({
   };
 
   return (
-    <div className="flex flex-col items-center h-full w-full px-3 pb-3">
+    <div className="flex flex-col items-center h-full w-full">
       <div className="sh-phone">
         <div className="flex items-center gap-3 px-3 pt-3">
           <svg viewBox="-60 -60 120 120" width={58} height={58}>
@@ -67,6 +67,7 @@ export function PhoneCall({
               Call {index + 1} of {total} · {'●'.repeat(call.wraps)}
               {'○'.repeat(Math.max(0, call.needed - call.wraps))}
             </div>
+            <div className="sh-tiny opacity-70">Pick the reply that wraps it up!</div>
           </div>
         </div>
         <div className="flex-1 flex flex-col gap-2 px-3 py-3 overflow-hidden">
@@ -82,7 +83,6 @@ export function PhoneCall({
           ))}
         </div>
       </div>
-      <div className="sh-tiny mt-2 text-center opacity-80">Pick the reply that wraps the call up. Chatty answers keep Mom talking.</div>
     </div>
   );
 }
