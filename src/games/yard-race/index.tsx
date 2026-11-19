@@ -3,7 +3,7 @@ import type { GameProps } from '../../shared/types';
 import { ExitButton } from '../../shared/ExitButton';
 import { load, save } from '../../shared/storage';
 import { meta } from './meta';
-import { BUNNY_COST, TUNING, createRace, step, type Input, type Race } from './sim';
+import { BUNNY_COST, TUNING, brakeDistance, createRace, step, type Input, type Race } from './sim';
 import { FOOD, LAP, WORLD, nextFood, pointAt } from './track';
 import { GOOD_BUNNY, bunnyBrain, mulberry, turtleBrain, type Brain } from './ai';
 import { C, drawBunny, drawFood, drawParticles, drawTurtle, paintYard, stepParticles, type Particle } from './art';
@@ -424,8 +424,7 @@ export default function Game({ onExit }: GameProps) {
             sfx.current.shutter();
             e.phase = 'photo';
             e.photoT = 0;
-            e.holds.clear();
-            e.keyHold = false;
+            // keep held fingers: the second racer carries straight on after the photo
           } else if (e.phase === 'after') {
             sfx.current.click();
           }
@@ -644,7 +643,13 @@ export default function Game({ onExit }: GameProps) {
       const bu = r.racers[B];
       const active = FOOD.map((_, i) => bu.state === 'eat' && bu.food === i);
       const hl = human(e.mode, B) && !bu.finished && e.phase !== 'menu' ? nextFood(bu.s) : -1;
-      drawFood(ctx, e.now, active, hl);
+      // "let go now" cue: releasing here would stop the human bunny inside the next food patch
+      let cue = -1;
+      if (hl >= 0 && bu.state === 'run' && bu.v > 20) {
+        const stop = bu.s + brakeDistance(bu.v);
+        if (stop >= FOOD[hl].s0 + 3 && stop <= FOOD[hl].s1 - 3) cue = hl;
+      }
+      drawFood(ctx, e.now, active, hl, cue);
       drawParticles(ctx, e.particles.filter((p) => p.kind !== 'confetti'));
       drawRacers(ctx, e);
       drawParticles(ctx, e.particles.filter((p) => p.kind === 'confetti'));
