@@ -16,6 +16,7 @@ export const cy = (r: number) => Y0 + r * CELL + CELL / 2;
 
 const B = CHARACTERS.bentzi.colors;
 const R = CHARACTERS.rosie.colors;
+const SH = CHARACTERS.shai.colors;
 
 export const ROT = [0, 90, 180, 270]; // rotation (deg) for N E S W when the shape points up
 
@@ -54,6 +55,10 @@ export function Defs() {
         <rect width="6" height="6" fill="#cfd8dc" />
         <rect x="6" y="6" width="6" height="6" fill="#cfd8dc" />
       </pattern>
+      <radialGradient id="gl-flameglow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#ffd36b" stopOpacity="0.6" />
+        <stop offset="100%" stopColor="#ffb02e" stopOpacity="0" />
+      </radialGradient>
       <filter id="gl-shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="1.5" dy="2.5" stdDeviation="1.2" floodColor="#3b2f22" floodOpacity="0.28" />
       </filter>
@@ -84,19 +89,14 @@ export function Room({ open, source, acOn }: { open: Record<ExitId, boolean>; so
         <rect x={OUT_L} y="0" width={WALL} height={VB_H} />
         <rect x={x1} y="0" width={WALL} height={VB_H} />
       </g>
-      {/* bookshelf + lamp on the top wall */}
-      <g>
-        <rect x={X0 + 60} y="2" width="92" height="8" rx="1" fill="#7a5233" />
-        {Array.from({ length: 15 }, (_, i) => (
-          <rect
-            key={i}
-            x={X0 + 62 + i * 6}
-            y={3 + (i % 3)}
-            width="4.5"
-            height={6 - (i % 3)}
-            fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc', '#b56576'][i % 6]}
-          />
+      {/* the tall white bookcase against the top wall, plus the wall lamp */}
+      <g filter="url(#gl-shadow)">
+        <rect x={X0 + 74} y="1" width="42" height="13" rx="1.5" fill="#fbfbf8" stroke="#bdb8ae" strokeWidth="1.2" />
+        {Array.from({ length: 8 }, (_, i) => (
+          <rect key={i} x={X0 + 77 + i * 4.7} y={6 + (i % 3)} width="3.6" height={7 - (i % 3)} rx="0.6" fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#b56576', '#f08a4b'][i % 6]} />
         ))}
+      </g>
+      <g>
         <circle cx={X0 + 190} cy="7" r="4.5" fill="#ffe7a3" stroke="#2b2b2b" strokeWidth="1.2" />
         <circle cx={X0 + 190} cy="7" r="9" fill="#fff3c4" opacity="0.35" />
       </g>
@@ -312,6 +312,99 @@ export function SofaSet({ pieces, rosie }: { pieces: Furniture[]; rosie?: { r: n
   );
 }
 
+/** Shai's head, front view: olive skin, very short dark hair, trimmed beard, big smile, shades up. */
+function ShaiHead({ soot, worried }: { soot: boolean; worried: boolean }) {
+  const skin = soot ? '#5a5048' : SH.skin;
+  return (
+    <g>
+      {soot && (
+        <g fill="#2b2622">
+          {Array.from({ length: 7 }, (_, i) => (
+            <path key={i} d={`M0 -4 l${Math.cos((i / 6) * Math.PI) * -11} ${-Math.sin((i / 6) * Math.PI) * 10 - 2} l3 2z`} />
+          ))}
+        </g>
+      )}
+      <ellipse rx="7.5" ry="8.5" fill={skin} />
+      {!soot && <path d="M-7.5 -2.5 q0 -7 7.5 -7 q7.5 0 7.5 7 q-2.5 -3.5 -7.5 -3.5 q-5 0 -7.5 3.5z" fill={SH.hair} />}
+      <g transform="translate(0 -6.5)">
+        <rect x="-6.2" y="-1.6" width="5" height="3.2" rx="1.4" fill={SH.shades} />
+        <rect x="1.2" y="-1.6" width="5" height="3.2" rx="1.4" fill={SH.shades} />
+      </g>
+      <path d="M-7 1 q0 7.5 7 7.5 q7 0 7 -7.5 q-2 2.5 -7 2.5 q-5 0 -7 -2.5z" fill={soot ? '#2b2622' : SH.beard} />
+      {soot ? (
+        <g>
+          <circle cx="-3" cy="-1.5" r="1.8" fill="#fff" />
+          <circle cx="3" cy="-1.5" r="1.8" fill="#fff" />
+        </g>
+      ) : worried ? (
+        <g>
+          <circle cx="-3" cy="-1.5" r="1.7" fill="#fff" />
+          <circle cx="3" cy="-1.5" r="1.7" fill="#fff" />
+          <circle cx="-3" cy="-1.3" r="0.8" fill="#2b1d14" />
+          <circle cx="3" cy="-1.3" r="0.8" fill="#2b1d14" />
+          <ellipse cx="0" cy="4" rx="2" ry="2.3" fill="#5a1f1a" />
+        </g>
+      ) : (
+        <g>
+          <path d="M-4.5 -1.5 q1.5 -1.4 3 0 M1.5 -1.5 q1.5 -1.4 3 0" stroke="#2b1d14" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+          <path d="M-4 2.2 q4 5 8 0z" fill="#fff" stroke="#5a1f1a" strokeWidth="0.7" />
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** Shai on his mat cycling through yoga poses (downward dog, tree, warrior). */
+export function Shai({ x, y, mood }: { x: number; y: number; mood: 'calm' | 'worried' | 'boom' }) {
+  const soot = mood === 'boom';
+  const skin = soot ? '#5a5048' : SH.skin;
+  const shirt = SH.shirt;
+  const limb = { stroke: skin, strokeWidth: 3.4, strokeLinecap: 'round' as const, fill: 'none' };
+  const legs = { stroke: '#3d4a5c', strokeWidth: 4, strokeLinecap: 'round' as const, fill: 'none' };
+  const still = mood !== 'calm';
+  return (
+    <g transform={`translate(${x} ${y}) scale(1.25)`}>
+      {/* tree pose: standing on one leg, hands together overhead */}
+      <g className={still ? '' : 'gl-pose gl-pose-1'} opacity={still ? 1 : undefined}>
+        <path d="M0 6 L-1 17" {...legs} />
+        <path d="M0 7 L6 11 L1 13" {...legs} />
+        <rect x="-5" y="-4" width="10" height="12" rx="4" fill={shirt} />
+        <path d="M-4 -2 L-6 -12 L0 -19 M4 -2 L6 -12 L0 -19" {...limb} />
+        <g transform="translate(0 -9) scale(0.8)">
+          <ShaiHead soot={soot} worried={mood === 'worried'} />
+        </g>
+      </g>
+      {!still && (
+        <>
+          {/* downward dog, side view: hands and feet on the mat, hips high */}
+          <g className="gl-pose gl-pose-2">
+            <path d="M4 -9 L13 12" {...legs} />
+            <path d="M4 -9 L-4 3" stroke={shirt} strokeWidth="7" strokeLinecap="round" />
+            <path d="M-4 3 L-11 12" {...limb} />
+            <g transform="translate(-7 7) rotate(25) scale(0.62)">
+              <ShaiHead soot={false} worried={false} />
+            </g>
+          </g>
+          {/* warrior: wide lunge, arms stretched out */}
+          <g className="gl-pose gl-pose-3">
+            <path d="M0 6 L-9 11 L-10 17 M0 6 L10 17" {...legs} />
+            <rect x="-5" y="-4" width="10" height="12" rx="4" fill={shirt} />
+            <path d="M-4 -1 H-17 M4 -1 H17" {...limb} />
+            <g transform="translate(0 -9) scale(0.8)">
+              <ShaiHead soot={false} worried={false} />
+            </g>
+          </g>
+        </>
+      )}
+      {mood === 'calm' && (
+        <text x="9" y="-16" fontSize="7" fontFamily="'Bangers', sans-serif" fill="#8a6fb0" className="gl-zzz">
+          om
+        </text>
+      )}
+    </g>
+  );
+}
+
 /** Top-down furniture. */
 export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number; c: number } | null }) {
   const x = X0 + f.c * CELL;
@@ -437,21 +530,63 @@ export function FurniturePiece({ f, rosie }: { f: Furniture; rosie?: { r: number
           <rect x={x + 9} y={y + 8} width={w - 18} height="6" rx="3" fill="#6b4428" />
         </g>
       );
-    case 'cabinet':
-    default:
+    case 'mat':
       return (
         <g filter="url(#gl-shadow)">
-          <rect x={x + 2} y={y + 2} width={w - 4} height={h - 4} rx="2" fill="#a8774d" stroke="#6b4428" strokeWidth="1.2" />
-          {f.w >= f.h
-            ? Array.from({ length: Math.floor((w - 10) / 6) }, (_, i) => (
-                <rect key={i} x={x + 5 + i * 6} y={y + 6} width="4.5" height={h - 12} fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc'][i % 5]} />
-              ))
-            : Array.from({ length: Math.floor((h - 10) / 6) }, (_, i) => (
-                <rect key={i} x={x + 6} y={y + 5 + i * 6} width={w - 12} height="4.5" fill={['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#efe9dc'][i % 5]} />
-              ))}
+          <rect x={x + 3} y={y + 3} width={w - 6} height={h - 6} rx="5" fill="#9b7fd0" />
+          <rect x={x + 6} y={y + 6} width={w - 12} height={h - 12} rx="3" fill="none" stroke="#b9a3e6" strokeWidth="1.2" strokeDasharray="3 3" />
         </g>
       );
+    case 'candle':
+      return (
+        <g>
+          <circle cx={x + w / 2} cy={y + h / 2} r="17" fill="url(#gl-flameglow)" className="gl-glow" />
+          <rect x={x + w / 2 - 6} y={y + h / 2 - 2} width="12" height="12" rx="2.5" fill="#f4ecd8" stroke="#c9b98f" strokeWidth="1" />
+          <ellipse cx={x + w / 2} cy={y + h / 2 - 2} rx="6" ry="2" fill="#fbf6e9" stroke="#c9b98f" strokeWidth="0.8" />
+          <path d={`M${x + w / 2} ${y + h / 2 - 3} v-3`} stroke="#333" strokeWidth="1" />
+          <g className="gl-flame" style={{ transformOrigin: `${x + w / 2}px ${y + h / 2 - 5}px` }}>
+            <path d={`M${x + w / 2} ${y + h / 2 - 16} q6 7 0 11 q-6 -4 0 -11z`} fill="#ffb02e" />
+            <path d={`M${x + w / 2} ${y + h / 2 - 11} q3 4 0 6 q-3 -2 0 -6z`} fill="#fff4b0" />
+          </g>
+        </g>
+      );
+    case 'cabinet':
+    default: {
+      // Tall white bookcases, one compact unit per tile, book spines on the side facing the room.
+      const horiz = f.w >= f.h;
+      const front: Dir = horiz ? (f.r < ROWS / 2 ? 2 : 0) : f.c < COLS / 2 ? 1 : 3;
+      const units: { ux: number; uy: number }[] = [];
+      for (let i = 0; i < f.w; i++) for (let j = 0; j < f.h; j++) units.push({ ux: x + i * CELL, uy: y + j * CELL });
+      return (
+        <g filter="url(#gl-shadow)">
+          {units.map(({ ux, uy }, n) => (
+            <g key={n}>
+              <BookcaseUnit x={ux} y={uy} front={front} seed={n + f.r * 7 + f.c * 3} />
+            </g>
+          ))}
+        </g>
+      );
+    }
   }
+}
+
+const BOOKS = ['#e2574c', '#f2c14e', '#3d7ea6', '#5aa469', '#b56576', '#f08a4b', '#6c5b7b'];
+
+/** One tall white bookcase seen from above: a deep white top, shelves of colourful spines at the front. */
+function BookcaseUnit({ x, y, front, seed }: { x: number; y: number; front: Dir; seed: number }) {
+  const ins = 4;
+  return (
+    <g transform={`rotate(${ROT[front]} ${x + CELL / 2} ${y + CELL / 2})`}>
+      {/* drawn with the front facing up, then rotated */}
+      <rect x={x + ins} y={y + ins} width={CELL - ins * 2} height={CELL - ins * 2} rx="2" fill="#fbfbf8" stroke="#bdb8ae" strokeWidth="1.3" />
+      <rect x={x + ins + 2} y={y + ins + 2} width={CELL - ins * 2 - 4} height="11" rx="1" fill="#e9e6df" />
+      {Array.from({ length: 6 }, (_, i) => (
+        <rect key={i} x={x + ins + 3 + i * 4.8} y={y + ins + 3 + ((i + seed) % 3)} width="3.6" height={9 - ((i + seed) % 3)} rx="0.6" fill={BOOKS[(i + seed) % BOOKS.length]} />
+      ))}
+      <path d={`M${x + ins + 3} ${y + CELL - ins - 6} h${CELL - ins * 2 - 6}`} stroke="#e4e0d7" strokeWidth="1.2" />
+      <path d={`M${x + ins + 3} ${y + CELL - ins - 10} h${CELL - ins * 2 - 6}`} stroke="#e4e0d7" strokeWidth="1.2" />
+    </g>
+  );
 }
 
 function RosieSleeping({ x, y }: { x: number; y: number }) {

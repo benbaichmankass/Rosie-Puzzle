@@ -44,7 +44,11 @@ piece), and every piece blocks both gas and fan wind. Pieces: the dark grey L-so
 bookcases (also used as room dividers that make corridors), dining table with chairs, kitchen counter by the doorway,
 armchair, floor lamp, chair, plants and Rosie's bed; wall shelf, lamp, AC, windows and door are drawn on the walls.
 Early levels are open rooms; later ones are crowded, so each layout defines its own corridors, dead ends and
-fan spots. Level clear shows the time and 1-3 stars against
+fan spots. **Shai's yoga candle (Ben's call):** some levels have Shai on a yoga mat cycling
+through poses (downward dog, tree, warrior) with a lit candle beside him. Gas next to the candle is a BOOM, exactly
+like Bentzi's joint. Some levels have only Shai (Bentzi is out), and the hardest levels have both, so two danger
+points need protecting at once. The mat and candle block fans and gas like furniture. The first Shai level says
+"Shai's doing yoga... with a candle!". Level clear shows the time and 1-3 stars against
 the level's par; best time and stars are kept per level. Retry restarts the leak with no fans. Fewer open exits as
 levels rise; later levels add AC airflow, ceiling fans and furniture to route around. Levels must be provably winnable
 in real time: the check script builds each stored solution one fan every 2.5 s (from the countdown) in the same
