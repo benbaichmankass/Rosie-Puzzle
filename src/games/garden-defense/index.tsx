@@ -3,7 +3,7 @@ import type { GameProps } from '../../shared/types';
 import { ExitButton } from '../../shared/ExitButton';
 import { load, save } from '../../shared/storage';
 import { meta } from './meta';
-import { createGame, step, alivePlants, type GameState } from './sim';
+import { createGame, step, TUNING, type GameState } from './sim';
 import {
   BUNNY_KINDS,
   bunnyPose,
@@ -13,6 +13,7 @@ import {
   drawCan,
   drawParticles,
   drawPlant,
+  drawPairMeter,
   drawPlantTag,
   drawTargetLine,
   leafPos,
@@ -42,13 +43,8 @@ const fmt = (sec: number) => {
 
 type Phase = 'start' | 'play' | 'over';
 
-/** Best result: most hedges saved, then fastest. Only wins count. */
-interface Best {
-  saved: number;
-  time: number;
-}
-const better = (a: Best, b: Best | null) => !b || a.saved > b.saved || (a.saved === b.saved && a.time < b.time);
-const fmtBest = (b: Best | null) => (b ? `${b.saved} hedge${b.saved === 1 ? '' : 's'} in ${fmt(b.time)}` : '');
+/** Best result = fastest win (seconds), 0 if never won. */
+const BEST_KEY = 'bestWin';
 
 function useFont() {
   useEffect(() => {
@@ -75,6 +71,7 @@ interface Engine {
   fence: HTMLCanvasElement | null;
   pointer: { down: boolean; x: number; y: number };
   biteAt: number[];
+  bloomAt: number[][];
   particles: Particle[];
   can: { x: number; y: number; tilt: number; init: boolean };
   dropAcc: number;
@@ -101,7 +98,8 @@ function newEngine(): Engine {
     bg: null,
     fence: null,
     pointer: { down: false, x: 0, y: 0 },
-    biteAt: [-9, -9, -9],
+    biteAt: Array(TUNING.maxBunnies + 1).fill(-9),
+    bloomAt: shapes.map(() => []),
     particles: [],
     can: { x: 0, y: 0, tilt: 0, init: false },
     dropAcc: 0,
@@ -125,8 +123,8 @@ export default function Game({ onExit }: GameProps) {
   const [phase, setPhase] = useState<Phase>('start');
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState<boolean>(() => load(ID, 'muted', false));
-  const [best, setBest] = useState<Best | null>(() => load<Best | null>(ID, 'best', null));
-  const [result, setResult] = useState({ won: false, time: 0, saved: 0, newBest: false });
+  const [best, setBest] = useState<number>(() => load<number>(ID, BEST_KEY, 0));
+  const [result, setResult] = useState({ won: false, time: 0, bunnies: 3, newBest: false });
 
   useEffect(() => {
     sfx.current.setMuted(muted);
@@ -172,6 +170,8 @@ export default function Game({ onExit }: GameProps) {
     const wrap = wrapRef.current!;
     const ctx = canvas.getContext('2d')!;
     const e = eng.current;
+    // On localhost only: let automated playtests read the game state.
+    if (/^(localhost|127\.)/.test(window.location.hostname)) (window as unknown as { __gd?: Engine }).__gd = e;
     let raf = 0;
     let last = performance.now();
 
@@ -220,8 +220,52 @@ export default function Game({ onExit }: GameProps) {
           if (e.pouring) sfx.current.grow();
         } else if (ev.type === 'tall') {
           sfx.current.tall();
-          const tall = g.plants.filter((p) => p.alive && p.height >= 1).length;
-          say(`A hedge reached the line! (${tall} of ${alivePlants(g)})`);
+          const tall = g.plants.filter((p) => p.height >= 1).length;
+          say(`A hedge reached the line! (${tall} of 5)`);
+        } else if (ev.type === 'bloom') {
+          e.bloomAt[ev.plant][ev.flower] = e.now;
+          sfx.current.grow();
+        } else if (ev.type === 'frisky') {
+          sfx.current.frisky();
+          say('Frisky bunnies! Spray them before the heart fills!');
+        } else if (ev.type === 'splash') {
+          sfx.current.splash();
+          say('Splash! Romance cancelled.');
+          for (const b of g.bunnies.filter((q) => q.wetAt === g.t))
+            for (let i = 0; i < 14; i++) {
+              const ang = Math.random() * Math.PI * 2;
+              e.particles.push({
+                kind: 'drop',
+                x: b.x * L.W,
+                y: depthY(L, b.d) - 18 * L.s,
+                vx: Math.cos(ang) * 140,
+                vy: -120 - Math.random() * 120,
+                rot: 0,
+                vr: 0,
+                life: 0.9,
+                max: 0.9,
+                color: '',
+                floor: depthY(L, b.d) + 4 * L.s,
+              });
+            }
+        } else if (ev.type === 'baby') {
+          sfx.current.pop();
+          say(`A baby bunny! Now there are ${g.bunnies.length}.`);
+          const b = g.bunnies[ev.bunny];
+          for (let i = 0; i < 8; i++)
+            e.particles.push({
+              kind: 'dust',
+              x: b.x * L.W + (Math.random() - 0.5) * 30 * L.s,
+              y: depthY(L, b.d) - Math.random() * 14 * L.s,
+              vx: (Math.random() - 0.5) * 70,
+              vy: -30 - Math.random() * 30,
+              rot: 0,
+              vr: 0,
+              life: 0.8,
+              max: 0.8,
+              color: '',
+              floor: 0,
+            });
         } else if (ev.type === 'bite') {
           const p = g.plants[ev.plant];
           const [x, y] = leafPos(L, p, shapes[ev.plant], p.leaves);
@@ -236,7 +280,10 @@ export default function Game({ onExit }: GameProps) {
             vr: (Math.random() - 0.5) * 12,
             life: 1.6,
             max: 1.6,
-            color: `rgba(${110 + Math.random() * 30},${140 + Math.random() * 20},100,0.85)`,
+            color:
+              ev.flower >= 0
+                ? `rgba(${shapes[ev.plant].flowerSlots[ev.flower].color},0.9)`
+                : `rgba(${110 + Math.random() * 30},${140 + Math.random() * 20},100,0.85)`,
             floor: L.plantBaseY + Math.random() * 20 * L.s,
           });
           sfx.current.bite();
@@ -257,11 +304,7 @@ export default function Game({ onExit }: GameProps) {
               floor: 0,
             });
           }
-          const left = alivePlants(g);
-          if (left > 0) {
-            sfx.current.die();
-            say(left === 1 ? 'Last hedge! Save it!' : `The bunnies ate a hedge! ${left} left`);
-          }
+          sfx.current.die();
         } else if (ev.type === 'over') {
           e.overAt = e.now;
           sfx.current.water(false);
@@ -282,26 +325,39 @@ export default function Game({ onExit }: GameProps) {
       const running = e.phase === 'play' && !e.paused && !g.over;
       if (!e.paused || e.phase !== 'play') e.now += dt;
 
-      // Which plant is under the finger.
+      // What is under the finger: a frisky pair (spray it) or a hedge column (water it).
       let col = -1;
-      if (e.pointer.down && running) col = Math.max(0, Math.min(g.plants.length - 1, Math.floor((e.pointer.x / L.W) * g.plants.length)));
+      let sprayPair = -1;
+      let pairPos: { x: number; y: number } | null = null;
+      if (e.pointer.down && running) {
+        for (const pr of g.pairs) {
+          const px = pr.x * L.W;
+          const py = depthY(L, pr.d) - 14 * L.s;
+          if (Math.hypot(e.pointer.x - px, e.pointer.y - py) < 62 * L.s) {
+            sprayPair = pr.id;
+            pairPos = { x: px, y: py };
+          }
+        }
+        if (sprayPair < 0) col = Math.max(0, Math.min(g.plants.length - 1, Math.floor((e.pointer.x / L.W) * g.plants.length)));
+      }
       const watering = col >= 0 && g.plants[col].alive ? col : -1;
-      if (watering >= 0 !== e.pouring) {
-        e.pouring = watering >= 0;
+      const pouringNow = watering >= 0 || sprayPair >= 0;
+      if (pouringNow !== e.pouring) {
+        e.pouring = pouringNow;
         sfx.current.water(e.pouring);
       }
 
       if (running) {
         e.acc += dt;
         while (e.acc >= STEP && !g.over) {
-          step(g, STEP, watering);
+          step(g, STEP, watering, sprayPair);
           e.acc -= STEP;
           handleEvents();
         }
         if (timeRef.current) timeRef.current.textContent = fmt(g.t);
         if (tallRef.current) {
           const tall = g.plants.filter((p) => p.alive && p.height >= 1).length;
-          const txt = `${tall} OF ${alivePlants(g)} HEDGES TALL`;
+          const txt = `${tall} OF 5 TALL · ${g.bunnies.length} BUNNIES`;
           if (tallRef.current.textContent !== txt) tallRef.current.textContent = txt;
         }
         // Every 40 s the bunnies step up a gear: say so.
@@ -320,13 +376,12 @@ export default function Game({ onExit }: GameProps) {
       }
       if (e.phase === 'play' && g.over && e.overAt > 0 && e.now - e.overAt > 1.8) {
         e.phase = 'over';
-        const saved = alivePlants(g);
-        const res: Best = { saved, time: Math.floor(g.t) };
-        const prev = load<Best | null>(ID, 'best', null);
-        const nb = g.won && better(res, prev);
-        if (nb) save(ID, 'best', res);
-        setBest(nb ? res : prev);
-        setResult({ won: g.won, time: g.t, saved, newBest: nb });
+        const time = Math.floor(g.t);
+        const prev = load<number>(ID, BEST_KEY, 0);
+        const nb = g.won && (prev === 0 || time < prev);
+        if (nb) save(ID, BEST_KEY, time);
+        setBest(nb ? time : prev);
+        setResult({ won: g.won, time: g.t, bunnies: g.bunnies.length, newBest: nb });
         setPhase('over');
       }
       if (!e.paused || e.phase !== 'play') stepParticles(e.particles, dt);
@@ -341,7 +396,7 @@ export default function Game({ onExit }: GameProps) {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
         const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
-        drawPlant(ctx, L, p, shapes[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
+        drawPlant(ctx, L, p, shapes[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0, e.bloomAt[i]);
       });
       drawTargetLine(ctx, L, now, FONT);
 
@@ -349,8 +404,8 @@ export default function Game({ onExit }: GameProps) {
       const drawB = (onBed: boolean) => {
         const list = g.bunnies.filter((b) => b.d < 0 === onBed).sort((a, b) => a.d - b.d);
         for (const b of list) {
-          const pose = bunnyPose(b, now, now - e.biteAt[b.id], hopH);
-          drawBunny(ctx, puppets[b.id], b.x * W, depthY(L, b.d), bunnyScale(L, b.d), b.face, pose, now);
+          const pose = bunnyPose(b, now, now - (e.biteAt[b.id] ?? -9), hopH * b.size, g.t - b.wetAt);
+          drawBunny(ctx, puppets[b.kind], b.x * W, depthY(L, b.d), bunnyScale(L, b.d) * b.size, b.face, pose, now);
         }
       };
       drawB(true);
@@ -360,6 +415,11 @@ export default function Game({ onExit }: GameProps) {
         drawPlantTag(ctx, L, p, i, now, eaten && p.leaves <= 3 ? 1 : 0);
       });
       drawB(false);
+      // Hearts and the countdown over each frisky pair.
+      for (const pr of g.pairs) {
+        if (!pr.started) continue;
+        drawPairMeter(ctx, pr.x * W, depthY(L, pr.d) - 62 * s, s, 1 - pr.timer / TUNING.breedTime, pr.timer, pr.wet, now, FONT);
+      }
 
       drawParticles(ctx, e.particles, s);
 
@@ -367,7 +427,11 @@ export default function Game({ onExit }: GameProps) {
       let tx = W - 44 * s;
       let ty = H - 46 * s;
       let tilt = 0.05;
-      if (col >= 0) {
+      if (pairPos) {
+        tx = pairPos.x + 44 * s;
+        ty = pairPos.y - 62 * s;
+        tilt = -0.62;
+      } else if (col >= 0) {
         const top = plantTop(L, g.plants[col], shapes[col]);
         tx = top.x + 40 * s;
         ty = Math.max(L.plantBaseY - 210 * s, Math.min(top.y - 22 * s, L.plantBaseY - 140 * s));
@@ -380,10 +444,11 @@ export default function Game({ onExit }: GameProps) {
       e.can.x += (tx - e.can.x) * k;
       e.can.y += (ty - e.can.y) * k;
       e.can.tilt += (tilt - e.can.tilt) * Math.min(1, dt * 10);
-      const wig = col >= 0 ? Math.sin(now * 9) * 0.07 : 0;
-      const bob = col >= 0 ? 0 : Math.sin(now * 1.5) * 1.2 * s;
+      const aiming = col >= 0 || pairPos !== null;
+      const wig = aiming ? Math.sin(now * 9) * 0.07 : 0;
+      const bob = aiming ? 0 : Math.sin(now * 1.5) * 1.2 * s;
       const rose = drawCan(ctx, canPuppet, e.can.x, e.can.y + bob, 1.25 * s, e.can.tilt, wig);
-      if (col >= 0 && e.can.tilt < -0.4 && running) {
+      if (aiming && e.can.tilt < -0.4 && running) {
         e.dropAcc += dt * 70;
         while (e.dropAcc >= 1) {
           e.dropAcc -= 1;
@@ -398,7 +463,7 @@ export default function Game({ onExit }: GameProps) {
             life: 1.2,
             max: 1.2,
             color: '',
-            floor: L.plantBaseY + (Math.random() - 0.3) * 10 * s,
+            floor: pairPos ? pairPos.y + 14 * s + (Math.random() - 0.5) * 8 * s : L.plantBaseY + (Math.random() - 0.3) * 10 * s,
           });
         }
       }
@@ -509,13 +574,11 @@ export default function Game({ onExit }: GameProps) {
               <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">庭</div>
               <div className="text-[13px] tracking-[0.3em] opacity-60">THE YARD</div>
               <h1 className="text-[34px] font-extrabold leading-tight mt-1">Garden Defense</h1>
-              <p className="text-[15px] mt-3 leading-snug">
-                Grow the hedges tall enough to hide the nosy neighbours across the street, before the bunnies eat them.
-              </p>
+              <p className="text-[15px] mt-3 leading-snug">Grow all five hedges up to the red line to hide the nosy neighbours, before the bunnies eat one.</p>
               <p className="text-[13px] mt-2 opacity-75 leading-snug">
-                Tap or hold a hedge to water it so it grows. Get every hedge up to the red line to win. A hedge the bunnies strip bare is gone.
+                Tap or hold a hedge to water it. If two bunnies get frisky, spray them before the heart fills, or there will be more bunnies!
               </p>
-              {best && <p className="text-[13px] mt-3 tracking-[0.12em]">BEST: {fmtBest(best)}</p>}
+              {best > 0 && <p className="text-[13px] mt-3 tracking-[0.12em]">BEST {fmt(best)}</p>}
               <button className="gd-btn primary mt-4 text-[18px]" onClick={startGame}>
                 PLAY
               </button>
@@ -529,15 +592,15 @@ export default function Game({ onExit }: GameProps) {
               <div className="gd-seal absolute -top-3 -right-2 w-12 h-12 flex items-center justify-center text-[26px] font-extrabold">
                 {result.won ? '勝' : '兎'}
               </div>
-              <h2 className="text-[28px] font-extrabold leading-tight">{result.won ? 'The view is hidden!' : 'The bunnies won'}</h2>
-              <p className="text-[14px] mt-2 opacity-75">{result.won ? 'You grew the hedges in' : 'They ate every hedge after'}</p>
+              <h2 className="text-[28px] font-extrabold leading-tight">{result.won ? 'The view is hidden!' : 'They can see in!'}</h2>
+              <p className="text-[14px] mt-2 opacity-75 leading-snug">
+                {result.won ? 'All five hedges reached the line in' : 'The bunnies ate a hedge and the neighbours are peeking through the gap. You lasted'}
+              </p>
               <div className="text-[46px] font-extrabold leading-none mt-1">{fmt(result.time)}</div>
-              {result.won && (
-                <p className="text-[16px] mt-2 font-extrabold">
-                  {result.saved} of 5 hedges saved {result.saved < 5 ? '(the gaps let them peek)' : ''}
-                </p>
-              )}
-              <p className="text-[13px] mt-2 tracking-[0.12em]">{result.newBest ? 'NEW BEST!' : best ? `BEST: ${fmtBest(best)}` : 'Win to set a best.'}</p>
+              <p className="text-[13px] mt-2 opacity-75">
+                {result.bunnies > 3 ? `The bunnies multiplied to ${result.bunnies}.` : result.won ? 'No baby bunnies. Well sprayed!' : ''}
+              </p>
+              <p className="text-[13px] mt-2 tracking-[0.12em]">{result.newBest ? 'NEW BEST!' : best > 0 ? `BEST ${fmt(best)}` : 'Win to set a best.'}</p>
               <div className="flex justify-center gap-3 mt-4">
                 <button className="gd-btn primary text-[16px]" onClick={startGame}>
                   RETRY

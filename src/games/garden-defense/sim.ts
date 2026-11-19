@@ -1,7 +1,9 @@
 /**
- * Garden Defense simulation. Goal (Ben's rule): water the 5 hedges until they grow tall enough to hide the
- * apartments across the street. Win when every hedge still alive reaches height 1; lose when the bunnies kill
- * all of them.
+ * Garden Defense simulation. Goal (Ben's rules): water the 5 hedges until all of them grow tall enough to hide the
+ * neighbours' apartment across the street (each hedge covers its own part of the view). Win when all five reach
+ * height 1; lose as soon as the bunnies kill any hedge (the gap lets the neighbours see in).
+ * From time to time two bunnies pair up (hearts); spray them to break it up, or a baby bunny pops out, grows up
+ * and joins in. Well-watered hedges bloom with flowers, which the bunnies like to eat too.
  *
  * Plain TS, no DOM, so scripts/check-garden-defense.ts can run it headless.
  *
@@ -25,12 +27,19 @@ export const TUNING = {
   /** Hedge height: 1 = tall enough to hide the apartment windows across the street (the goal). */
   startHeight: 0.2,
   /** Height gained per second at full moisture and full foliage. Thin hedges grow slower. */
-  heightRate: 0.022,
+  heightRate: 0.024,
   /** Hedges stop growing a little above the target. */
   heightCap: 1.06,
 
+  /** Flowers: up to this many per hedge. They bloom on leafy, well-watered hedges (chance per second at full moisture). */
+  maxFlowers: 4,
+  bloomRate: 0.09,
+  bloomMinLeaves: 5,
+  /** Chance a bunny goes for a flower first when there is one. Eating a flower costs the hedge half a leaf. */
+  flowerBiteChance: 0.6,
+
   /** Seconds for aggression to go from 0 to 1. It keeps rising after that. */
-  ramp: 150,
+  ramp: 200,
   /** Bunny travel speed (bed widths per second) at aggression 0, and how much it grows per unit aggression. */
   hopSpeed0: 0.2,
   hopSpeedK: 0.5,
@@ -51,6 +60,23 @@ export const TUNING = {
   crowdWeight0: 0.35,
   /** Grace period before the first bunny moves. */
   firstMoves: [2.5, 5, 7.5],
+
+  /** Breeding: first pair-up after this many seconds. */
+  breedStart: 22,
+  /** Gap between pair-ups at aggression 0 (shrinks as the bunnies get keener), and its floor. */
+  breedGap0: 24,
+  breedGapK: 0.7,
+  breedGapMin: 8,
+  /** Seconds a frisky pair takes to make a baby (the heart countdown). */
+  breedTime: 7,
+  /** Seconds of spraying that break a pair up. Partial spraying dries off slowly. */
+  sprayTime: 0.7,
+  sprayDry: 0.3,
+  /** Seconds a baby takes to grow up and start eating, and its size at birth. */
+  babyGrow: 7,
+  babySize: 0.45,
+  /** Never more bunnies than this (keeps the yard readable). */
+  maxBunnies: 7,
 } as const;
 
 export type Rng = () => number;
@@ -71,6 +97,8 @@ export interface Plant {
   /** 0..heightCap; 1 = the target height. */
   height: number;
   leaves: number;
+  /** Flowers in bloom; each occupies a flower slot so they keep their place and colour. */
+  flowers: boolean[];
   /** Progress towards the next leaf, 0..1. */
   growth: number;
   moisture: number;
@@ -79,10 +107,18 @@ export interface Plant {
   diedAt: number;
 }
 
-export type BunnyMode = 'rest' | 'hop' | 'eat';
+export type BunnyMode = 'rest' | 'hop' | 'eat' | 'frisky';
 
 export interface Bunny {
   id: number;
+  /** Coat: 0 white, 1 black-and-white Dutch, 2 grey-and-white. */
+  kind: number;
+  /** 1 for adults; babies grow from TUNING.babySize. */
+  size: number;
+  /** Pair id while pairing up, else -1. */
+  pair: number;
+  /** Time it was last sprayed off (for the shake-off animation), or -99. */
+  wetAt: number;
   x: number;
   d: number;
   mode: BunnyMode;
@@ -103,11 +139,15 @@ export interface Bunny {
 }
 
 export type SimEvent =
-  | { type: 'bite'; plant: number; bunny: number }
+  | { type: 'bite'; plant: number; bunny: number; flower: number }
+  | { type: 'bloom'; plant: number; flower: number }
   | { type: 'grow'; plant: number }
   | { type: 'die'; plant: number }
   | { type: 'land'; bunny: number }
   | { type: 'tall'; plant: number }
+  | { type: 'frisky'; pair: number }
+  | { type: 'splash'; pair: number }
+  | { type: 'baby'; bunny: number }
   | { type: 'over'; won: boolean };
 
 export interface GameState {
@@ -115,10 +155,27 @@ export interface GameState {
   plants: Plant[];
   bunnies: Bunny[];
   over: boolean;
-  /** Set when the game ends with every surviving hedge at the target height. */
+  /** Set when the game ends with all five hedges at the target height. */
   won: boolean;
+  pairs: Pair[];
+  nextPair: number;
+  pairCount: number;
   events: SimEvent[];
   rng: Rng;
+}
+
+/** Two bunnies pairing up in the yard. */
+export interface Pair {
+  id: number;
+  a: number;
+  b: number;
+  x: number;
+  d: number;
+  /** Countdown to the baby; it only runs once both bunnies have arrived. */
+  timer: number;
+  started: boolean;
+  /** 0..1 spray progress; 1 breaks the pair up. */
+  wet: number;
 }
 
 /** Where on the bed each eating slot sits, relative to the plant. */
@@ -126,6 +183,8 @@ export const SLOTS = [
   { dx: -0.055, d: -0.085 },
   { dx: 0.055, d: -0.085 },
   { dx: 0.0, d: -0.03 },
+  { dx: -0.07, d: -0.015 },
+  { dx: 0.07, d: -0.015 },
 ];
 
 export const plantX = (i: number, n = TUNING.plantCount) => (i + 0.5) / n;
@@ -138,6 +197,7 @@ export function createGame(seed: number): GameState {
       x: plantX(i),
       height: TUNING.startHeight + (rng() - 0.5) * 0.04,
       leaves: TUNING.startLeaves,
+      flowers: Array(TUNING.maxFlowers).fill(false),
       growth: rng() * 0.5,
       moisture: 0.3,
       alive: true,
@@ -151,6 +211,10 @@ export function createGame(seed: number): GameState {
   ];
   const bunnies: Bunny[] = restSpots.map((p, id) => ({
     id,
+    kind: id,
+    size: 1,
+    pair: -1,
+    wetAt: -99,
     x: p.x,
     d: p.d,
     mode: 'rest',
@@ -165,7 +229,7 @@ export function createGame(seed: number): GameState {
     hopHigh: false,
     face: id === 2 ? -1 : 1,
   }));
-  return { t: 0, plants, bunnies, over: false, won: false, events: [], rng };
+  return { t: 0, plants, bunnies, over: false, won: false, events: [], rng, pairs: [], nextPair: TUNING.breedStart, pairCount: 0 };
 }
 
 /** 0 at the start, 1 after `ramp` seconds, and still rising after. */
@@ -189,6 +253,56 @@ export function hopDuration(a: number) {
 }
 
 export const alivePlants = (s: GameState) => s.plants.reduce((n, p) => n + (p.alive ? 1 : 0), 0);
+
+export function breedGap(a: number, rng: Rng) {
+  return Math.max(TUNING.breedGapMin, TUNING.breedGap0 / (1 + TUNING.breedGapK * a)) * (0.8 + 0.4 * rng());
+}
+
+/** Two grown bunnies drop what they are doing and pair up somewhere in the yard. */
+function startPair(s: GameState) {
+  const free = s.bunnies.filter((b) => b.pair < 0 && b.size >= 1);
+  if (free.length < 2 || s.bunnies.length >= TUNING.maxBunnies) return false;
+  const i = Math.floor(s.rng() * free.length);
+  const a = free[i];
+  free.splice(i, 1);
+  // Partner: the nearest other free bunny.
+  free.sort((p, q) => Math.hypot(p.x - a.x, p.d - a.d) - Math.hypot(q.x - a.x, q.d - a.d));
+  const b = free[0];
+  const pair: Pair = {
+    id: s.pairCount++,
+    a: a.id,
+    b: b.id,
+    x: Math.min(0.82, Math.max(0.18, (a.x + b.x) / 2)),
+    d: 0.4 + s.rng() * 0.4,
+    timer: TUNING.breedTime,
+    started: false,
+    wet: 0,
+  };
+  s.pairs.push(pair);
+  for (const [bn, side] of [
+    [a, -1],
+    [b, 1],
+  ] as const) {
+    bn.pair = pair.id;
+    bn.target = -1;
+    bn.tx = pair.x + side * 0.07;
+    bn.td = pair.d;
+    bn.mode = 'hop';
+  }
+  s.events.push({ type: 'frisky', pair: pair.id });
+  return true;
+}
+
+function endPair(s: GameState, pair: Pair, splashed: boolean) {
+  s.pairs = s.pairs.filter((p) => p !== pair);
+  for (const id of [pair.a, pair.b]) {
+    const b = s.bunnies[id];
+    b.pair = -1;
+    if (splashed) b.wetAt = s.t;
+    goRest(s, b);
+  }
+  s.nextPair = s.t + breedGap(aggression(s.t), s.rng);
+}
 
 function chooseTarget(s: GameState, b: Bunny): number {
   let total = 0;
@@ -224,14 +338,18 @@ function goToPlant(s: GameState, b: Bunny, i: number) {
 }
 
 function goRest(s: GameState, b: Bunny) {
+  b.pair = -1;
   b.target = -1;
   b.tx = 0.08 + s.rng() * 0.84;
   b.td = 0.3 + s.rng() * 0.62;
   b.mode = 'hop';
 }
 
-/** Advance the game by dt seconds. `watering` is the plant index under the can, or -1. */
-export function step(s: GameState, dt: number, watering: number) {
+/**
+ * Advance the game by dt seconds. `watering` is the plant index under the can, or -1; `spray` is the id of the
+ * pair being sprayed, or -1 (the can is over one or the other, never both).
+ */
+export function step(s: GameState, dt: number, watering: number, spray = -1) {
   if (s.over) return;
   s.t += dt;
   const T = TUNING;
@@ -248,6 +366,14 @@ export function step(s: GameState, dt: number, watering: number) {
       p.height = Math.min(T.heightCap, p.height + T.heightRate * p.moisture * (0.3 + (0.7 * p.leaves) / T.maxLeaves) * dt);
       if (before < 1 && p.height >= 1) s.events.push({ type: 'tall', plant: i });
     }
+    if (p.leaves >= T.bloomMinLeaves && s.rng() < T.bloomRate * p.moisture * dt) {
+      const free = p.flowers.map((f, k) => (f ? -1 : k)).filter((k) => k >= 0);
+      if (free.length) {
+        const k = free[Math.floor(s.rng() * free.length)];
+        p.flowers[k] = true;
+        s.events.push({ type: 'bloom', plant: i, flower: k });
+      }
+    }
     while (p.growth >= 1) {
       if (p.leaves >= T.maxLeaves) {
         p.growth = 1;
@@ -260,10 +386,56 @@ export function step(s: GameState, dt: number, watering: number) {
   });
 
   // Bunnies.
+  // Pairing up.
+  if (s.pairs.length === 0 && s.t >= s.nextPair) {
+    if (!startPair(s)) s.nextPair = s.t + 1;
+  }
+  for (const pair of [...s.pairs]) {
+    const a = s.bunnies[pair.a];
+    const b = s.bunnies[pair.b];
+    if (!pair.started && a.mode === 'frisky' && b.mode === 'frisky') pair.started = true;
+    if (!pair.started) continue;
+    if (spray === pair.id) pair.wet += dt / T.sprayTime;
+    else pair.wet = Math.max(0, pair.wet - T.sprayDry * dt);
+    if (pair.wet >= 1) {
+      s.events.push({ type: 'splash', pair: pair.id });
+      endPair(s, pair, true);
+      continue;
+    }
+    pair.timer -= dt;
+    if (pair.timer <= 0) {
+      const baby: Bunny = {
+        id: s.bunnies.length,
+        kind: Math.floor(s.rng() * 3),
+        size: T.babySize,
+        pair: -1,
+        wetAt: -99,
+        x: pair.x,
+        d: Math.min(0.95, pair.d + 0.06),
+        mode: 'rest',
+        tx: pair.x,
+        td: pair.d,
+        target: -1,
+        slot: 0,
+        timer: T.babyGrow,
+        bitesLeft: 0,
+        biteTimer: 0,
+        hop: 0,
+        hopHigh: false,
+        face: s.rng() < 0.5 ? 1 : -1,
+      };
+      s.bunnies.push(baby);
+      s.events.push({ type: 'baby', bunny: baby.id });
+      endPair(s, pair, false);
+    }
+  }
+
   for (const b of s.bunnies) {
+    if (b.size < 1) b.size = Math.min(1, b.size + ((1 - T.babySize) / T.babyGrow) * dt);
+    if (b.mode === 'frisky') continue;
     if (b.mode === 'rest') {
       b.timer -= dt;
-      if (b.timer <= 0) {
+      if (b.timer <= 0 && b.size >= 1) {
         const i = chooseTarget(s, b);
         if (i >= 0) {
           goToPlant(s, b, i);
@@ -272,7 +444,7 @@ export function step(s: GameState, dt: number, watering: number) {
       }
     } else if (b.mode === 'hop') {
       // Retarget if the plant died on the way.
-      if (b.target >= 0 && !s.plants[b.target].alive) {
+      if (b.pair < 0 && b.target >= 0 && !s.plants[b.target].alive) {
         const i = chooseTarget(s, b);
         if (i >= 0) goToPlant(s, b, i);
         else goRest(s, b);
@@ -299,7 +471,11 @@ export function step(s: GameState, dt: number, watering: number) {
         if (b.hop >= 1) s.events.push({ type: 'land', bunny: b.id });
         b.hop = arrived ? 0 : b.hop % 1;
         if (arrived) {
-          if (b.target >= 0) {
+          if (b.pair >= 0) {
+            b.mode = 'frisky';
+            const pr = s.pairs.find((q) => q.id === b.pair);
+            b.face = pr && pr.x > b.x ? 1 : -1;
+          } else if (b.target >= 0) {
             const p = s.plants[b.target];
             if (p.alive) {
               b.mode = 'eat';
@@ -330,11 +506,32 @@ export function step(s: GameState, dt: number, watering: number) {
       b.biteTimer -= dt;
       if (b.biteTimer <= 0) {
         b.biteTimer += biteInterval(a);
-        if (p.leaves > 0) {
+        const open = p.flowers.map((f, k) => (f ? k : -1)).filter((k) => k >= 0);
+        if (open.length && s.rng() < T.flowerBiteChance) {
+          // A tasty flower: costs the hedge half a leaf.
+          const k = open[Math.floor(s.rng() * open.length)];
+          p.flowers[k] = false;
+          b.bitesLeft--;
+          p.growth -= 0.5;
+          if (p.growth < 0) {
+            p.growth += 1;
+            p.leaves--;
+          }
+          s.events.push({ type: 'bite', plant: b.target, bunny: b.id, flower: k });
+          if (p.leaves <= 0) {
+            p.leaves = 0;
+            p.flowers.fill(false);
+            p.alive = false;
+            p.moisture = 0;
+            p.diedAt = s.t;
+            s.events.push({ type: 'die', plant: b.target });
+          }
+        } else if (p.leaves > 0) {
           p.leaves--;
           b.bitesLeft--;
-          s.events.push({ type: 'bite', plant: b.target, bunny: b.id });
+          s.events.push({ type: 'bite', plant: b.target, bunny: b.id, flower: -1 });
           if (p.leaves === 0) {
+            p.flowers.fill(false);
             p.alive = false;
             p.moisture = 0;
             p.diedAt = s.t;
@@ -346,11 +543,10 @@ export function step(s: GameState, dt: number, watering: number) {
     }
   }
 
-  const alive = alivePlants(s);
-  if (alive === 0) {
+  if (alivePlants(s) < s.plants.length) {
     s.over = true;
     s.events.push({ type: 'over', won: false });
-  } else if (s.plants.every((p) => !p.alive || p.height >= 1)) {
+  } else if (s.plants.every((p) => p.height >= 1)) {
     s.over = true;
     s.won = true;
     s.events.push({ type: 'over', won: true });
