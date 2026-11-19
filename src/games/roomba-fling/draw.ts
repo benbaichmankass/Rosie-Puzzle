@@ -545,34 +545,91 @@ function drawDesk(ctx: Ctx, p: Piece) {
   circle(ctx, x + w * 0.15, y + h * 0.7, 2.2); ctx.fill();
 }
 
+/**
+ * Tall white bookcase against a wall. Drawn in a local frame where the wall is at y=0 and the
+ * unit faces +y: a white top, then the front with three shelves of colourful book spines
+ * (a gentle top-down tilt so you can tell it is tall), plus a long shadow for the height.
+ */
 function drawBookcase(ctx: Ctx, p: Piece) {
   const { x, y, w, h } = p;
   ctx.save();
-  shadow(ctx, 8, 4, 0.3);
-  ctx.fillStyle = '#2c2c2e';
-  ctx.fillRect(x, y, w, h);
+  let L: number, D: number;
+  switch (p.wall) {
+    case 'left': ctx.translate(x, y + h); ctx.rotate(-Math.PI / 2); L = h; D = w; break;
+    case 'right': ctx.translate(x + w, y); ctx.rotate(Math.PI / 2); L = h; D = w; break;
+    case 'bottom': ctx.translate(x + w, y + h); ctx.rotate(Math.PI); L = w; D = h; break;
+    default: ctx.translate(x, y); L = w; D = h;
+  }
+  // tall things cast a long soft shadow into the room
+  ctx.save();
+  ctx.fillStyle = 'rgba(40,32,24,0.16)';
+  rrect(ctx, 2, D * 0.4, L - 4, D * 0.9, 6); ctx.fill();
+  shadow(ctx, 10, 5, 0.3);
+  ctx.fillStyle = '#e9e7e1';
+  rrect(ctx, 0, 0, L, D, 2); ctx.fill();
   ctx.restore();
-  const vertical = h > w;
-  const len = vertical ? h : w;
-  const depth = vertical ? w : h;
+  const topH = D * 0.34;
+  // top surface
+  const g = ctx.createLinearGradient(0, 0, 0, topH);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#f1efea');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, L, topH);
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.fillRect(0, topH - 1, L, 1.2);
+  // front with three shelves
+  const fy = topH, fh = D - topH, side = 3, board = 1.6;
+  ctx.fillStyle = '#f6f5f1';
+  ctx.fillRect(0, fy, L, fh);
+  const rows = 3;
+  const rh = (fh - board * (rows + 1)) / rows;
   const rng = mulberry32(Math.floor(p.look * 1e6));
-  const cols = ['#c0392b', '#e67e22', '#f1c40f', '#27ae60', '#2980b9', '#8e44ad', '#ecf0f1', '#16a085', '#d35400', '#7f8c8d'];
-  let at = 3;
-  while (at < len - 6) {
-    const t = 3 + rng() * 4;
-    const d = depth * (0.55 + rng() * 0.3);
-    ctx.fillStyle = cols[Math.floor(rng() * cols.length)];
-    if (vertical) ctx.fillRect(p.wall === 'left' ? x + 2 : x + w - 2 - d, y + at, d, t - 0.6);
-    else ctx.fillRect(x + at, p.wall === 'top' ? y + 2 : y + h - 2 - d, t - 0.6, d);
-    at += t;
-    if (rng() < 0.08) {
-      // a little plant on the shelf
-      const px = vertical ? x + w / 2 : x + at + 7, py = vertical ? y + at + 7 : y + h / 2;
-      ctx.fillStyle = '#4f8a3f';
-      for (let i = 0; i < 5; i++) { circle(ctx, px + Math.cos(i * 1.3) * 3.5, py + Math.sin(i * 1.3) * 3.5, 3); ctx.fill(); }
-      at += 15;
+  const cols = ['#c0392b', '#e67e22', '#f1c40f', '#27ae60', '#2980b9', '#8e44ad', '#16a085', '#d35400', '#34495e', '#e84393', '#7f8c8d'];
+  for (let r = 0; r < rows; r++) {
+    const ry = fy + board + r * (rh + board);
+    ctx.fillStyle = '#d9d6cf'; // shadowy back of the shelf
+    ctx.fillRect(side, ry, L - side * 2, rh);
+    let at = side + 0.5;
+    while (at < L - side - 2) {
+      const roll = rng();
+      if (roll < 0.07 && at < L - side - 10) {
+        // a little plant or a box between the books
+        if (rng() < 0.5) {
+          ctx.fillStyle = '#c66b3d';
+          ctx.fillRect(at + 1, ry + rh * 0.55, 6, rh * 0.45);
+          ctx.fillStyle = '#4f8a3f';
+          for (let i = 0; i < 4; i++) { circle(ctx, at + 4 + Math.cos(i * 1.6) * 2.4, ry + rh * 0.4 + Math.sin(i * 1.6) * 1.8, 2); ctx.fill(); }
+        } else {
+          ctx.fillStyle = '#b89a6e';
+          ctx.fillRect(at + 0.5, ry + rh * 0.35, 7, rh * 0.65);
+        }
+        at += 9;
+        continue;
+      }
+      const bw = 1.6 + rng() * 2.2;
+      const bh = rh * (0.62 + rng() * 0.36);
+      if (at + bw > L - side) break;
+      ctx.fillStyle = cols[Math.floor(rng() * cols.length)];
+      if (roll > 0.94) {
+        // one leaning book
+        ctx.save(); ctx.translate(at, ry + rh); ctx.rotate(-0.35); ctx.fillRect(0, -bh, bw, bh); ctx.restore();
+        at += bw + 3;
+      } else {
+        ctx.fillRect(at, ry + rh - bh, bw, bh);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(at + bw * 0.25, ry + rh - bh + 1, 0.5, bh * 0.25);
+        at += bw + 0.3;
+      }
     }
   }
+  // white frame and shelf boards on top
+  ctx.fillStyle = '#fbfaf7';
+  ctx.fillRect(0, fy, side, fh);
+  ctx.fillRect(L - side, fy, side, fh);
+  for (let r = 0; r <= rows; r++) ctx.fillRect(0, fy + r * (rh + board), L, board);
+  ctx.strokeStyle = 'rgba(120,110,95,0.45)';
+  ctx.lineWidth = 0.8;
+  ctx.strokeRect(0.4, 0.4, L - 0.8, D - 0.8);
+  ctx.restore();
 }
 
 function drawPlant(ctx: Ctx, p: Piece) {

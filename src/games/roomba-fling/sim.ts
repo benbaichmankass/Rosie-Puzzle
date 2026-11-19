@@ -490,7 +490,8 @@ function tryBuild(level: number, seed: number, rng: Rng, relax: number): Level |
   const pool: (() => boolean)[] = [
     () => placeNear(b, 'armchair', ri(rng, 56, 64), ri(rng, 56, 64), null),
     () => placeOnWall(b, 'desk', ri(rng, 100, 124), ri(rng, 46, 54)),
-    () => placeOnWall(b, 'bookcase', ri(rng, 100, 140), ri(rng, 28, 34)),
+    // tall white bookcase: a compact, deep unit against a wall
+    () => placeOnWall(b, 'bookcase', ri(rng, 58, 72), ri(rng, 36, 42)),
     () => placeCircle(b, 'plant', ri(rng, 15, 20), true),
     () => placeCircle(b, 'lamp', 11, true),
     () => placeCircle(b, 'sidetable', ri(rng, 17, 21), false),
