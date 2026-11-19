@@ -50,9 +50,16 @@ export class Run {
   private bells = new Set<number>();
   private grounded = true;
 
-  constructor(seed: number) {
+  /** startAt > 0 is a review aid (URL flag ?d=): the run begins part-way along the route, briefly untouchable. */
+  constructor(seed: number, startAt = 0) {
     this.spawner = new Spawner(seed);
-    this.spawner.ensure(200);
+    if (startAt > 0) {
+      this.d = startAt;
+      this.lap = lapOf(startAt);
+      this.parks = lapU(startAt) >= PARK_START ? this.lap + 1 : this.lap;
+      this.ghostUntil = 2.5;
+    }
+    this.spawner.ensure(this.d + 200);
   }
 
   get speed() { return speedAt(this.d) * (this.power?.kind === 'board' ? BOARD_SPEED : 1); }

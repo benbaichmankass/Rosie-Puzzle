@@ -12,6 +12,21 @@ import { stationsIn, station, platformStart, PLATFORM_LEN } from './route';
 
 type Screen = 'start' | 'play' | 'paused' | 'over';
 
+/**
+ * Review flags (not shown to players): put them in the query string before the hash, e.g.
+ * https://…/Rosies-Game-House/?d=1600&tod=0.6#/play/boulevard-runner
+ *   d   = start the run at this distance (m) along the route (1600 = just before Charles Clore Park)
+ *   tod = pin the time of day, 0..1 (0.1 day, 0.36 sunset, 0.6 night, 0.86 dawn)
+ */
+const REVIEW = (() => {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const d = Number(q.get('d'));
+    const tod = q.get('tod');
+    return { d: Number.isFinite(d) && d > 0 ? Math.min(d, 100000) : 0, tod: tod !== null && Number.isFinite(Number(tod)) ? Number(tod) - Math.floor(Number(tod)) : undefined };
+  } catch { return { d: 0, tod: undefined as number | undefined }; }
+})();
+
 const CSS = `
 .g-boulevard-runner { font-family: 'Rubik', system-ui, sans-serif; }
 .g-boulevard-runner .br-card { background: rgba(255,248,236,0.93); border-radius: 22px; box-shadow: 0 10px 40px rgba(80,35,10,0.35); }
@@ -72,7 +87,7 @@ export default function Game({ onExit }: GameProps) {
 
   const start = useCallback(() => {
     sfx.current.unlock();
-    runRef.current = new Run((Date.now() ^ (Math.random() * 1e9)) >>> 0);
+    runRef.current = new Run((Date.now() ^ (Math.random() * 1e9)) >>> 0, REVIEW.d);
     anim.current.crashT = 0;
     anim.current.shake = 0;
     if (!load<boolean>(meta.id, 'hinted', false)) {
@@ -254,7 +269,7 @@ export default function Game({ onExit }: GameProps) {
       a.shake = Math.max(0, a.shake - dt * 2.5);
       const useRun = s !== 'start' && run;
       // local playtest aid: window.__brTod (0..1) pins the time of day
-      const todOverride = local ? (window as unknown as { __brTod?: number }).__brTod : undefined;
+      const todOverride = (local ? (window as unknown as { __brTod?: number }).__brTod : undefined) ?? REVIEW.tod;
       // camera rises with Rosie when she is up on a tram roof
       const liftTarget = useRun ? Math.max(0, run.base - 0.4) * 0.55 : 0;
       a.camLift += (liftTarget - a.camLift) * Math.min(1, dt * 5);
