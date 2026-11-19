@@ -1,6 +1,6 @@
 /** One run of the boulevard: Rosie's movement, jumping, tram roofs, collisions and score. Pure TS. */
 import { lapOf, lapU, PARK_START } from './route';
-import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, TREAT_POINTS, POWERUP_POINTS, BOARD_TIME, MAGNET_TIME, BOARD_SPEED, type Obstacle, type Pickup } from './spawner';
+import { Spawner, CONTROLS, speedAt, alongObstacle, JUMP_H, MOUNT_Y, ROOF_H, RAMP_LEN, TREAT_POINTS, POWERUP_POINTS, BOARD_SPEED, POWER_TIMES, BALLOON_H, SPRING_JUMP_H, SPRING_JUMP_TIME, type Obstacle, type Pickup, type PowerKind } from './spawner';
 
 export { JUMP_H, ROOF_H };
 /** Forgiveness: shave this much player distance off each end of an obstacle's hit interval. */
@@ -8,13 +8,16 @@ const FORGIVE = 0.18;
 /** Gravity and launch speed chosen so a jump on flat ground matches CONTROLS.jumpTime / JUMP_H. */
 const GRAV = (8 * JUMP_H) / (CONTROLS.jumpTime * CONTROLS.jumpTime);
 const JUMP_V = (4 * JUMP_H) / CONTROLS.jumpTime;
+/** Spring booties: a higher, longer jump. */
+const SPRING_GRAV = (8 * SPRING_JUMP_H) / (SPRING_JUMP_TIME * SPRING_JUMP_TIME);
+const SPRING_V = (4 * SPRING_JUMP_H) / SPRING_JUMP_TIME;
 /** Speed Rosie scrambles up onto a roof she reached mid-jump (units/s). */
 const CLIMB_V = 16;
 
 export type RunEvent = 'jump' | 'lane' | 'crash' | 'tramWarn' | 'bike' | 'land' | 'mount' | 'treat' | 'power' | 'shield' | 'powerEnd' | 'park' | 'lap';
 /** Bonus for reaching Charles Clore Park on each lap. */
 export const PARK_BONUS = 500;
-export interface Power { kind: 'board' | 'magnet'; until: number; total: number }
+export interface Power { kind: PowerKind; until: number; total: number }
 
 export class Run {
   d = 0;
@@ -35,6 +38,8 @@ export class Run {
   /** Seconds into a duck (crouch-roll), -1 = standing; a duck asked for in the air starts on landing. */
   duckT = -1;
   private duckQueued = false;
+  /** Gravity for the current jump (spring jumps are floatier). */
+  private grav = GRAV;
   crashed = false;
   hit: Obstacle | null = null;
   /** Points from treats and power-ups (score = metres + bonus). */
@@ -66,7 +71,9 @@ export class Run {
   }
 
   get speed() { return speedAt(this.d) * (this.power?.kind === 'board' ? BOARD_SPEED : 1); }
-  get score() { return Math.floor(this.d) + this.bonus; }
+  get score() { return Math.floor(this.d + this.bonus); }
+  get multiplier() { return this.power?.kind === 'mult' ? 2 : 1; }
+  get floating() { return this.power?.kind === 'balloon'; }
   get ghost() { return this.t < this.ghostUntil; }
   /** Height above whatever she is standing on (for the jump animation). */
   get jumpY() { return Math.max(0, this.y - this.base); }
@@ -116,7 +123,9 @@ export class Run {
   jump(): boolean {
     if (this.crashed || !this.grounded) return false;
     this.duckT = -1; // jumping cancels a duck
-    this.vy = JUMP_V;
+    const spring = this.power?.kind === 'spring';
+    this.vy = spring ? SPRING_V : JUMP_V;
+    this.grav = spring ? SPRING_GRAV : GRAV;
     this.grounded = false;
     this.jumpedAt = this.t;
     return true;
@@ -158,7 +167,8 @@ export class Run {
       const other = this.tramAt(myLane);
       this.roof = other && this.y >= ROOF_H - 0.6 ? other : null;
     }
-    if (!this.roof && !this.leaping) {
+    if (this.floating) { this.roof = null; this.leaping = false; }
+    if (!this.roof && !this.leaping && !this.floating) {
       const tr = this.tramAt(myLane);
       if (tr) {
         const f = Math.min(FORGIVE, (tr.end - tr.start) * 0.3);
@@ -184,7 +194,12 @@ export class Run {
     // --- vertical motion ---
     const base = this.surface(myLane);
     const wasGrounded = this.grounded;
-    if (this.grounded && base >= this.y - 0.05) {
+    if (this.floating) {
+      // the balloon lifts Rosie over everything
+      this.grounded = false;
+      this.vy = 0;
+      this.y += Math.sign(BALLOON_H - this.y) * Math.min(Math.abs(BALLOON_H - this.y), 7 * dt);
+    } else if (this.grounded && base >= this.y - 0.05) {
       this.y = base; // walk along (incl. up a ramp)
       this.vy = 0;
     } else if (this.y < base) {
@@ -195,12 +210,13 @@ export class Run {
       else this.grounded = false;
     } else {
       this.grounded = false;
-      this.vy -= GRAV * dt;
+      this.vy -= this.grav * dt;
       this.y += this.vy * dt;
       if (this.y <= base) {
         this.y = base;
         this.vy = 0;
         this.grounded = true;
+        this.grav = GRAV;
         if (!wasGrounded) {
           this.landedAt = this.t; ev.push('land');
           if (this.duckQueued) { this.duckQueued = false; this.duckT = 0; }
@@ -215,7 +231,13 @@ export class Run {
     if (this.parks <= lap && lapU(this.d) >= PARK_START) { this.parks = lap + 1; this.bonus += PARK_BONUS; ev.push('park'); }
 
     // --- power-ups ---
-    if (this.power && this.t >= this.power.until) { this.power = null; ev.push('powerEnd'); }
+    if (this.power && this.t >= this.power.until) {
+      // letting go of the balloon: float down, briefly untouchable so the landing is never a trap
+      if (this.power.kind === 'balloon') this.ghostUntil = this.t + 1.6;
+      this.power = null;
+      ev.push('powerEnd');
+    }
+    if (this.power?.kind === 'mult') this.bonus += this.speed * dt; // every metre counts double
     if (this.power?.kind === 'board' && this.grounded) {
       // auto-jump anything low coming up in this lane
       for (const o of this.spawner.obstacles) {
@@ -238,7 +260,7 @@ export class Run {
         this.bells.add(o.id);
         ev.push('bike');
       }
-      if (o.tram || o.lane !== myLane || this.leaping) continue;
+      if (o.tram || o.lane !== myLane || this.leaping || this.floating) continue;
       const f = Math.min(FORGIVE, (o.end - o.start) * 0.3);
       if (this.d < o.start + f || this.d > o.end - f) continue;
       if (o.duck) {
@@ -269,7 +291,7 @@ export class Run {
       if (this.taken.has(p.id) || p.d < this.d - 1.5) continue;
       const ahead = p.d - this.d;
       const sameSpot = Math.abs(this.lanePos - p.lane) < 0.55 && Math.abs(ahead) < 1.1 &&
-        (p.roof ? this.y > ROOF_H - 0.7 : this.y < 1.9);
+        (this.floating || (this.y > p.h - 0.8 && this.y < p.h + 1.9));
       const pulled = magnet && p.kind === 'treat' && ahead < 1.2;
       if (!sameSpot && !pulled) continue;
       this.taken.set(p.id, this.t);
@@ -279,12 +301,13 @@ export class Run {
   private take(p: Pickup, ev: RunEvent[]) {
     if (p.kind === 'treat') {
       this.treats++;
-      this.bonus += TREAT_POINTS;
+      this.bonus += TREAT_POINTS * this.multiplier;
       ev.push('treat');
       return;
     }
     this.bonus += POWERUP_POINTS;
-    const total = p.kind === 'board' ? BOARD_TIME : MAGNET_TIME;
+    if (this.power?.kind === 'balloon') this.ghostUntil = this.t + 1.6; // swapping away from the balloon mid-air
+    const total = POWER_TIMES[p.kind];
     this.power = { kind: p.kind, until: this.t + total, total };
     ev.push('power');
   }

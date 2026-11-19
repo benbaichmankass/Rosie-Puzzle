@@ -27,6 +27,10 @@ const REVIEW = (() => {
   } catch { return { d: 0, tod: undefined as number | undefined }; }
 })();
 
+const POWER_LABEL: Record<string, string> = {
+  board: '🛹 Skateboard', magnet: '🧲 Treat magnet', mult: '⭐ x2 score', balloon: '🎈 Balloon', spring: '👟 Spring booties',
+};
+
 const CSS = `
 .g-boulevard-runner { font-family: 'Rubik', system-ui, sans-serif; }
 .g-boulevard-runner .br-card { background: rgba(255,248,236,0.93); border-radius: 22px; box-shadow: 0 10px 40px rgba(80,35,10,0.35); }
@@ -104,7 +108,7 @@ export default function Game({ onExit }: GameProps) {
   const act = useCallback((a: 'left' | 'right' | 'jump' | 'duck') => {
     const r = runRef.current;
     if (screenRef.current !== 'play' || !r) return;
-    if (a === 'jump') { if (r.jump()) sfx.current.jump(); }
+    if (a === 'jump') { if (r.jump()) { if (r.power?.kind === 'spring') sfx.current.boing(); else sfx.current.jump(); } }
     else if (a === 'duck') { if (r.duck()) sfx.current.duck(); }
     else if (r.move(a === 'left' ? -1 : 1)) sfx.current.swish();
   }, []);
@@ -222,7 +226,11 @@ export default function Game({ onExit }: GameProps) {
           else if (e === 'mount') sfx.current.mount();
           else if (e === 'land') sfx.current.land();
           else if (e === 'treat') sfx.current.treat();
-          else if (e === 'power') sfx.current.power();
+          else if (e === 'power') {
+            const k = run.power?.kind;
+            if (k === 'balloon') sfx.current.balloon(); else if (k === 'spring') sfx.current.boing(); else if (k === 'mult') sfx.current.chime(); else sfx.current.power();
+          }
+          else if (e === 'powerEnd') sfx.current.pop();
           else if (e === 'shield') { sfx.current.shield(); a.shake = 0.6; }
           else if (e === 'park') { sfx.current.fanfare(); showBanner('Charles Clore Park!', 'The sea! +500'); }
           else if (e === 'lap') { sfx.current.power(); showBanner('Back to HaBesht', 'Lap ' + (run.lap + 1) + ' · faster!'); }
@@ -246,7 +254,7 @@ export default function Game({ onExit }: GameProps) {
             const p = run.power;
             pw.style.display = p ? 'flex' : 'none';
             if (p) {
-              if (powerLabelRef.current) powerLabelRef.current.textContent = p.kind === 'board' ? '🛹 Skateboard' : '🧲 Treat magnet';
+              if (powerLabelRef.current) powerLabelRef.current.textContent = POWER_LABEL[p.kind];
               if (powerBarRef.current) powerBarRef.current.style.width = `${Math.max(0, (100 * (p.until - run.t)) / p.total)}%`;
             }
           }
@@ -278,7 +286,7 @@ export default function Game({ onExit }: GameProps) {
       // local playtest aid: window.__brTod (0..1) pins the time of day
       const todOverride = (local ? (window as unknown as { __brTod?: number }).__brTod : undefined) ?? REVIEW.tod;
       // camera rises with Rosie when she is up on a tram roof
-      const liftTarget = useRun ? Math.max(0, run.base - 0.4) * 0.55 : 0;
+      const liftTarget = useRun ? Math.max(0, (run.floating ? run.y - 1.5 : run.base) - 0.4) * 0.55 : 0;
       a.camLift += (liftTarget - a.camLift) * Math.min(1, dt * 5);
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       scene.render(g, {
@@ -307,6 +315,7 @@ export default function Game({ onExit }: GameProps) {
           board: !!(useRun && run.power?.kind === 'board'),
           ghost: !!(useRun && run.ghost),
           crouch: useRun ? run.crouch : 0,
+          power: useRun ? run.power?.kind ?? null : null,
         },
       });
     };
@@ -360,7 +369,7 @@ export default function Game({ onExit }: GameProps) {
             <div className="text-[13px] font-bold tracking-[0.2em] text-[#c0602e]">YAFO · JAFFA</div>
             <div className="text-[28px] font-black leading-[1.05] mt-1">Jerusalem Boulevard Runner</div>
             <div className="text-[15px] font-medium mt-3 leading-snug">
-              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump, <b>swipe ↓</b> to duck. Dodge walkers and bikes, hop onto the light rail's roof and grab treats (🛹 skateboard, 🧲 magnet).
+              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump, <b>swipe ↓</b> to duck. Dodge walkers and bikes, hop onto the light rail's roof and grab treats and power-ups (🛹 🧲 ⭐x2 🎈 👟).
             </div>
             <button className="br-btn w-full mt-4 py-3 text-[20px]" onClick={start}>PLAY</button>
             <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best}</div>

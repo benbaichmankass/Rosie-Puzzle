@@ -6,7 +6,7 @@
 // and that no distance is blocked by tall obstacles in all three lanes. Exits non-zero on failure.
 import { timeOfDay, lightAt, phaseName, DAY_LENGTH, STEPS } from '../src/games/boulevard-runner/daynight';
 import { ROUTE_STATIONS, NORTH_END, PARK_START, LAP, TRACKS_END, numberToU, hasTracks } from '../src/games/boulevard-runner/route';
-import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
+import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, SPRING_JUMP_H, SPRING_JUMP_TIME, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
 
 const SEEDS = 32;
 const RUN = 4000; // units (metres); top speed is reached long before this
@@ -42,6 +42,7 @@ function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, 
   const ma = Math.ceil(t.mountFrom * kj), mb = Math.floor(t.mountTo * kj);
   const kd = Math.ceil((t.duckTime * s) / H);
   const da = Math.floor(t.duckFrom * kd), db = Math.ceil(t.duckTo * kd);
+  const ta = t.tallFrom !== undefined ? Math.ceil(t.tallFrom * kj) : -1, tb = t.tallTo !== undefined ? Math.floor(t.tallTo * kj) : -1;
   if (!onRoof) {
     if (tram[l][i]) { if (ramp[l][i] && !tall[l][i] && !low[l][i] && !duckG[l][i] && tram[l][i + 1]) out(i + 1, l, true); }
     else if (!tall[l][i] && !low[l][i] && !duckG[l][i]) out(i + 1, l, false);
@@ -49,7 +50,8 @@ function successors(G: Grid, t: Timings, i: number, l: number, onRoof: boolean, 
     for (let k = 0; k < kj && ok && mountAt < 0; k++) {
       const c = i + k;
       if (tram[l][c]) { if (k >= ma && k <= mb && !duckR[l][c]) mountAt = c; else ok = false; }
-      else if (tall[l][c] || duckG[l][c]) ok = false;
+      else if (duckG[l][c]) ok = false;
+      else if (tall[l][c] && !(ta >= 0 && k >= ta && k <= tb)) ok = false;
       else if (low[l][c] && (k <= ja || k >= jb)) ok = false;
     }
     if (ok) { if (mountAt >= 0) out(mountAt, l, true); else out(i + kj, l, false); }
@@ -171,7 +173,7 @@ const t0 = performance.now();
 }
 
 const counts: Record<string, number> = {};
-let total = 0, ramps = 0, treats = 0, powers = 0, boardFails = 0;
+let total = 0, ramps = 0, treats = 0, powers = 0, boardFails = 0, springFails = 0;
 for (let seed = 1; seed <= SEEDS; seed++) {
   const sp = new Spawner(seed * 7919 + 13);
   sp.ensure(RUN);
@@ -197,7 +199,12 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   // where it would not be passable the board's one-hit shield is what saves her
   const scale = BOARD_SPEED;
   const boardT = { ...CONTROLS, laneChangeTime: CONTROLS.laneChangeTime * scale, jumpTime: CONTROLS.jumpTime * scale, fallTime: CONTROLS.fallTime * scale };
-  if (!passable(obs, Math.min(length, 1500), boardT).ok) boardFails++;
+  if (!passable(obs, Math.min(length, 1200), boardT).ok) boardFails++;
+  // spring booties: longer, much higher jumps (clear walkers and bikes mid-jump, land on roofs from far off)
+  const sh = SPRING_JUMP_H, win = (h: number) => { const q = Math.sqrt(Math.max(0, 1 - h / sh)) / 2; return [0.5 - q, 0.5 + q]; };
+  const [aF, aT] = win(0.35), [mF, mT] = win(0.55), [tF, tT] = win(2.05);
+  const springT = { ...CONTROLS, jumpTime: SPRING_JUMP_TIME, airFrom: aF, airTo: aT, mountFrom: mF, mountTo: mT, tallFrom: tF, tallTo: tT };
+  if (!passable(obs, Math.min(length, 1200), springT).ok) springFails++;
   for (let i = 0; i < obs.length; i++) {
     const o = obs[i];
     if (!(o.end > o.start) || (i > 0 && o.start < obs[i - 1].start)) { fail(`seed ${seed}: bad obstacle ${o.id}`); break; }
@@ -213,6 +220,7 @@ if (perKm < 40) fail(`too few obstacles: ${perKm.toFixed(1)} per km`);
 if (!ramps) fail('no ramp trams generated');
 if (treats / SEEDS < 50) fail(`too few treats: ${(treats / SEEDS).toFixed(0)} per run`);
 if (!powers) fail('no power-ups generated');
+if (springFails) fail(`spring booties made ${springFails} run(s) impassable`);
 
 // Day/night: a run starts in daylight and passes sunset, night and dawn in order within one day's walk,
 // with no sudden jumps in the sky colours between steps.
@@ -249,7 +257,7 @@ console.log(
   `boulevard-runner: ${SEEDS} runs x ${RUN}m, ${perKm.toFixed(0)} obstacles/km ` +
     `(${Object.entries(counts).map(([k, v]) => `${k} ${((100 * v) / total).toFixed(0)}%`).join(', ')}; ${ramps} ramps), ` +
     `${(treats / SEEDS).toFixed(0)} treats + ${(powers / SEEDS).toFixed(1)} power-ups per run all safely collectable, ` +
-    `board-speed first 1.5km passable in ${SEEDS - boardFails}/${SEEDS}, ` +
+    `board-speed first 1.2km passable in ${SEEDS - boardFails}/${SEEDS}, spring-booties in ${SEEDS - springFails}/${SEEDS}, ` +
     `${failures} failures, ${(ms / 1000).toFixed(1)}s`,
 );
 if (failures) process.exit(1);
