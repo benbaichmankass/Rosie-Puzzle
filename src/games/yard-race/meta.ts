@@ -6,5 +6,5 @@ export const meta: GameMeta = {
   room: 'yard',
   spot: 'turtle-pool',
   blurb: 'Race a lap of the yard: the bunny is fast but must stop to eat, the turtle never stops.',
-  status: 'coming-soon',
+  status: 'ready',
 };
