@@ -38,7 +38,13 @@ button (Ben's call):** after a 3-2-1 countdown the gas starts leaking on its own
 speeding up. The player places fans from a limited supply and sets each fan's direction and strength (1-3) while the
 gas flows; every change affects the gas on the next tick. The gas travels as one stream pushed by fans. If it is blocked
 or circles over its own trail, pressure builds; at the limit the room fills up. Win: gas leaves through an open exit.
-Lose: gas reaches Bentzi, or the room fills (cartoon "BOOM", no gore). Level clear shows the time and 1-3 stars against
+Lose: gas reaches Bentzi, or the room fills (cartoon "BOOM", no gore). **Furniture is the core level mechanic (Ben's
+call):** fans only go on free floor (blue dots show the legal tiles; tapping furniture flashes a red X and names the
+piece), and every piece blocks both gas and fan wind. Pieces: the dark grey L-sofa, glass coffee table, TV stand,
+bookcases (also used as room dividers that make corridors), dining table with chairs, kitchen counter by the doorway,
+armchair, floor lamp, chair, plants and Rosie's bed; wall shelf, lamp, AC, windows and door are drawn on the walls.
+Early levels are open rooms; later ones are crowded, so each layout defines its own corridors, dead ends and
+fan spots. Level clear shows the time and 1-3 stars against
 the level's par; best time and stars are kept per level. Retry restarts the leak with no fans. Fewer open exits as
 levels rise; later levels add AC airflow, ceiling fans and furniture to route around. Levels must be provably winnable
 in real time: the check script builds each stored solution one fan every 2.5 s (from the countdown) in the same

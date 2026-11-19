@@ -4,7 +4,7 @@ import { ExitButton } from '../../shared/ExitButton';
 import { getHighScore, load, save, submitScore } from '../../shared/storage';
 import { meta } from './meta';
 import { LEVELS } from './levels';
-import { Bentzi, CELL, Defs, FanSprite, FurniturePiece, GasPuff, X0, Y0 } from './art';
+import { Bentzi, CELL, Defs, FanSprite, FurniturePiece, GasPuff, SofaSet, X0, Y0 } from './art';
 import { Play } from './Play';
 import { setMuted, stopHiss } from './sound';
 import { CSS } from './styles';
@@ -121,7 +121,7 @@ function MiniScene({ mood }: { mood: 'chill' | 'relieved' | 'worried' }) {
     <svg viewBox={`${X0 - 10} ${Y0 + 60} ${CELL * 5 + 20} ${CELL * 2.6}`} className="gl-mini">
       <Defs />
       <rect x={X0 - 10} y={Y0 + 60} width={CELL * 5 + 20} height={CELL * 3} fill="url(#gl-tiles)" rx="8" />
-      <FurniturePiece f={{ kind: 'sofa', r: 2, c: 0, w: 3, h: 1 }} rosie={{ r: 2, c: 0 }} />
+      <SofaSet pieces={[{ kind: 'sofa', r: 2, c: 0, w: 3, h: 1 }]} rosie={{ r: 2, c: 0 }} />
       <FurniturePiece f={{ kind: 'table', r: 3, c: 1, w: 2, h: 1 }} />
       <Bentzi r={2} c={1} mood={mood} />
       {mood !== 'relieved' &&
