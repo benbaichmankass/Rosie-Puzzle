@@ -5,6 +5,7 @@ import { getHighScore, load, save, submitScore } from '../../shared/storage';
 import { meta } from './meta';
 import { CSS } from './styles';
 import { CounterTop, INK, KitchenBackdrop, Loaf, P, Person, Phone, PlataSurface, Urn, WallClock, type Mood } from './art';
+import { attention } from './logic/attention';
 import { useCandle } from './useCandle';
 import { dateLabel, hhmm } from './logic/hebcal';
 import { isComplete, newBraid, type BraidState } from './logic/challah';
@@ -12,7 +13,7 @@ import { isLoaded } from './logic/plata';
 import { newCall, rng, usedLines, type CallState } from './logic/calls';
 import { GAME_MINUTES, LEVEL_SECONDS, levelParams, levelScore, type LevelParams } from './logic/levels';
 import { ChallahTask } from './ChallahTask';
-import { UrnTask, boilProgress, newUrn, type UrnState } from './UrnTask';
+import { UrnTask, boilProgress, newUrn, urnStatus, type UrnState } from './UrnTask';
 import { PlataTask, newPlata, type PlataState } from './PlataTask';
 import { PhoneCall } from './PhoneCall';
 import { setMuted, sfx, startBoil, stopBoil } from './sfx';
@@ -76,7 +77,7 @@ export default function Game({ onExit }: GameProps) {
   const [lv, setLv] = useState<LevelState>(() => newLevel(1));
   const [t, setT] = useState(0);
   const tRef = useRef(0);
-  const [open, setOpen] = useState<TaskId | null>(null);
+  const [toppledAt, setToppledAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [result, setResult] = useState<{ pts: number; secondsLeft: number; newBest: boolean; total: number } | null>(null);
   const randRef = useRef(rng(Date.now() & 0xffffffff));
@@ -139,6 +140,11 @@ export default function Game({ onExit }: GameProps) {
     if (c.ringing && t - lastRing.current > 1.4) {
       lastRing.current = t;
       sfx.ring();
+      if (!muted) {
+        try {
+          navigator.vibrate?.([180, 90, 180]);
+        } catch {}
+      }
     }
     // Level complete.
     if (doneCount === 4) {
@@ -149,7 +155,6 @@ export default function Game({ onExit }: GameProps) {
       if (newBest) setBest(total);
       setScore(total);
       setResult({ pts, secondsLeft, newBest, total });
-      setOpen(null);
       stopBoil();
       sfx.fanfare();
       setScreen('clear');
@@ -160,19 +165,18 @@ export default function Game({ onExit }: GameProps) {
       const newBest = submitScore(meta.id, score);
       if (newBest) setBest(score);
       setResult({ pts: 0, secondsLeft: 0, newBest, total: score });
-      setOpen(null);
       stopBoil();
       sfx.lose();
       setScreen('over');
       return;
     }
-    // Last-10-seconds tick.
+    // The clock ticks every second, louder in the last 10.
     const sec = Math.floor(t);
-    if (LEVEL_SECONDS - t <= 10 && sec !== lastTick.current) {
+    if (sec !== lastTick.current) {
       lastTick.current = sec;
-      sfx.tick();
+      sfx.tick(LEVEL_SECONDS - t <= 10);
     }
-  }, [t, screen, paused, lv, done.challah, done.urn, done.plata, doneCount, level, score]);
+  }, [t, screen, paused, lv, done.challah, done.urn, done.plata, doneCount, level, score, muted]);
 
   const startLevel = useCallback((n: number) => {
     setLevel(n);
@@ -181,7 +185,7 @@ export default function Game({ onExit }: GameProps) {
     setT(0);
     lastRing.current = -10;
     lastTick.current = 0;
-    setOpen(null);
+    setToppledAt(null);
     setPaused(false);
     setResult(null);
     setScreen('play');
@@ -197,7 +201,6 @@ export default function Game({ onExit }: GameProps) {
     if (!lv.calls.ringing) return;
     sfx.blip();
     setLv((s) => ({ ...s, calls: { ...s.calls, ringing: false, active: newCall(s.p.wrapsPerCall, randRef.current, s.calls.used) } }));
-    setOpen('mom');
   };
 
   const hangUp = () => {
@@ -207,7 +210,6 @@ export default function Game({ onExit }: GameProps) {
       const next = doneN < s.p.calls ? Math.max(s.p.ringAt[doneN], tRef.current + 4) : Infinity;
       return { ...s, calls: { done: doneN, active: null, ringing: false, nextRing: next, earliest: tRef.current + 1.5, used } };
     });
-    setOpen(null);
   };
 
   const toggleMute = () => {
@@ -224,13 +226,7 @@ export default function Game({ onExit }: GameProps) {
   const skyT = screen === 'start' ? 0.55 : screen === 'clear' || screen === 'over' ? 1 : Math.round((t / LEVEL_SECONDS) * 60) / 60;
   const mood: Mood = screen === 'clear' ? 'happy' : alarm || screen === 'over' ? 'worried' : 'calm';
   const showHint = level === 1;
-
-  const tapStation = (id: TaskId) => {
-    if (screen !== 'play') return;
-    if (id === 'mom' && lv.calls.ringing) return answerPhone();
-    sfx.tap();
-    setOpen(id);
-  };
+  const alerts = screen === 'play' ? attention({ t, ringing: lv.calls.ringing, urnOn: lv.urn.on, done, toppledAt }) : [];
 
   const statusText = (id: TaskId): string => {
     if (done[id]) return 'Done!';
@@ -238,11 +234,11 @@ export default function Game({ onExit }: GameProps) {
       case 'challah':
         return `${lv.braid.crosses.length}/${lv.braid.target} crosses`;
       case 'urn':
-        return lv.urn.on ? `Boiling ${Math.ceil(10 * (1 - boilProgress(lv.urn, t)))}s` : lv.urn.plugged ? 'Switch on' : 'Plug in';
+        return urnStatus(lv.urn, t);
       case 'plata':
         return lv.plata.plugged ? `${lv.plata.placed.length}/6 on` : 'Plug in';
       case 'mom':
-        return lv.calls.ringing ? 'RINGING!' : lv.calls.active ? 'On a call' : `${lv.calls.done}/${lv.p.calls} calls`;
+        return lv.calls.ringing ? 'RINGING! Tap to answer' : lv.calls.active ? 'On a call' : `${lv.calls.done}/${lv.p.calls} calls`;
     }
   };
 
@@ -260,7 +256,8 @@ export default function Game({ onExit }: GameProps) {
       <link rel="stylesheet" href={FONT_HREF} />
       <style>{CSS}</style>
 
-      {/* Kitchen scene */}
+      {/* Kitchen scene (start / level clear / game over) */}
+      {screen !== 'play' && (
       <svg viewBox="0 0 390 760" preserveAspectRatio="xMidYMax meet" className="absolute inset-x-0 bottom-0 w-full h-full">
         {scene}
         <WallClock x={318} y={196} r={40} minutes={screen === 'start' ? candle.info.minutes - 60 : gameMinutes} alarm={alarm} />
@@ -296,7 +293,7 @@ export default function Game({ onExit }: GameProps) {
           const ok = done[task.id];
           const ringing = task.id === 'mom' && lv.calls.ringing;
           return (
-            <g key={task.id} onPointerDown={() => tapStation(task.id)} style={{ cursor: screen === 'play' ? 'pointer' : 'default' }}>
+            <g key={task.id}>
               <rect x={x + 4} y={518} width={80} height={66} rx={10} fill={ok ? '#bfe6c2' : ringing ? '#fff1a8' : P.cream} stroke={INK} strokeWidth={3} />
               <text x={x + 44} y={543} textAnchor="middle" className="sh-small" fill={INK} style={{ fontSize: 16 }}>
                 {task.name}
@@ -310,12 +307,79 @@ export default function Game({ onExit }: GameProps) {
                   <path d="M -5 0 L -1 4 L 6 -4" stroke="#fff" strokeWidth={3} fill="none" strokeLinecap="round" />
                 </g>
               )}
-              {/* big tap area: the station above and the card */}
-              <rect x={x} y={392} width={95} height={200} fill="transparent" />
             </g>
           );
         })}
       </svg>
+      )}
+
+      {/* The counter: all four stations live at once */}
+      {screen === 'play' && (
+        <div
+          className="sh-board absolute inset-x-0 bottom-0 top-[68px] grid gap-1.5 p-1.5"
+          style={{ gridTemplateColumns: '1.9fr 1fr', gridTemplateRows: 'minmax(0,1fr) minmax(0,0.92fr) auto' }}
+        >
+          <Station title="Challah" status={statusText('challah')} done={done.challah} alert={alerts.includes('challah')}>
+            <ChallahTask braid={lv.braid} showHint={showHint} onChange={(b) => setLv((s) => ({ ...s, braid: b }))} />
+          </Station>
+          <Station title="Urn" status={statusText('urn')} done={done.urn} alert={alerts.includes('urn')}>
+            <UrnTask
+              urn={lv.urn}
+              t={t}
+              showHint={showHint}
+              onChange={(u) => {
+                if (u.on && !lv.urn.on) startBoil();
+                setLv((s) => ({ ...s, urn: u }));
+              }}
+            />
+          </Station>
+          <Station title="Plata" status={statusText('plata')} done={done.plata} alert={alerts.includes('plata')} wide>
+            <PlataTask
+              plata={lv.plata}
+              plateW={lv.p.plateW}
+              margin={lv.p.margin}
+              showHint={showHint}
+              onChange={(pl) => setLv((s) => ({ ...s, plata: pl }))}
+              onTopple={() => setToppledAt(tRef.current)}
+            />
+          </Station>
+          <button
+            className={`sh-phonestrip col-span-2 flex items-center gap-3 px-3 py-1.5 text-left ${lv.calls.ringing ? 'ringing' : ''} ${done.mom ? 'done' : ''}`}
+            onClick={answerPhone}
+            disabled={!lv.calls.ringing}
+            aria-label="Phone"
+          >
+            <svg viewBox="-40 -76 80 84" width={44} height={46} className="shrink-0">
+              <Phone x={0} y={0} ringing={lv.calls.ringing || !!lv.calls.active} />
+            </svg>
+            <div className="flex-1 leading-tight">
+              <div className="sh-title text-[17px]">{lv.calls.ringing ? 'Mom is calling!' : done.mom ? 'Mom: all caught up ✓' : lv.calls.active ? 'On the phone with Mom' : 'Phone'}</div>
+              <div className="sh-tiny opacity-90">
+                {lv.calls.ringing
+                  ? 'Tap to answer. She will NOT stop ringing.'
+                  : done.mom
+                    ? 'See you at lunch tomorrow.'
+                    : `Mom will call ${lv.p.calls - lv.calls.done} more time${lv.p.calls - lv.calls.done === 1 ? '' : 's'} before Shabbat.`}
+              </div>
+            </div>
+            {lv.calls.ringing && <div className="sh-answer">Answer</div>}
+          </button>
+        </div>
+      )}
+
+      {/* Mom's call pops up over the counter; the other stations keep going */}
+      {screen === 'play' && lv.calls.active && (
+        <div className="sh-callcard absolute inset-x-1.5 bottom-1.5 z-30 h-[48%] flex">
+          <PhoneCall
+            call={lv.calls.active}
+            index={lv.calls.done}
+            total={lv.p.calls}
+            rand={randRef.current}
+            onUpdate={(c) => setLv((s) => ({ ...s, calls: { ...s.calls, active: c } }))}
+            onHangUp={hangUp}
+          />
+        </div>
+      )}
 
       {/* HUD */}
       <div className="sh-hud absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-2 pt-2 pb-1.5">
@@ -341,63 +405,6 @@ export default function Game({ onExit }: GameProps) {
       {screen === 'play' && (
         <div className="absolute inset-x-0 top-[62px] z-20 h-[6px] bg-[#231c2b]">
           <div className="h-full" style={{ width: `${Math.max(0, (timeLeft / LEVEL_SECONDS) * 100)}%`, background: alarm ? '#ff6b5a' : '#f2d24c' }} />
-        </div>
-      )}
-
-      {/* Ringing banner when a task panel is open */}
-      {screen === 'play' && lv.calls.ringing && open && open !== 'mom' && (
-        <button className="sh-banner absolute left-3 right-3 bottom-4 z-40 py-2 px-3 flex items-center justify-between font-bold" onClick={answerPhone}>
-          <span>📱 Mom is calling!</span>
-          <span className="bg-[#231c2b] text-[#fdf6e7] rounded-lg px-3 py-1">Answer</span>
-        </button>
-      )}
-
-      {/* Task sheet */}
-      {screen === 'play' && open && (
-        <div className="sh-sheet absolute inset-x-0 bottom-0 top-[74px] z-30 flex flex-col">
-          <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <div className="sh-title text-[20px]">{sheetTitle(open)}</div>
-            {!(open === 'mom' && lv.calls.active) && (
-              <button className="sh-icon !w-auto px-3 font-bold text-[14px]" onClick={() => setOpen(null)}>
-                ✕ Counter
-              </button>
-            )}
-          </div>
-          <div className="flex-1 min-h-0 px-1 pb-2">
-            {open === 'challah' && <ChallahTask braid={lv.braid} showHint={showHint} onChange={(b) => setLv((s) => ({ ...s, braid: b }))} />}
-            {open === 'urn' && (
-              <UrnTask
-                urn={lv.urn}
-                t={t}
-                showHint={showHint}
-                onChange={(u) => {
-                  if (u.on && !lv.urn.on) startBoil();
-                  setLv((s) => ({ ...s, urn: u }));
-                }}
-              />
-            )}
-            {open === 'plata' && (
-              <PlataTask plata={lv.plata} plateW={lv.p.plateW} margin={lv.p.margin} showHint={showHint} onChange={(pl) => setLv((s) => ({ ...s, plata: pl }))} />
-            )}
-            {open === 'mom' &&
-              (lv.calls.active ? (
-                <PhoneCall
-                  call={lv.calls.active}
-                  index={lv.calls.done}
-                  total={lv.p.calls}
-                  rand={randRef.current}
-                  onUpdate={(c) => setLv((s) => ({ ...s, calls: { ...s.calls, active: c } }))}
-                  onHangUp={hangUp}
-                />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-                  <div className="sh-small">{done.mom ? 'All caught up with Mom.' : 'No calls right now.'}</div>
-                  <div className="sh-tiny opacity-80">
-                    {done.mom ? 'She will see you tomorrow at lunch.' : `Mom will call ${lv.p.calls - lv.calls.done} more time${lv.p.calls - lv.calls.done === 1 ? '' : 's'} before Shabbat. Answer when it rings!`}
-                  </div>
-                </div>
-              ))}
-          </div>
         </div>
       )}
 
@@ -493,6 +500,15 @@ export default function Game({ onExit }: GameProps) {
   );
 }
 
-function sheetTitle(id: TaskId) {
-  return id === 'challah' ? 'Braid the challah' : id === 'urn' ? 'Coffee urn' : id === 'plata' ? 'Load the plata' : 'Mom is on the phone';
+/** One live counter station: a header (name, status, done/alert) over a directly interactive panel. */
+function Station({ title, status, done, alert, wide, children }: { title: string; status: string; done: boolean; alert: boolean; wide?: boolean; children: React.ReactNode }) {
+  return (
+    <section className={`sh-station ${wide ? 'col-span-2' : ''} ${done ? 'done' : ''} ${alert && !done ? 'alert' : ''}`}>
+      <header className="flex items-center justify-between gap-1 px-2 py-0.5">
+        <span className="sh-title text-[14px]">{title}</span>
+        <span className="sh-tiny truncate">{done ? '✓ Done' : status}</span>
+      </header>
+      <div className="flex-1 min-h-0 relative">{children}</div>
+    </section>
+  );
 }

@@ -11,11 +11,13 @@ export interface PlataState {
 export const newPlata = (): PlataState => ({ plugged: false, placed: [] });
 
 const W = 360;
-const PLATE_Y = 300; // plate top in svg
-const U = 0.95; // svg px per plate unit
-const SHELF_Y = 418;
+const H = 300;
+const PLATE_Y = 200; // plate top in svg
+const U = 0.85; // svg px per plate unit
+const SHELF_Y = 284;
+const COUNTER_Y = 218;
 
-export function PlataTask({ plata, plateW, margin, onChange, showHint }: { plata: PlataState; plateW: number; margin: number; onChange: (p: PlataState) => void; showHint: boolean }) {
+export function PlataTask({ plata, plateW, margin, onChange, showHint, onTopple }: { plata: PlataState; plateW: number; margin: number; onChange: (p: PlataState) => void; showHint: boolean; onTopple?: () => void }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const [falling, setFalling] = useState<{ id: string; x: number; y: number; dir: number; key: number }[]>([]);
@@ -73,11 +75,12 @@ export function PlataTask({ plata, plateW, margin, onChange, showHint }: { plata
     if (!drag) return;
     const d = drag;
     setDrag(null);
-    if (d.y > PLATE_Y + 40) return; // dropped back on the shelf
+    if (d.y > COUNTER_Y + 22) return; // dropped back on the shelf
     const ux = clampX(d.id, toUnits(d.x));
     const r = drop(plata.placed, d.id, ux, plateW, margin);
     if (r.fell.length) {
       sfx.crash();
+      onTopple?.();
       const all = [...plata.placed, r.landed];
       setFalling(
         r.fell.map((id) => {
@@ -97,37 +100,34 @@ export function PlataTask({ plata, plateW, margin, onChange, showHint }: { plata
 
   const ghostX = drag ? clampX(drag.id, toUnits(drag.x)) : 0;
   const ghostY = drag ? landingY(plata.placed, drag.id, ghostX) : 0;
-  const ghostOver = drag && drag.y <= PLATE_Y + 40;
+  const ghostOver = drag && drag.y <= COUNTER_Y + 22;
 
-  const status = loaded
-    ? 'Everything is on the plata!'
-    : msg || (plata.plugged ? 'Drag the food on. Stack it so nothing topples.' : 'Plug in the plata.');
+  const status = loaded ? 'All loaded!' : msg || (plata.plugged ? (plata.placed.length === 0 ? 'Drag the food up onto the plata' : '') : 'Plug it in first');
 
-  const shelfX = (i: number, n: number) => 30 + (i + 0.5) * ((W - 60) / Math.max(n, 1));
+  const shelfX = (i: number, n: number) => 14 + (i + 0.5) * ((W - 28) / Math.max(n, 1));
 
   return (
-    <div className="flex flex-col items-center h-full">
-      <div className="sh-msg">{status}</div>
-      <svg ref={svgRef} viewBox={`0 0 ${W} 440`} className="w-full flex-1 touch-none select-none" style={{ maxHeight: '100%' }} onPointerMove={move} onPointerUp={release} onPointerCancel={() => setDrag(null)}>
-        <rect x={0} y={0} width={W} height={318} fill={P.tile} />
-        <g stroke={P.tileLine} strokeWidth={2}>
-          {Array.from({ length: 11 }, (_, r) => (
-            <line key={r} x1={0} y1={r * 30} x2={W} y2={r * 30} />
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-full touch-none select-none" preserveAspectRatio="xMidYMid meet" onPointerMove={move} onPointerUp={release} onPointerCancel={() => setDrag(null)}>
+        <rect x={0} y={0} width={W} height={COUNTER_Y + 2} fill={P.tile} />
+        <g stroke={P.tileLine} strokeWidth={1.5}>
+          {Array.from({ length: 9 }, (_, r) => (
+            <line key={r} x1={0} y1={r * 27} x2={W} y2={r * 27} />
           ))}
-          {Array.from({ length: 13 }, (_, c) => (
-            <line key={c} x1={c * 30} y1={0} x2={c * 30} y2={318} />
+          {Array.from({ length: 14 }, (_, c) => (
+            <line key={c} x1={c * 27} y1={0} x2={c * 27} y2={COUNTER_Y} />
           ))}
         </g>
-        <rect x={-4} y={316} width={W + 8} height={16} fill={P.counter} stroke={INK} strokeWidth={3} />
-        <rect x={-4} y={330} width={W + 8} height={120} fill={P.counterEdge} stroke={INK} strokeWidth={3} />
+        <rect x={-4} y={COUNTER_Y} width={W + 8} height={12} fill={P.counter} stroke={INK} strokeWidth={2.5} />
+        <rect x={-4} y={COUNTER_Y + 10} width={W + 8} height={H} fill={P.counterEdge} stroke={INK} strokeWidth={2.5} />
         <PlugCord
           svgRef={svgRef}
-          socket={{ x: 36, y: 60 }}
-          rest={{ x: 40, y: 290 }}
-          anchor={{ x: W / 2 - (plateW / 2) * U + 4, y: PLATE_Y + 12 }}
+          socket={{ x: W - 26, y: 36 }}
+          rest={{ x: W - 18, y: PLATE_Y - 6 }}
+          anchor={{ x: W / 2 + (plateW / 2) * U - 4, y: PLATE_Y + 12 }}
+          scale={0.8}
           plugged={plata.plugged}
           onPlug={() => onChange({ ...plata, plugged: true })}
-          hint={showHint}
+          hint={showHint || !plata.plugged}
         />
         {/* plate legs */}
         <rect x={W / 2 - (plateW / 2) * U + 6} y={PLATE_Y + 14} width={10} height={4} fill={INK} />
@@ -159,7 +159,7 @@ export function PlataTask({ plata, plateW, margin, onChange, showHint }: { plata
         </g>
         {/* shelf of food still to place */}
         {shelf.map((d, i) => (
-          <g key={d.id} transform={`translate(${shelfX(i, shelf.length)} ${SHELF_Y}) scale(0.62)`} onPointerDown={pick(d.id)} style={{ cursor: 'grab' }}>
+          <g key={d.id} transform={`translate(${shelfX(i, shelf.length)} ${SHELF_Y}) scale(0.58)`} onPointerDown={pick(d.id)} style={{ cursor: 'grab' }}>
             <PlataItem kind={d.kind} w={d.w} h={d.h} />
             <rect x={-d.w / 2 - 10} y={-d.h - 16} width={d.w + 20} height={d.h + 26} fill="transparent" />
           </g>
@@ -170,10 +170,11 @@ export function PlataTask({ plata, plateW, margin, onChange, showHint }: { plata
             <PlataItem kind={itemById(drag.id).kind} w={itemById(drag.id).w} h={itemById(drag.id).h} />
           </g>
         )}
-        <text x={W - 10} y={348} textAnchor="end" className="sh-tiny" fill={INK} opacity={0.7}>
-          {placedIds.length} / {ITEMS.length} on
-        </text>
-      </svg>
-    </div>
+        {status && (
+          <text x={W / 2 - 14} y={18} textAnchor="middle" className="sh-tiny" style={{ fontSize: 15 }} fill={P.cream} stroke={INK} strokeWidth={4} paintOrder="stroke" pointerEvents="none">
+            {status}
+          </text>
+        )}
+    </svg>
   );
 }

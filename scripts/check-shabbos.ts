@@ -10,7 +10,8 @@ import { parseHebcal, estimateCandleLighting, isCurrent, hhmm, dateLabel } from 
 import { newBraid, tryMove, legalMoves, isComplete, braidRows, span, resolveDrop } from '../src/games/shabbos/logic/challah';
 import { ITEMS, drop, isLoaded, type Placed, checkStability } from '../src/games/shabbos/logic/plata';
 import { LINES, newCall, answer, isOver, currentLine, rng } from '../src/games/shabbos/logic/calls';
-import { levelParams } from '../src/games/shabbos/logic/levels';
+import { levelParams, LEVEL_SECONDS } from '../src/games/shabbos/logic/levels';
+import { attention, CRUNCH_SECONDS } from '../src/games/shabbos/logic/attention';
 
 let failures = 0;
 const ok = (cond: unknown, msg: string) => {
@@ -201,6 +202,27 @@ ok(totalW > levelParams(1).plateW, 'stacking required');
   ok(!res.wrap && res.state.wraps === 0 && res.state.chats === 1 && !isOver(res.state), 'chatty reply prolongs');
   d = newCall(2, r, [0, 1, 2]);
   ok(![0, 1, 2].includes(d.queue[0]), 'avoids used lines');
+}
+
+// ---------- Attention (flashing stations on the shared counter) ----------
+{
+  const none = { challah: false, urn: false, plata: false, mom: false };
+  const all = { challah: true, urn: true, plata: true, mom: true };
+  ok(attention({ t: 5, ringing: false, urnOn: false, done: none }).length === 0, 'calm at the start');
+  ok(attention({ t: 5, ringing: true, urnOn: false, done: none }).includes('mom'), 'ringing phone flashes');
+  ok(attention({ t: 40, ringing: false, urnOn: false, done: none }).includes('urn'), 'urn nags when the boil gets tight');
+  ok(!attention({ t: 40, ringing: false, urnOn: true, done: none }).includes('urn'), 'boiling urn does not nag');
+  ok(attention({ t: 20, ringing: false, urnOn: false, done: none, toppledAt: 19.5 }).includes('plata'), 'topple flashes the plata');
+  ok(!attention({ t: 25, ringing: false, urnOn: false, done: none, toppledAt: 19.5 }).includes('plata'), 'topple flash fades');
+  const crunch = attention({ t: LEVEL_SECONDS - CRUNCH_SECONDS + 1, ringing: false, urnOn: true, done: { ...none, challah: true } });
+  ok(crunch.includes('plata') && crunch.includes('urn') && !crunch.includes('challah'), `crunch flashes unfinished ${crunch}`);
+  ok(attention({ t: 58, ringing: false, urnOn: true, done: all }).length === 0, 'nothing flashes when all done');
+}
+// Levels get tighter overall.
+{
+  const a = levelParams(1);
+  const z = levelParams(7);
+  ok(z.strands > a.strands && z.crosses > a.crosses && z.calls > a.calls && z.plateW < a.plateW && z.margin > a.margin, 'levels tighten');
 }
 
 if (failures) {

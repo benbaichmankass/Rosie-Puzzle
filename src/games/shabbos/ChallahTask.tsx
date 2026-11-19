@@ -165,12 +165,12 @@ export function ChallahTask({ braid, onChange, showHint }: { braid: BraidState; 
   const zoneW = Math.min(fsp, 120);
   return (
     <div className="flex flex-col items-center h-full">
-      <div className={`sh-msg ${shake ? 'sh-shake' : ''}`} key={shake}>
+      <div className={`sh-msg sh-msg-sm ${shake ? 'sh-shake' : ''}`} key={shake}>
         {hint && hintOn ? `Hint: drag the glowing ${hint.side === 'R' ? 'right' : 'left'} strand over toward the middle.` : msg}
       </div>
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`12 8 ${W - 24} ${H - 2}`}
         className="w-full flex-1 touch-none select-none"
         style={{ maxHeight: '100%', touchAction: 'none' }}
         onPointerMove={onMove}

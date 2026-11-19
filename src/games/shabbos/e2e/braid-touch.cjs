@@ -25,18 +25,12 @@ const DIST = 'file://' + path.resolve(__dirname, '../../../../dist/index.html');
   const box = async (sel) => { const r = await p.locator(sel).first().boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
   await tap(...(await box('text=PLAY')));
   await p.waitForTimeout(500);
-  // open the challah station (find the "Challah" label in the scene)
-  await tap(...(await box('svg text:has-text("Challah")')));
-  await p.waitForTimeout(500);
+  // The challah board is live on the shared counter: no need to open anything.
   await p.screenshot({ path: OUT + '/t-open.png' });
   const handles = () => p.$$eval('[data-strand-handle]', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }));
   let h = await handles();
   console.log('handles', h.length);
-  if (!h.length) {
-    h = await p.$$eval('.sh-sheet svg circle[r="30"]', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }));
-    console.log('fallback handles', h.length);
-  }
-  const progress = () => p.evaluate(() => document.querySelector('[data-braid-progress]')?.textContent || [...document.querySelectorAll('.sh-sheet svg text')].map((t) => t.textContent).join('|'));
+  const progress = () => p.evaluate(() => document.querySelector('[data-braid-progress]')?.textContent );
   console.log('before', await progress());
   // 1) wrong move: drag the middle strand -> should be rejected with feedback
   h = await handles();
