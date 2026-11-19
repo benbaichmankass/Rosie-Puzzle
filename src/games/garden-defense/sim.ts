@@ -3,7 +3,7 @@
  * neighbours' apartment across the street (each hedge covers its own part of the view). Win when all five reach
  * height 1; lose as soon as the bunnies kill any hedge (the gap lets the neighbours see in).
  * From time to time two bunnies pair up (hearts); spray them to break it up, or a baby bunny pops out, grows up
- * and joins in.
+ * and joins in. Well-watered hedges bloom with flowers, which the bunnies like to eat too.
  *
  * Plain TS, no DOM, so scripts/check-garden-defense.ts can run it headless.
  *
@@ -30,6 +30,13 @@ export const TUNING = {
   heightRate: 0.024,
   /** Hedges stop growing a little above the target. */
   heightCap: 1.06,
+
+  /** Flowers: up to this many per hedge. They bloom on leafy, well-watered hedges (chance per second at full moisture). */
+  maxFlowers: 4,
+  bloomRate: 0.09,
+  bloomMinLeaves: 5,
+  /** Chance a bunny goes for a flower first when there is one. Eating a flower costs the hedge half a leaf. */
+  flowerBiteChance: 0.6,
 
   /** Seconds for aggression to go from 0 to 1. It keeps rising after that. */
   ramp: 200,
@@ -90,6 +97,8 @@ export interface Plant {
   /** 0..heightCap; 1 = the target height. */
   height: number;
   leaves: number;
+  /** Flowers in bloom; each occupies a flower slot so they keep their place and colour. */
+  flowers: boolean[];
   /** Progress towards the next leaf, 0..1. */
   growth: number;
   moisture: number;
@@ -130,7 +139,8 @@ export interface Bunny {
 }
 
 export type SimEvent =
-  | { type: 'bite'; plant: number; bunny: number }
+  | { type: 'bite'; plant: number; bunny: number; flower: number }
+  | { type: 'bloom'; plant: number; flower: number }
   | { type: 'grow'; plant: number }
   | { type: 'die'; plant: number }
   | { type: 'land'; bunny: number }
@@ -187,6 +197,7 @@ export function createGame(seed: number): GameState {
       x: plantX(i),
       height: TUNING.startHeight + (rng() - 0.5) * 0.04,
       leaves: TUNING.startLeaves,
+      flowers: Array(TUNING.maxFlowers).fill(false),
       growth: rng() * 0.5,
       moisture: 0.3,
       alive: true,
@@ -274,7 +285,7 @@ function startPair(s: GameState) {
   ] as const) {
     bn.pair = pair.id;
     bn.target = -1;
-    bn.tx = pair.x + side * 0.035;
+    bn.tx = pair.x + side * 0.06;
     bn.td = pair.d;
     bn.mode = 'hop';
   }
@@ -354,6 +365,14 @@ export function step(s: GameState, dt: number, watering: number, spray = -1) {
       const before = p.height;
       p.height = Math.min(T.heightCap, p.height + T.heightRate * p.moisture * (0.3 + (0.7 * p.leaves) / T.maxLeaves) * dt);
       if (before < 1 && p.height >= 1) s.events.push({ type: 'tall', plant: i });
+    }
+    if (p.leaves >= T.bloomMinLeaves && s.rng() < T.bloomRate * p.moisture * dt) {
+      const free = p.flowers.map((f, k) => (f ? -1 : k)).filter((k) => k >= 0);
+      if (free.length) {
+        const k = free[Math.floor(s.rng() * free.length)];
+        p.flowers[k] = true;
+        s.events.push({ type: 'bloom', plant: i, flower: k });
+      }
     }
     while (p.growth >= 1) {
       if (p.leaves >= T.maxLeaves) {
@@ -487,11 +506,32 @@ export function step(s: GameState, dt: number, watering: number, spray = -1) {
       b.biteTimer -= dt;
       if (b.biteTimer <= 0) {
         b.biteTimer += biteInterval(a);
-        if (p.leaves > 0) {
+        const open = p.flowers.map((f, k) => (f ? k : -1)).filter((k) => k >= 0);
+        if (open.length && s.rng() < T.flowerBiteChance) {
+          // A tasty flower: costs the hedge half a leaf.
+          const k = open[Math.floor(s.rng() * open.length)];
+          p.flowers[k] = false;
+          b.bitesLeft--;
+          p.growth -= 0.5;
+          if (p.growth < 0) {
+            p.growth += 1;
+            p.leaves--;
+          }
+          s.events.push({ type: 'bite', plant: b.target, bunny: b.id, flower: k });
+          if (p.leaves <= 0) {
+            p.leaves = 0;
+            p.flowers.fill(false);
+            p.alive = false;
+            p.moisture = 0;
+            p.diedAt = s.t;
+            s.events.push({ type: 'die', plant: b.target });
+          }
+        } else if (p.leaves > 0) {
           p.leaves--;
           b.bitesLeft--;
-          s.events.push({ type: 'bite', plant: b.target, bunny: b.id });
+          s.events.push({ type: 'bite', plant: b.target, bunny: b.id, flower: -1 });
           if (p.leaves === 0) {
+            p.flowers.fill(false);
             p.alive = false;
             p.moisture = 0;
             p.diedAt = s.t;

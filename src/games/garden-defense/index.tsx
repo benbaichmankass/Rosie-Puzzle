@@ -71,6 +71,7 @@ interface Engine {
   fence: HTMLCanvasElement | null;
   pointer: { down: boolean; x: number; y: number };
   biteAt: number[];
+  bloomAt: number[][];
   particles: Particle[];
   can: { x: number; y: number; tilt: number; init: boolean };
   dropAcc: number;
@@ -98,6 +99,7 @@ function newEngine(): Engine {
     fence: null,
     pointer: { down: false, x: 0, y: 0 },
     biteAt: Array(TUNING.maxBunnies + 1).fill(-9),
+    bloomAt: shapes.map(() => []),
     particles: [],
     can: { x: 0, y: 0, tilt: 0, init: false },
     dropAcc: 0,
@@ -220,6 +222,9 @@ export default function Game({ onExit }: GameProps) {
           sfx.current.tall();
           const tall = g.plants.filter((p) => p.height >= 1).length;
           say(`A hedge reached the line! (${tall} of 5)`);
+        } else if (ev.type === 'bloom') {
+          e.bloomAt[ev.plant][ev.flower] = e.now;
+          sfx.current.grow();
         } else if (ev.type === 'frisky') {
           sfx.current.frisky();
           say('Frisky bunnies! Spray them before the heart fills!');
@@ -275,7 +280,10 @@ export default function Game({ onExit }: GameProps) {
             vr: (Math.random() - 0.5) * 12,
             life: 1.6,
             max: 1.6,
-            color: `rgba(${110 + Math.random() * 30},${140 + Math.random() * 20},100,0.85)`,
+            color:
+              ev.flower >= 0
+                ? `rgba(${shapes[ev.plant].flowerSlots[ev.flower].color},0.9)`
+                : `rgba(${110 + Math.random() * 30},${140 + Math.random() * 20},100,0.85)`,
             floor: L.plantBaseY + Math.random() * 20 * L.s,
           });
           sfx.current.bite();
@@ -388,7 +396,7 @@ export default function Game({ onExit }: GameProps) {
         let wob = 0;
         for (const b of g.bunnies) if (b.mode === 'eat' && b.target === i) wob += Math.sin(now * 40) * 0.03 * Math.exp(-(now - e.biteAt[b.id]) * 6);
         const eaten = g.bunnies.some((b) => b.mode === 'eat' && b.target === i);
-        drawPlant(ctx, L, p, shapes[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0);
+        drawPlant(ctx, L, p, shapes[i], now, wob, eaten && p.leaves <= 3 ? 1 : 0, e.bloomAt[i]);
       });
       drawTargetLine(ctx, L, now, FONT);
 
@@ -410,7 +418,7 @@ export default function Game({ onExit }: GameProps) {
       // Hearts and the countdown over each frisky pair.
       for (const pr of g.pairs) {
         if (!pr.started) continue;
-        drawPairMeter(ctx, pr.x * W, depthY(L, pr.d) - 40 * s, s, 1 - pr.timer / TUNING.breedTime, pr.timer, pr.wet, now, FONT);
+        drawPairMeter(ctx, pr.x * W, depthY(L, pr.d) - 62 * s, s, 1 - pr.timer / TUNING.breedTime, pr.timer, pr.wet, now, FONT);
       }
 
       drawParticles(ctx, e.particles, s);

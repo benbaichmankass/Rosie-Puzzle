@@ -715,6 +715,8 @@ interface Cluster {
 }
 export interface PlantShape {
   clusters: Cluster[];
+  /** Where each flower slot sits in the foliage (u across, v up) and its colour. */
+  flowerSlots: { u: number; v: number; color: string; centre: string }[];
   twigs: { u: number; top: number }[];
   tint: number;
   seed: number;
@@ -738,7 +740,18 @@ export function makePlantShape(i: number): PlantShape {
   }
   clusters.sort((a, b) => a.shade - b.shade);
   const twigs = [-0.7, -0.35, 0, 0.35, 0.7].map((u) => ({ u: u + (rng() - 0.5) * 0.15, top: 0.75 + rng() * 0.2 }));
-  return { clusters, twigs, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
+  const palette = [
+    { color: '236,128,160', centre: '250,214,90' },
+    { color: '246,206,76', centre: '210,120,40' },
+    { color: '250,248,240', centre: '240,190,60' },
+    { color: '160,118,206', centre: '250,224,120' },
+  ];
+  const flowerSlots = Array.from({ length: TUNING.maxFlowers }, (_, k) => ({
+    u: ((k + 0.5) / TUNING.maxFlowers) * 1.3 - 0.65 + (rng() - 0.5) * 0.2,
+    v: 0.35 + rng() * 0.55,
+    ...palette[(i + k) % palette.length],
+  }));
+  return { clusters, flowerSlots, twigs, tint: [0.15, 0.85, 0.35, 0.95, 0.55][i % 5], seed: 900 + i };
 }
 
 /** Hedges start as separate bushes and widen as they grow, closing the gaps only near full height. */
@@ -750,7 +763,16 @@ export function plantTop(L: Layout, p: Plant, _shape: PlantShape) {
   return { x: p.x * L.W, y: L.plantBaseY - hedgePx(L, p) };
 }
 
-export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, shape: PlantShape, now: number, wobble: number, danger = 0) {
+export function drawPlant(
+  ctx: CanvasRenderingContext2D,
+  L: Layout,
+  p: Plant,
+  shape: PlantShape,
+  now: number,
+  wobble: number,
+  danger = 0,
+  bloomAt: number[] = [],
+) {
   const bx = p.x * L.W;
   const by = L.plantBaseY;
   const s = L.s;
@@ -860,6 +882,7 @@ export function drawPlant(ctx: CanvasRenderingContext2D, L: Layout, p: Plant, sh
       ctx.fill();
     }
   }
+  drawFlowers(ctx, L, p, shape, bx, by, hPx, halfW, sway, now, bloomAt);
 }
 
 // ---------------------------------------------------------------- cut-paper puppets
@@ -1575,4 +1598,46 @@ export function drawPairMeter(
     ctx.arc(x, my - 1 * s, r + 6 * s, -Math.PI / 2, -Math.PI / 2 + wet * TAU);
     ctx.stroke();
   }
+}
+
+/** Watercolor blossoms on a hedge: five round petals and a centre, popping open when they bloom. */
+function drawFlowers(
+  ctx: CanvasRenderingContext2D,
+  L: Layout,
+  p: Plant,
+  shape: PlantShape,
+  bx: number,
+  by: number,
+  hPx: number,
+  halfW: number,
+  sway: number,
+  now: number,
+  bloomAt: number[],
+) {
+  const s = L.s;
+  p.flowers.forEach((open, k) => {
+    if (!open) return;
+    const fs = shape.flowerSlots[k];
+    const age = now - (bloomAt[k] ?? -10);
+    const pop = age < 0.5 ? Math.sin(Math.min(1, age / 0.35) * Math.PI * 0.5) * (1 + 0.25 * Math.sin(Math.min(1, age / 0.5) * Math.PI)) : 1;
+    const r = 5.2 * s * pop;
+    if (r <= 0.2) return;
+    const x = bx + fs.u * halfW + sway * fs.v;
+    const y = by - Math.max(14 * s, fs.v * hPx);
+    const spin = k * 1.3 + Math.sin(now * 1.4 + k) * 0.08;
+    for (let i = 0; i < 5; i++) {
+      const a = spin + (i / 5) * TAU;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, r * 0.75, r * 0.55, a, 0, TAU);
+      ctx.fillStyle = `rgba(${fs.color},0.88)`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(120,70,80,0.3)`;
+      ctx.lineWidth = 0.6 * s;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.42, 0, TAU);
+    ctx.fillStyle = `rgba(${fs.centre},0.95)`;
+    ctx.fill();
+  });
 }
