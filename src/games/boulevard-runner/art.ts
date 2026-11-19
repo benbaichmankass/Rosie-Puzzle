@@ -513,6 +513,61 @@ function drawBeitGidi(g: CanvasRenderingContext2D) {
   g.globalAlpha = 0.35; rrect(g, -2.4, -6.4, 2.2, 1.0, 0.05, '#cfe3f2'); g.globalAlpha = 1;
 }
 
+// ---------- things to duck under ----------
+/** A ficus limb drooping low over the bike path (street level): leaves hang down to ~0.65. */
+function drawLowBranch(g: CanvasRenderingContext2D) {
+  line(g, [-1.2, -1.75, -0.4, -1.45, 0.5, -1.35, 1.2, -1.55], 0.12, '#7f7b72');
+  for (let i = 0; i < 22; i++) {
+    const x = -0.95 + (i % 11) * 0.19, y = -1.25 + (i > 10 ? 0.28 : 0) + hash(i) * 0.12;
+    ell(g, x, y, 0.2, 0.15, i % 3 ? '#2f5a2c' : '#46783a');
+    if (i % 4 === 0) ell(g, x - 0.05, y + 0.12, 0.09, 0.07, '#1f3d22');
+  }
+  for (let i = 0; i < 6; i++) line(g, [-0.8 + i * 0.32, -1.1, -0.82 + i * 0.32, -0.66 - hash(i + 4) * 0.1], 0.025, '#6f6a60');
+}
+/** Red-and-white barrier boom across the path (street level). */
+function drawBoom(g: CanvasRenderingContext2D) {
+  rrect(g, -0.95, -1.05, 0.12, 1.05, 0.03, '#5a5d63');
+  rrect(g, 0.83, -1.05, 0.12, 1.05, 0.03, '#5a5d63');
+  for (let i = 0; i < 8; i++) rrect(g, -0.9 + i * 0.225, -0.95, 0.225, 0.2, 0.0, i % 2 ? '#f4f1ea' : '#d63a2f');
+  rrect(g, -0.3, -0.75, 0.6, 0.3, 0.04, '#f4f1ea');
+  rrect(g, -0.3, -0.75, 0.6, 0.06, 0.02, '#d63a2f');
+  ell(g, 0, -0.6, 0.08, 0.08, '#d63a2f');
+}
+/** Overhanging ficus foliage at tram-roof height (sprite drawn hanging; its base sits at roof + 0.6). */
+function drawRoofBranch(g: CanvasRenderingContext2D, v: number) {
+  line(g, [-1.1, -1.5, -0.3, -1.2, 0.6, -1.15, 1.1, -1.4], 0.11, '#7f7b72');
+  for (let i = 0; i < 18; i++) {
+    const x = -0.9 + (i % 9) * 0.22, y = -1.0 + (i > 8 ? 0.3 : 0) + hash(v * 9 + i) * 0.14;
+    ell(g, x, y, 0.22, 0.17, i % 3 ? '#2f5a2c' : '#46783a');
+    if (i % 3 === 0) ell(g, x - 0.06, y - 0.08, 0.1, 0.07, '#7fa64e');
+  }
+}
+/** A palm frond sweeping down across the track at roof height. */
+function drawRoofFrond(g: CanvasRenderingContext2D) {
+  g.beginPath(); g.moveTo(-1.1, -1.5); g.quadraticCurveTo(0, -1.15, 1.1, -0.6);
+  g.lineWidth = 0.06; g.strokeStyle = '#6e7d33'; g.stroke();
+  for (let k = 0; k < 14; k++) {
+    const t = k / 14, x = -1.1 + 2.2 * t, y = -1.5 + 0.9 * t * t + 0.25 * t;
+    line(g, [x, y, x + 0.08, y + 0.45], 0.05, k % 3 ? '#4f7d34' : '#7ea446');
+    line(g, [x, y, x - 0.1, y + 0.35], 0.05, '#3f6b2c');
+  }
+}
+/** A low steel gantry across a track: legs outside the tram, beam at roof + ~0.8. */
+function drawGantry(g: CanvasRenderingContext2D) {
+  const top = -(2.9 + 1.0);
+  rrect(g, -0.98, top, 0.1, -top, 0.02, '#6a6f76');
+  rrect(g, 0.88, top, 0.1, -top, 0.02, '#6a6f76');
+  rrect(g, -1.05, top - 0.05, 2.1, 0.22, 0.03, '#7d838b');
+  for (let i = 0; i < 7; i++) line(g, [-0.95 + i * 0.3, top + 0.17, -0.8 + i * 0.3, top - 0.03], 0.03, '#5a5f66');
+  rrect(g, -0.25, top + 0.17, 0.5, 0.18, 0.02, '#f2c230');
+}
+/** A station canopy beam reaching over the track (red fascia, white underside). */
+function drawCanopyBeam(g: CanvasRenderingContext2D) {
+  rrect(g, -1.0, -0.42, 2.0, 0.16, 0.02, '#e8e4dc');
+  rrect(g, -1.0, -0.3, 2.0, 0.22, 0.02, '#d22e2e');
+  for (const x of [-0.6, 0.6]) line(g, [x, -0.42, x, -0.75], 0.04, '#5c5f66');
+}
+
 function drawSolar(g: CanvasRenderingContext2D) {
   // rooftop solar water heater ("dud shemesh"): tank + tilted panels
   line(g, [-0.6, 0, -0.6, -0.5], 0.05, '#8a8a88');
@@ -594,6 +649,12 @@ export interface Sprites {
   bone: Sprite;
   boardItem: Sprite;
   magnet: Sprite;
+  lowBranch: Sprite;
+  boom: Sprite;
+  roofBranch: Sprite[];
+  roofFrond: Sprite;
+  gantry: Sprite;
+  canopyBeam: Sprite;
 }
 
 export function buildSprites(): Sprites {
@@ -623,6 +684,12 @@ export function buildSprites(): Sprites {
     stadium: makeSprite(20, 17.8, 14, drawFloodlights),
     clockTower: makeSprite(3.2, 13.4, 26, drawClockTower),
     beitGidi: makeSprite(6.4, 6.8, 30, drawBeitGidi),
+    lowBranch: makeSprite(2.6, 1.9, 60, drawLowBranch),
+    boom: makeSprite(2.0, 1.1, 70, drawBoom),
+    roofBranch: [1, 2].map((v) => makeSprite(2.4, 1.6, 60, (g) => drawRoofBranch(g, v))),
+    roofFrond: makeSprite(2.4, 1.6, 60, drawRoofFrond),
+    gantry: makeSprite(2.2, 4.0, 40, drawGantry),
+    canopyBeam: makeSprite(2.1, 0.8, 70, drawCanopyBeam),
     bone: makeSprite(0.7, 0.42, 120, drawBone),
     boardItem: makeSprite(1.0, 0.55, 110, drawBoardItem),
     magnet: makeSprite(0.65, 0.5, 120, drawMagnet),

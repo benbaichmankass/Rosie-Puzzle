@@ -32,6 +32,9 @@ export class Run {
   leaping = false;
   landedAt = -10; // run time of the last landing (for dust and squash)
   jumpedAt = -10;
+  /** Seconds into a duck (crouch-roll), -1 = standing; a duck asked for in the air starts on landing. */
+  duckT = -1;
+  private duckQueued = false;
   crashed = false;
   hit: Obstacle | null = null;
   /** Points from treats and power-ups (score = metres + bonus). */
@@ -92,8 +95,27 @@ export class Run {
     this.lane = n;
     return true;
   }
+  /** Swipe down: duck under bars and branches. In the air it cancels the jump with a fast drop. */
+  duck(): boolean {
+    if (this.crashed) return false;
+    if (!this.grounded) { this.vy = Math.min(this.vy, -12); this.duckQueued = true; return true; }
+    this.duckT = 0;
+    return true;
+  }
+  /** Low enough to pass under a bar right now. */
+  get ducking(): boolean {
+    const T = CONTROLS.duckTime;
+    return this.grounded && this.duckT >= CONTROLS.duckFrom * T && this.duckT <= CONTROLS.duckTo * T;
+  }
+  /** 0..1 how crouched Rosie looks (for drawing). */
+  get crouch(): number {
+    if (this.duckT < 0) return 0;
+    const p = this.duckT / CONTROLS.duckTime;
+    return Math.min(1, p * 8, (1 - p) * 8);
+  }
   jump(): boolean {
     if (this.crashed || !this.grounded) return false;
+    this.duckT = -1; // jumping cancels a duck
     this.vy = JUMP_V;
     this.grounded = false;
     this.jumpedAt = this.t;
@@ -156,6 +178,9 @@ export class Run {
       }
     }
 
+    // --- duck timer ---
+    if (this.duckT >= 0) { this.duckT += dt; if (this.duckT > CONTROLS.duckTime) this.duckT = -1; }
+
     // --- vertical motion ---
     const base = this.surface(myLane);
     const wasGrounded = this.grounded;
@@ -176,7 +201,10 @@ export class Run {
         this.y = base;
         this.vy = 0;
         this.grounded = true;
-        if (!wasGrounded) { this.landedAt = this.t; ev.push('land'); }
+        if (!wasGrounded) {
+          this.landedAt = this.t; ev.push('land');
+          if (this.duckQueued) { this.duckQueued = false; this.duckT = 0; }
+        }
       }
     }
     this.base = base;
@@ -192,7 +220,9 @@ export class Run {
       // auto-jump anything low coming up in this lane
       for (const o of this.spawner.obstacles) {
         if (o.start > this.d + 6) break;
-        if (!o.tall && o.lane === myLane && o.start - this.d > 0 && o.start - this.d < this.speed * 0.1) { this.jump(); ev.push('jump'); break; }
+        if (o.lane !== myLane || o.start - this.d <= 0 || o.start - this.d > this.speed * 0.1) continue;
+        if (o.duck) { if (this.duckT < 0) this.duck(); break; } // the board ducks bars and branches too
+        if (!o.tall) { this.jump(); ev.push('jump'); break; }
       }
     }
     this.collect(myLane, ev);
@@ -211,6 +241,13 @@ export class Run {
       if (o.tram || o.lane !== myLane || this.leaping) continue;
       const f = Math.min(FORGIVE, (o.end - o.start) * 0.3);
       if (this.d < o.start + f || this.d > o.end - f) continue;
+      if (o.duck) {
+        // a bar at street level, or a branch / gantry / canopy at tram-roof height: duck or get bonked
+        const atLevel = o.duckLevel === 0 ? this.y < 1.6 : this.y >= ROOF_H - 0.4;
+        if (!atLevel || this.ducking || this.ghost) continue;
+        if (this.power?.kind === 'board') { this.breakBoard(ev); continue; }
+        return this.crash(o, ev);
+      }
       const clear = o.tall ? 1.95 : 0.35; // a walker is ~1.8 tall; low stuff ~0.5
       if (this.y - 0 >= clear || this.ghost) continue;
       if (this.power?.kind === 'board') { this.breakBoard(ev); continue; }

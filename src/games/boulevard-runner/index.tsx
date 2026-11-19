@@ -53,6 +53,9 @@ function hitLine(o: Obstacle | null): string {
     case 'tramStop': return 'Bumped into a tram waiting at the station. Jump up onto its roof!';
     case 'bike': return 'Bonk! A bike rider on the promenade.';
     case 'walker': return 'Bumped into someone out for a walk.';
+    case 'bar': return 'Bonk! Swipe down to duck under low branches and barriers.';
+    case 'branch': return 'A branch at roof height! Swipe down to duck while riding a tram.';
+    case 'canopy': return 'The station canopy! Duck (swipe down) when you ride a tram through a station.';
     default: return 'Tripped! Swipe up to jump the low stuff.';
   }
 }
@@ -98,10 +101,11 @@ export default function Game({ onExit }: GameProps) {
   }, [go]);
 
   // input
-  const act = useCallback((a: 'left' | 'right' | 'jump') => {
+  const act = useCallback((a: 'left' | 'right' | 'jump' | 'duck') => {
     const r = runRef.current;
     if (screenRef.current !== 'play' || !r) return;
     if (a === 'jump') { if (r.jump()) sfx.current.jump(); }
+    else if (a === 'duck') { if (r.duck()) sfx.current.duck(); }
     else if (r.move(a === 'left' ? -1 : 1)) sfx.current.swish();
   }, []);
 
@@ -114,6 +118,9 @@ export default function Game({ onExit }: GameProps) {
         e.preventDefault();
         if (screenRef.current === 'play') act('jump');
         else if (screenRef.current === 'start' || screenRef.current === 'over') { if (k === ' ') start(); }
+      } else if (k === 'ArrowDown' || k === 's' || k === 'S') {
+        e.preventDefault();
+        act('duck');
       } else if (k === 'Escape' || k === 'p' || k === 'P') {
         if (screenRef.current === 'play') go('paused');
         else if (screenRef.current === 'paused') go('play');
@@ -136,7 +143,7 @@ export default function Game({ onExit }: GameProps) {
     if (Math.abs(dx) < th && Math.abs(dy) < th) return;
     s.done = true;
     if (Math.abs(dx) > Math.abs(dy)) act(dx < 0 ? 'left' : 'right');
-    else if (dy < 0) act('jump');
+    else act(dy < 0 ? 'jump' : 'duck');
   };
   const onPointerUp = (e: React.PointerEvent) => {
     if (swipe.current?.id === e.pointerId) swipe.current = null;
@@ -299,6 +306,7 @@ export default function Game({ onExit }: GameProps) {
           landT: useRun ? run.t - run.landedAt : -1,
           board: !!(useRun && run.power?.kind === 'board'),
           ghost: !!(useRun && run.ghost),
+          crouch: useRun ? run.crouch : 0,
         },
       });
     };
@@ -352,7 +360,7 @@ export default function Game({ onExit }: GameProps) {
             <div className="text-[13px] font-bold tracking-[0.2em] text-[#c0602e]">YAFO · JAFFA</div>
             <div className="text-[28px] font-black leading-[1.05] mt-1">Jerusalem Boulevard Runner</div>
             <div className="text-[15px] font-medium mt-3 leading-snug">
-              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump. Dodge walkers and bikes, hop onto the light rail's roof and grab treats (🛹 skateboard, 🧲 magnet).
+              Walk Rosie down the boulevard. <b>Swipe ← →</b> to change lanes, <b>swipe ↑</b> to jump, <b>swipe ↓</b> to duck. Dodge walkers and bikes, hop onto the light rail's roof and grab treats (🛹 skateboard, 🧲 magnet).
             </div>
             <button className="br-btn w-full mt-4 py-3 text-[20px]" onClick={start}>PLAY</button>
             <div className="text-[13px] font-bold mt-3 opacity-80">BEST {best}</div>
@@ -366,7 +374,7 @@ export default function Game({ onExit }: GameProps) {
         <div className="absolute inset-x-0 top-[30%] flex flex-col items-center pointer-events-none br-pop">
           <div className="br-hand text-[44px] leading-none" aria-hidden>👆</div>
           <div className="mt-2 px-4 py-2 rounded-full bg-[rgba(255,248,236,0.9)] text-[#5a2f17] text-[15px] font-bold shadow">
-            Swipe ← → to dodge · swipe ↑ to jump
+            Swipe ← → to dodge · ↑ jump · ↓ duck
           </div>
         </div>
       )}

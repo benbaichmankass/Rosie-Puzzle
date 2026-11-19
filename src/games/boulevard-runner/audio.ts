@@ -75,6 +75,12 @@ export class Sfx {
     if (!this.ok()) return;
     this.tone(330, this.ctx!.currentTime, 0.16, 'triangle', 0.25, 720);
   }
+  /** Duck/roll: a low whoosh. */
+  duck() {
+    if (!this.ok()) return;
+    this.noise(this.ctx!.currentTime, 0.14, 0.3, 600);
+    this.tone(260, this.ctx!.currentTime, 0.14, 'triangle', 0.12, 140);
+  }
   swish() {
     if (!this.ok()) return;
     this.noise(this.ctx!.currentTime, 0.09, 0.35, 1800);

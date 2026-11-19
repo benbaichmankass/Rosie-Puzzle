@@ -18,14 +18,19 @@
  * So by construction it never builds an unavoidable wall.
  */
 
-import { platformStart, hasTracks, lapOf } from './route';
+import { platformStart, hasTracks, lapOf, PLATFORM_LEN } from './route';
 
 export const LANES = 3;
 export type Lane = 0 | 1 | 2;
 /** 0 = left track (oncoming trams), 1 = bike path (walkers, bikes, low stuff), 2 = right track (trams going our way). */
 
 /** tramStop = a tram standing at a station platform (either track). */
-export type Kind = 'walker' | 'bike' | 'low' | 'tramIn' | 'tramOut' | 'tramStop';
+/**
+ * bar = something Rosie must duck under at street level (low branch over the bike path, barrier boom);
+ * branch = something at head height for a dog riding a tram roof (overhanging ficus/palm, low gantry);
+ * canopy = a station canopy beam over the tracks at roof height.
+ */
+export type Kind = 'walker' | 'bike' | 'low' | 'tramIn' | 'tramOut' | 'tramStop' | 'bar' | 'branch' | 'canopy';
 
 export interface Obstacle {
   id: number;
@@ -43,6 +48,9 @@ export interface Obstacle {
   tall: boolean;
   /** Trams: a walkable roof. */
   tram: boolean;
+  /** Must be ducked under (cannot be jumped). duckLevel 0 = street, 1 = tram-roof height. */
+  duck: boolean;
+  duckLevel: 0 | 1;
   /** Same-direction trams only: a ramp at the rear that Rosie can run up. */
   ramp: boolean;
   /** Occupancy of Rosie's spot, in player distance. */
@@ -82,6 +90,10 @@ export interface Timings {
   mountTo: number;
   /** Seconds to drop from a roof to the ground. */
   fallTime: number;
+  /** Duck (crouch-roll) length, and the part of it during which Rosie is low enough to pass under a bar. */
+  duckTime: number;
+  duckFrom: number;
+  duckTo: number;
 }
 
 /** Real controls (used by the game and by the strict check). */
@@ -94,6 +106,9 @@ export const CONTROLS: Timings = {
   mountFrom: 0.16,
   mountTo: 0.84,
   fallTime: 0.52,
+  duckTime: 0.55,
+  duckFrom: 0.06,
+  duckTo: 0.94,
 };
 
 /** Comfort timings the spawner plans with: slower and stricter than the real controls. */
@@ -105,6 +120,9 @@ export const COMFORT: Timings = {
   mountFrom: 0.28,
   mountTo: 0.72,
   fallTime: 0.65,
+  duckTime: 0.55,
+  duckFrom: 0.18,
+  duckTo: 0.82,
 };
 
 export const JUMP_H = 1.15;
@@ -150,6 +168,18 @@ export function makeObstacle(id: number, kind: Kind, D: number, variant: number,
       len = 1.8;
       v = 4.5;
       break;
+    case 'bar':
+      len = 0.5;
+      v = 0;
+      tall = false;
+      break;
+    case 'branch':
+    case 'canopy':
+      lane = laneArg ?? 0;
+      len = kind === 'canopy' ? 1.2 : 1.0;
+      v = 0;
+      tall = false;
+      break;
     case 'low':
       len = 0.9;
       v = 0;
@@ -182,6 +212,8 @@ export function makeObstacle(id: number, kind: Kind, D: number, variant: number,
   const pass = (len * sD) / closing;
   return {
     id, kind, lane, D, len, v, sD, tall, tram, ramp,
+    duck: kind === 'bar' || kind === 'branch' || kind === 'canopy',
+    duckLevel: kind === 'branch' || kind === 'canopy' ? 1 : 0,
     start: D,
     end: D + pass,
     warnFrom: tram && kind !== 'tramStop' ? D - TRAM_WARN_TIME * sD : D,
@@ -215,6 +247,8 @@ class Reach {
   low: Uint16Array[] = [];
   tram: Uint16Array[] = [];
   rampStart: Uint16Array[] = [];
+  duckG: Uint16Array[] = [];
+  duckR: Uint16Array[] = [];
   ground: Uint8Array = new Uint8Array(0);
   roof: Uint8Array = new Uint8Array(0);
   size = 0;
@@ -233,6 +267,7 @@ class Reach {
     for (let l = 0; l < LANES; l++) {
       this.tall[l] = cp16(this.tall[l]); this.low[l] = cp16(this.low[l]);
       this.tram[l] = cp16(this.tram[l]); this.rampStart[l] = cp16(this.rampStart[l]);
+      this.duckG[l] = cp16(this.duckG[l]); this.duckR[l] = cp16(this.duckR[l]);
     }
     this.ground = cp8(this.ground);
     this.roof = cp8(this.roof);
@@ -241,18 +276,19 @@ class Reach {
   mark(o: Obstacle, delta: 1 | -1) {
     const a = Math.floor(o.start / CELL), b = Math.floor(o.end / CELL);
     this.grow(b + 400);
-    const arr = (o.tram ? this.tram : o.tall ? this.tall : this.low)[o.lane];
+    const arr = (o.duck ? (o.duckLevel ? this.duckR : this.duckG) : o.tram ? this.tram : o.tall ? this.tall : this.low)[o.lane];
     for (let i = a; i <= b; i++) arr[i] += delta;
     if (o.ramp) this.rampStart[o.lane][a] += delta;
   }
-  any(l: number, i: number) { return this.tall[l][i] > 0 || this.low[l][i] > 0 || this.tram[l][i] > 0; }
+  /** Anything Rosie can't stand in on the street (a street-level bar counts: she'd have to be ducking). */
+  any(l: number, i: number) { return this.tall[l][i] > 0 || this.low[l][i] > 0 || this.tram[l][i] > 0 || this.duckG[l][i] > 0; }
   /**
    * Forward propagation over cells [s0, to) on state arrays g (street) and r (roof), indexed by cell - off.
    * Encodes the game's moves (see the file comment).
    */
   private propagate(g: Uint8Array, r: Uint8Array, off: number, s0: number, to: number) {
     const t = this.t;
-    const { tall, low, tram } = this;
+    const { tall, low, tram, duckG, duckR } = this;
     for (let i = s0; i < to; i++) {
       const gm = g[i - off], rm = r[i - off];
       if (!gm && !rm) continue;
@@ -262,22 +298,32 @@ class Reach {
       const kf = Math.max(1, Math.ceil((t.fallTime * s) / CELL));
       const ja = Math.floor(t.airFrom * kj), jb = Math.ceil(t.airTo * kj);
       const ma = Math.ceil(t.mountFrom * kj), mb = Math.floor(t.mountTo * kj);
+      const kd = Math.max(1, Math.ceil((t.duckTime * s) / CELL));
+      const da = Math.floor(t.duckFrom * kd), db = Math.ceil(t.duckTo * kd);
       for (let l = 0; l < LANES; l++) {
         const bit = 1 << l;
         if (gm & bit) {
           // walk on: free cell, or up a ramp that starts here
           if (tram[l][i] > 0) {
-            if (this.rampStart[l][i] > 0 && tall[l][i] === 0 && low[l][i] === 0 && tram[l][i + 1] > 0) r[i + 1 - off] |= bit;
-          } else if (tall[l][i] === 0 && low[l][i] === 0) g[i + 1 - off] |= bit;
-          // jump: clear low stuff, or land on a tram roof
+            if (this.rampStart[l][i] > 0 && tall[l][i] === 0 && low[l][i] === 0 && duckG[l][i] === 0 && tram[l][i + 1] > 0) r[i + 1 - off] |= bit;
+          } else if (tall[l][i] === 0 && low[l][i] === 0 && duckG[l][i] === 0) g[i + 1 - off] |= bit;
+          // jump: clear low stuff, or land on a tram roof (a bar can't be jumped)
           let ok = true, mountAt = -1;
           for (let k = 0; k < kj && ok && mountAt < 0; k++) {
             const c = i + k;
-            if (tram[l][c] > 0) { if (k >= ma && k <= mb) mountAt = c; else ok = false; }
-            else if (tall[l][c] > 0) ok = false;
+            if (tram[l][c] > 0) { if (k >= ma && k <= mb && duckR[l][c] === 0) mountAt = c; else ok = false; }
+            else if (tall[l][c] > 0 || duckG[l][c] > 0) ok = false;
             else if (low[l][c] > 0 && (k <= ja || k >= jb)) ok = false;
           }
           if (ok) { if (mountAt >= 0) r[mountAt - off] |= bit; else g[i + kj - off] |= bit; }
+          // duck under a street-level bar
+          let okd = true;
+          for (let k = 0; k < kd && okd; k++) {
+            const c = i + k;
+            if (tall[l][c] > 0 || low[l][c] > 0 || tram[l][c] > 0) okd = false;
+            else if (duckG[l][c] > 0 && (k < da || k > db)) okd = false;
+          }
+          if (okd) g[i + kd - off] |= bit;
           // change lane on the street
           for (const n of [l - 1, l + 1]) {
             if (n < 0 || n >= LANES) continue;
@@ -287,6 +333,16 @@ class Reach {
           }
         }
         if ((rm & bit) && tram[l][i] > 0) {
+          // duck under a branch / gantry / canopy while riding the roof
+          let okd = true;
+          for (let k = 0; k <= kd && okd; k++) {
+            const c = i + k;
+            if (tram[l][c] === 0) okd = false;
+            else if (duckR[l][c] > 0 && (k < da || k > db)) okd = false;
+          }
+          if (okd) r[i + kd - off] |= bit;
+          // standing up here: anything at roof height in this cell ends the ride
+          if (duckR[l][i] > 0) continue;
           // keep running along the roof, or drop off its end
           if (tram[l][i + 1] > 0) r[i + 1 - off] |= bit;
           else {
@@ -298,14 +354,14 @@ class Reach {
           for (const n of [l - 1, l + 1]) {
             if (n < 0 || n >= LANES) continue;
             let ok2 = true;
-            for (let k = 0; k < kc + kf && ok2; k++) if (this.any(n, i + k)) ok2 = false;
+            for (let k = 0; k < kc + kf && ok2; k++) if (this.any(n, i + k) || (k < kc && duckR[l][i + k] > 0)) ok2 = false;
             if (ok2) g[i + kc + kf - off] |= 1 << n;
           }
           // leap across the bike path onto a tram on the other track
           const far = 2 - l;
           if (far !== l) {
             let ok3 = true;
-            for (let k = 0; k <= 2 * kc && ok3; k++) if (tram[far][i + k] === 0) ok3 = false;
+            for (let k = 0; k <= 2 * kc && ok3; k++) if (tram[far][i + k] === 0 || duckR[far][i + k] > 0 || duckR[l][i + k] > 0) ok3 = false;
             if (ok3) r[i + 2 * kc - off] |= 1 << far;
           }
         }
@@ -388,6 +444,8 @@ export class Spawner {
   private reach = new Reach(COMFORT);
   private maxEnd = 0;
   private laneFree: number[] = [0, 0, 0];
+  /** Overhead things (bars, branches, canopies) keep their own spacing: they may hang over a passing tram. */
+  private duckFree: number[] = [0, 0, 0];
   private nextStation = 0;
   readonly pickups: Pickup[] = [];
   private pickupCursor = 60;
@@ -410,6 +468,8 @@ export class Spawner {
       ['walker', 3.2],
       ['bike', 0.8 + 2.4 * Math.min(1, diff * 2.5)],
       ['low', 1.6 + 0.8 * diff],
+      ['bar', 0.9 + 0.9 * diff],
+      ['branch', 1.4 + 1.2 * diff],
       ['tramIn', 1.4 + 2.0 * diff],
       ['tramOut', 1.0 + 1.2 * diff],
     ] : [
@@ -417,6 +477,7 @@ export class Spawner {
       ['walker', 3.4],
       ['bike', 1.6 + 1.6 * diff],
       ['low', 1.8],
+      ['bar', 1.4],
     ];
     let total = 0;
     for (const [, x] of w) total += x;
@@ -444,20 +505,27 @@ export class Spawner {
           if (o.start < this.laneFree[lane] + 14) continue;
           if (this.reach.try(o, Math.max(this.maxEnd, o.end) + 25)) this.accept(o);
         }
-        this.cursor = st;
+        // the platform canopy reaches over both tracks at roof height (duck if you're riding a tram through)
+        const mid = st - 2 + PLATFORM_LEN / 2;
+        for (const lane of [0, 2] as Lane[]) {
+          const c = makeObstacle(this.nextId, 'canopy', mid, 0, false, lane);
+          if (this.reach.try(c, Math.max(this.maxEnd, c.end) + 25)) this.accept(c);
+        }
+        this.cursor = mid;
         return;
       }
     }
     for (let attempt = 0; attempt < 12; attempt++) {
       const tracks = hasTracks(D);
       const kind = this.pick(diff, tracks);
-      const lane = tracks ? undefined : (Math.floor(r() * 3) as Lane);
+      const lane = tracks ? (kind === 'branch' ? ((r() < 0.5 ? 0 : 2) as Lane) : undefined) : (Math.floor(r() * 3) as Lane);
       const o = makeObstacle(this.nextId, kind, D, Math.floor(r() * 1000), r() < 0.6, lane);
       // a tram must stay on the tracks for its whole length
       if (o.tram && !hasTracks(o.end + 2)) { if (attempt % 3 === 2) D += 4; continue; }
       // Trams in the same lane keep a healthy spacing; nothing overlaps in its lane.
       const spacing = o.lane === 1 ? 1.5 : 14;
-      if (o.start < this.laneFree[o.lane] + spacing) { if (attempt % 3 === 2) D += 4; continue; }
+      const free = o.duck ? this.duckFree[o.lane] + 4 : this.laneFree[o.lane] + spacing;
+      if (o.start < free) { if (attempt % 3 === 2) D += 4; continue; }
       if (this.reach.try(o, Math.max(this.maxEnd, o.end) + 25)) {
         this.accept(o);
         this.cursor = D;
@@ -472,7 +540,8 @@ export class Spawner {
   private accept(o: Obstacle) {
     this.obstacles.push(o);
     this.nextId++;
-    this.laneFree[o.lane] = Math.max(this.laneFree[o.lane], o.end);
+    if (o.duck) this.duckFree[o.lane] = Math.max(this.duckFree[o.lane], o.end);
+    else this.laneFree[o.lane] = Math.max(this.laneFree[o.lane], o.end);
     this.maxEnd = Math.max(this.maxEnd, o.end);
   }
 
@@ -504,7 +573,7 @@ export class Spawner {
         const k = Math.ceil((speedAt(d) * 0.9) / CELL);
         let ok = true;
         for (let c = i - 2; c <= i + k && ok; c++) {
-          if (tramHere) { if (R.tram[lane][c] === 0) ok = false; }
+          if (tramHere) { if (R.tram[lane][c] === 0 || R.duckR[lane][c] > 0) ok = false; }
           else if (R.any(lane, c)) ok = false;
         }
         if (!ok) break;
