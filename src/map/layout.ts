@@ -132,6 +132,7 @@ export const SPOTS: Record<SpotId, Spot> = {
   'kitchen-cabinets': { trigger: P(26, 3), objects: tiles(R(22, 2, 9, 1)), face: 'up', label: 'Cabinets' },
   'kitchen-counter': { trigger: P(34, 5), objects: tiles(R(31, 6, 6, 1)), face: 'down', label: 'Counter' },
   'bathroom-floor': { trigger: P(45, 4), objects: [P(46, 4), P(45, 5), P(46, 5)], face: 'down', label: 'Floor' },
+  'turtle-pool': { trigger: P(6, 30), objects: tiles(R(1, 29, 5, 4)), face: 'left', label: 'Turtle pool' },
 };
 
 export const START: Pt & { dir: Dir } = { ...P(14, 14), dir: 'down' };

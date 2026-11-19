@@ -158,3 +158,12 @@ as the water rises: bottom = cleaning supplies (suds, slippery controls), middle
 drain, slower draining), top = electric toothbrush and trimmer (electrocution, game over). Back wall: a window, a
 hanging shower caddy with shampoo bottles, and plants. Score = survival time. Look: Maurice Sendak-like pen-and-ink
 with watercolor wash.
+
+## Turtle vs Bunny Race (yard, turtle pool) — added from Ben's feedback
+A race of one lap around the L-shaped yard (down the left side past the bunny wall, along the bottom wall, and
+back), seen top-down. One racer is a turtle, the other a bunny. Both have energy bars: the turtle is slow but has
+enough energy for one full lap without stopping; the bunny is much faster but runs out of energy and must stop at
+food spots (lettuce/carrots) along the track to eat and refill, which takes time. The tactics are when and how long
+the bunny eats. Modes: 2 players on one phone (one plays the turtle, one the bunny, each with their own big
+touch control on their half of the screen), and 1 player against a computer opponent (pick turtle or bunny).
+Balanced so a well-played bunny and a perfect turtle finish close together.

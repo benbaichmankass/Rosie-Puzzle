@@ -12,7 +12,8 @@ export type SpotId =
   | 'bunny-wall'
   | 'kitchen-cabinets'
   | 'kitchen-counter'
-  | 'bathroom-floor';
+  | 'bathroom-floor'
+  | 'turtle-pool';
 
 export interface GameProps {
   /** Return to the house map. Every game must show a visible way to call this (use <ExitButton>). */
