@@ -100,17 +100,63 @@ export function numberToU(no: number): number {
   return NORTH_END - ((NORTH_END - EHRLICH) * no) / 100;
 }
 
-/** Landmarks along the route (lap position, side: -1 west/left, +1 east/right). */
-export interface Landmark { kind: 'hospital' | 'mosque' | 'cityhall' | 'stadium' | 'postoffice' | 'clocktower' | 'beitgidi'; u: number; side: -1 | 1 }
+/**
+ * Landmarks along the route (lap position, side: -1 west/left, +1 east/right walking north).
+ * House numbers: even on the WEST side, odd on the EAST (OpenStreetMap address points), No. 2 at the north end.
+ * 'facade' landmarks replace a block of the street wall; the others are drawn standing behind or beside it.
+ */
+export type LandmarkKind =
+  | 'davidoff' | 'tower139' | 'hospital' | 'mosque' | 'cityhall' | 'alhambra' | 'ruthdaniel' | 'stadium'
+  | 'junction' | 'siksik' | 'policehq' | 'postoffice' | 'sheqem' | 'gesher' | 'carriage'
+  | 'clocktower' | 'mahmoudiya' | 'market' | 'kishle' | 'beitgidi' | 'hassanbek' | 'skyline';
+export interface Landmark { kind: LandmarkKind; u: number; side: -1 | 1; facade?: boolean }
 export const LANDMARKS: Landmark[] = [
-  { kind: 'hospital', u: numberToU(100) + 8, side: 1 },            // Tzahalon (Dajani) Hospital, No. 100 at Ehrlich
-  { kind: 'mosque', u: numberToU(82), side: 1 },                   // Al-Nuzha Mosque, No. 82
-  { kind: 'cityhall', u: ROUTE_STATIONS[3].at + 12, side: -1 },    // Jaffa City Hall (1935) by Bloomfield station
-  { kind: 'stadium', u: ROUTE_STATIONS[3].at + m(240), side: 1 },  // Bloomfield Stadium, ~250 m east of the boulevard
-  { kind: 'postoffice', u: numberToU(12), side: 1 },               // Central Post Office (1931), No. 12 (even side)
-  { kind: 'clocktower', u: PARK_START - 30, side: -1 },            // Jaffa Clock Tower, ~400 m west (seen across the junction)
-  { kind: 'beitgidi', u: PARK_START + 18, side: -1 },              // Etzel Museum (Beit Gidi) at the south end of Clore Park
+  { kind: 'davidoff', u: ROUTE_STATIONS[0].at + 30, side: 1, facade: true },   // Davidoff Garden + Jaffa Tennis Center, east of HaBesht
+  { kind: 'tower139', u: numberToU(139), side: 1, facade: true },             // new "Yafo BaShdera" residential tower at No. 139, by Isakov
+  { kind: 'hospital', u: numberToU(100) + 8, side: -1, facade: true },        // Tzahalon (Dajani) Hospital, No. 100 (1933, white International Style)
+  { kind: 'mosque', u: numberToU(82), side: -1 },                             // Al-Nuzha Mosque, No. 82 (1933)
+  { kind: 'ruthdaniel', u: numberToU(47), side: 1, facade: true },            // Mishkenot Ruth Daniel, No. 47 (old-Jaffa style arches)
+  { kind: 'cityhall', u: numberToU(45), side: 1, facade: true },              // historic Jaffa City Hall, No. 45 (1935), with its square and fountain
+  { kind: 'alhambra', u: numberToU(39), side: 1, facade: true },              // Alhambra cinema, No. 39 (Art Deco, 1937, "ALHAMBRA" sign)
+  { kind: 'stadium', u: ROUTE_STATIONS[3].at + m(240), side: 1 },            // Bloomfield Stadium, ~230 m east: white angular cladding, two big trusses
+  { kind: 'junction', u: SHALMA + 14, side: -1, facade: true },              // Shalma (Salame) Road junction: side streets both ways
+  { kind: 'junction', u: SHALMA + 14, side: 1, facade: true },
+  { kind: 'siksik', u: SHALMA + 30, side: -1 },                               // Siksik Mosque, ~130 m west
+  { kind: 'policehq', u: SHALMA + 20, side: 1 },                              // Tel Aviv District Police HQ, 7 storeys, ~280 m east
+  { kind: 'postoffice', u: numberToU(12), side: -1, facade: true },           // Central Post Office, No. 12 (1931, striped "ablaq" stone)
+  { kind: 'sheqem', u: numberToU(8), side: -1, facade: true },                // Sheqem building, No. 8 (1920s)
+  { kind: 'carriage', u: numberToU(11), side: 1, facade: true },              // old carriage station, No. 11 (colonnade, small tower)
+  { kind: 'gesher', u: numberToU(5), side: 1, facade: true },                 // Gesher Theatre (former Nabil/Noga cinema)
+  { kind: 'clocktower', u: PARK_START - 30, side: -1 },                       // Jaffa Clock Tower (1903), west down the side streets
+  { kind: 'mahmoudiya', u: PARK_START - 52, side: -1 },                       // Mahmoudiya Mosque beside it: hexagonal minaret, domes
+  { kind: 'market', u: NORTH_END + 25, side: -1 },                            // the flea market lanes off to the west
+  { kind: 'kishle', u: NORTH_END + 70, side: 1 },                             // the old Kishle police station (now The Setai), 4 storeys of stone
+  { kind: 'beitgidi', u: PARK_START + 18, side: -1 },                         // Etzel Museum (Beit Gidi): stone house with a dark glass box on top
+  { kind: 'hassanbek', u: PARK_START + 120, side: 1 },                        // Hassan Bek Mosque: very tall slender minaret, NE of the park
+  { kind: 'skyline', u: PARK_START + 60, side: 1 },                           // the towers behind the park (Textile House, City Palace, hotels)
 ];
+
+/** Easter egg: Shai waiting on the Isakov platform with his grey backpack. */
+export const SHAI_U = ROUTE_STATIONS[1].at - 8;
+
+/** Soccer fans in red along the Bloomfield Stadium stretch (tap one to make Rosie nip them). */
+export interface Fan { id: number; d: number; x: number; variant: number }
+const FAN_FROM = ROUTE_STATIONS[3].at - 70, FAN_TO = SHALMA - 40;
+export function fansNear(d0: number, d1: number): Fan[] {
+  const out: Fan[] = [];
+  const lap0 = Math.max(0, lapOf(d0)), lap1 = lapOf(d1);
+  for (let lap = lap0; lap <= lap1; lap++) {
+    for (let g = 0, u = FAN_FROM; u < FAN_TO; g++, u += 26) {
+      const side = g % 2 ? 1 : -1;
+      for (let j = 0; j < 3; j++) {
+        const d = lap * LAP + u + j * 0.9;
+        if (d < d0 || d > d1) continue;
+        out.push({ id: lap * 10000 + g * 10 + j, d, x: side * (0.98 + (j % 2) * 0.12), variant: (g * 3 + j) % 6 });
+      }
+    }
+  }
+  return out;
+}
 
 /** Split world distances [z0, z1] into pieces of constant segment (for drawing). */
 export function pieces(z0: number, z1: number): { a: number; b: number; seg: Segment }[] {

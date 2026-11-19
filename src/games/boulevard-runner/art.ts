@@ -568,6 +568,178 @@ function drawCanopyBeam(g: CanvasRenderingContext2D) {
   for (const x of [-0.6, 0.6]) line(g, [x, -0.42, x, -0.75], 0.04, '#5c5f66');
 }
 
+// ---------- landmarks (round 3 realism pass) ----------
+/** Bloomfield Stadium: white angular cladding around the bowl, two huge trusses arching over it carrying floodlights. */
+function drawStadium2(g: CanvasRenderingContext2D) {
+  // bowl wrapped in angular white panels
+  g.beginPath(); g.moveTo(-19, 0); g.lineTo(-18, -9); g.lineTo(18, -10); g.lineTo(19, 0); g.closePath(); g.fillStyle = '#eef0f2'; g.fill();
+  for (let i = 0; i < 18; i++) {
+    const x = -18 + i * 2;
+    g.beginPath(); g.moveTo(x, -0.2); g.lineTo(x + 1, -9.2 - (i % 3) * 0.3); g.lineTo(x + 2, -0.2); g.closePath();
+    g.fillStyle = i % 2 ? '#dfe3e7' : '#f7f8f9'; g.fill();
+  }
+  rrect(g, -18, -10.6, 36, 0.9, 0.1, '#c9ced4');
+  // the two trusses arching across the stadium (39 m), lattice and floodlight banks
+  for (const zx of [-6, 6]) {
+    g.beginPath(); g.moveTo(-21, 0); g.quadraticCurveTo(zx, -38, 21, 0);
+    g.lineWidth = 0.9; g.strokeStyle = '#d3d7dc'; g.stroke();
+    g.beginPath(); g.moveTo(-19.5, -0.5); g.quadraticCurveTo(zx, -35.5, 19.5, -0.5);
+    g.lineWidth = 0.35; g.strokeStyle = '#b8bec5'; g.stroke();
+    for (let t = 0.1; t < 0.95; t += 0.075) {
+      const x = (1 - t) * (1 - t) * -21 + 2 * (1 - t) * t * zx + t * t * 21;
+      const y = 2 * (1 - t) * t * -38;
+      line(g, [x, y, x + 0.6, y + 1.6], 0.18, '#c5cad0');
+    }
+    for (const t of [0.42, 0.5, 0.58]) {
+      const x = (1 - t) * (1 - t) * -21 + 2 * (1 - t) * t * zx + t * t * 21, y = 2 * (1 - t) * t * -38;
+      rrect(g, x - 1.2, y + 0.6, 2.4, 0.9, 0.1, '#5c646b');
+      for (let i = 0; i < 4; i++) ell(g, x - 0.9 + i * 0.6, y + 1.05, 0.22, 0.22, '#f6f1d8');
+    }
+  }
+}
+/** A small stone minaret (Siksik Mosque, 1880s) seen over the rooftops. */
+function drawSiksik(g: CanvasRenderingContext2D) {
+  rrect(g, -0.5, -12, 1.0, 12, 0.05, '#dccfb4');
+  rrect(g, -0.7, -9.6, 1.4, 0.35, 0.05, '#c7b896');
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(0, -7 + i * 2.6, 0.18, 0.4, 0, Math.PI, 0); g.lineTo(0.18, -6.4 + i * 2.6); g.lineTo(-0.18, -6.4 + i * 2.6); g.closePath(); g.fillStyle = '#5a5246'; g.fill(); }
+  g.beginPath(); g.ellipse(0, -12, 0.5, 0.7, 0, Math.PI, 0); g.fillStyle = '#9aa58f'; g.fill();
+  line(g, [0, -12.7, 0, -13.4], 0.05, '#c9a54a');
+}
+/** Mahmoudiya Mosque: slender hexagonal minaret with two balconies, shallow domes, the white marble Sabil arch. */
+function drawMahmoudiya(g: CanvasRenderingContext2D) {
+  rrect(g, -6, -4.2, 9, 4.2, 0.05, '#e3d6bb');
+  for (const [x, r] of [[-4, 1.8], [-0.6, 1.4], [1.9, 0.9]] as [number, number][]) { g.beginPath(); g.ellipse(x, -4.2, r, r * 0.55, 0, Math.PI, 0); g.fillStyle = '#d8ccb0'; g.fill(); }
+  g.beginPath(); g.ellipse(-2.5, -1.6, 1.2, 1.4, 0, Math.PI, 0); g.lineTo(-1.3, 0); g.lineTo(-3.7, 0); g.closePath(); g.fillStyle = '#f4f1ea'; g.fill();
+  g.beginPath(); g.ellipse(-2.5, -1.3, 0.8, 1.0, 0, Math.PI, 0); g.lineTo(-1.7, 0); g.lineTo(-3.3, 0); g.closePath(); g.fillStyle = '#c98f8a'; g.fill();
+  rrect(g, 4, -16, 0.9, 16, 0.05, '#e8dcc4');
+  for (const y of [-10.5, -14]) rrect(g, 3.6, y, 1.7, 0.4, 0.08, '#cdbf9f');
+  g.beginPath(); g.moveTo(4, -16); g.lineTo(4.45, -18); g.lineTo(4.9, -16); g.closePath(); g.fillStyle = '#7d8a72'; g.fill();
+  line(g, [4.45, -18, 4.45, -18.6], 0.05, '#c9a54a');
+}
+/** Hassan Bek Mosque: white limestone hall with a low dome and an extremely tall, slender minaret. */
+function drawHassanBek(g: CanvasRenderingContext2D) {
+  rrect(g, -4, -5, 6, 5, 0.05, '#f1ece0');
+  g.beginPath(); g.ellipse(-1, -5, 1.6, 1.1, 0, Math.PI, 0); g.fillStyle = '#e6e0d2'; g.fill();
+  for (let i = 0; i < 4; i++) rrect(g, -3.5 + i * 1.4, -3.6, 0.6, 1.4, 0.25, i % 2 ? '#3f7fae' : '#c9a54a');
+  rrect(g, 2.6, -26, 0.8, 26, 0.05, '#f4f0e6');
+  for (const y of [-18, -23.5]) rrect(g, 2.2, y, 1.6, 0.45, 0.08, '#ddd6c6');
+  g.beginPath(); g.moveTo(2.6, -26); g.lineTo(3, -28.4); g.lineTo(3.4, -26); g.closePath(); g.fillStyle = '#9fb0a6'; g.fill();
+  line(g, [3, -28.4, 3, -29.2], 0.05, '#c9a54a');
+}
+/** Tel Aviv District Police HQ: a 7-storey block seen over the rooftops. */
+function drawPoliceHQ(g: CanvasRenderingContext2D) {
+  rrect(g, -6, -26, 12, 26, 0.1, '#c7cdd3');
+  for (let f = 0; f < 7; f++) rrect(g, -5.5, -24.5 + f * 3.4, 11, 1.6, 0.05, '#6d7f92');
+  rrect(g, -1, -27.5, 2, 1.5, 0.05, '#a9b1b9');
+}
+/** The towers behind Charles Clore Park (Textile House, City Palace, the beach hotels), as a hazy skyline. */
+function drawSkyline(g: CanvasRenderingContext2D) {
+  const t: [number, number, number, string][] = [[-26, 7, 52, '#b9c3cc'], [-17, 6, 66, '#c4ccd4'], [-9, 8, 70, '#aeb9c4'], [1, 7, 44, '#c9d0d6'], [10, 9, 38, '#bcc6cf'], [21, 6, 58, '#b3bec8']];
+  for (const [x, w, h, c] of t) {
+    rrect(g, x, -h, w, h, 0.2, c);
+    for (let f = 4; f < h - 2; f += 4) rrect(g, x + 0.6, -f, w - 1.2, 1.4, 0.1, 'rgba(90,110,130,0.35)');
+  }
+}
+/** A flea-market stall (Shuk HaPishpeshim): striped awning over tables of old wares. */
+function drawStall(g: CanvasRenderingContext2D, v: number) {
+  const col = ['#c8462f', '#2f7f8a', '#e0a63a'][v % 3];
+  line(g, [-1.4, 0, -1.4, -2.4], 0.07, '#5a4a3a'); line(g, [1.4, 0, 1.4, -2.4], 0.07, '#5a4a3a');
+  for (let i = 0; i < 6; i++) rrect(g, -1.5 + i * 0.5, -2.6, 0.5, 0.5, 0.02, i % 2 ? '#f4efe2' : col);
+  rrect(g, -1.3, -0.9, 2.6, 0.12, 0.02, '#8a6a4a');
+  for (let i = 0; i < 7; i++) rrect(g, -1.2 + i * 0.35, -1.25 - hash(v * 7 + i) * 0.3, 0.25, 0.35 + hash(v + i) * 0.3, 0.04, ['#b98a52', '#7f8a96', '#c9a54a', '#9a5a3a'][i % 4]);
+  line(g, [-1.2, -0.78, -1.2, 0], 0.05, '#5a4a3a'); line(g, [1.2, -0.78, 1.2, 0], 0.05, '#5a4a3a');
+}
+/** The Kishle (old Ottoman police station, now a hotel): four storeys of pale stone with arched windows. */
+function drawKishle(g: CanvasRenderingContext2D) {
+  rrect(g, -7, -13, 14, 13, 0.05, '#dccbaa');
+  for (let f = 0; f < 4; f++) for (let c = 0; c < 6; c++) {
+    const x = -6 + c * 2.2, y = -11.6 + f * 3.0;
+    g.beginPath(); g.ellipse(x + 0.5, y + 0.5, 0.5, 0.55, 0, Math.PI, 0); g.lineTo(x + 1, y + 1.8); g.lineTo(x, y + 1.8); g.closePath(); g.fillStyle = '#5b4b3a'; g.fill();
+  }
+  rrect(g, -7.2, -13.4, 14.4, 0.5, 0.05, '#c9b48c');
+}
+/** City Hall Square's fountain (1935). */
+function drawFountain(g: CanvasRenderingContext2D) {
+  ell(g, 0, -0.15, 1.2, 0.3, '#bfb6a6');
+  ell(g, 0, -0.3, 1.0, 0.22, '#6fa8c9');
+  rrect(g, -0.15, -1.1, 0.3, 0.85, 0.05, '#cfc6b5');
+  ell(g, 0, -1.15, 0.45, 0.12, '#bfb6a6');
+  for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(0, -1.2); g.quadraticCurveTo(-0.6 + i * 0.24, -1.9, -0.75 + i * 0.3, -0.4); g.lineWidth = 0.04; g.strokeStyle = 'rgba(200,230,250,0.85)'; g.stroke(); }
+}
+
+// ---------- Easter eggs ----------
+/**
+ * Shai: slim, olive skin, very short dark hair, trimmed dark beard, big smile, sand/beige t-shirt, sunglasses up
+ * on his head, grey backpack on. frame 0 = waiting, 1-2 = waving at Rosie.
+ */
+function drawShai(g: CanvasRenderingContext2D, f: number) {
+  const SK = '#d9a07a', HAIR = '#2a1d16', BEARD = '#2f2018', TEE = '#cdbf9c', PANTS = '#3b4552', PACK = '#7d8288';
+  ell(g, 0, 0, 0.32, 0.06, 'rgba(40,25,10,0.28)');
+  // backpack peeking out behind his shoulders
+  rrect(g, -0.27, -1.5, 0.54, 0.62, 0.08, shade(PACK, -0.15));
+  rrect(g, -0.14, -0.86, 0.12, 0.82, 0.04, PANTS);
+  rrect(g, 0.02, -0.86, 0.12, 0.82, 0.04, shade(PANTS, -0.1));
+  ell(g, -0.08, -0.02, 0.09, 0.045, '#e8e4dc'); ell(g, 0.08, -0.02, 0.09, 0.045, '#e8e4dc');
+  g.beginPath(); g.moveTo(-0.2, -1.42); g.lineTo(0.2, -1.42); g.lineTo(0.18, -0.82); g.lineTo(-0.18, -0.82); g.closePath(); g.fillStyle = TEE; g.fill();
+  // backpack straps
+  line(g, [-0.12, -1.42, -0.15, -0.95], 0.05, PACK); line(g, [0.12, -1.42, 0.15, -0.95], 0.05, PACK);
+  rrect(g, -0.17, -1.1, 0.34, 0.035, 0.01, shade(PACK, -0.25));
+  // arms: left hangs, right holds the strap or waves
+  line(g, [-0.22, -1.36, -0.26, -1.05, -0.24, -0.88], 0.09, shade(TEE, -0.08)); ell(g, -0.24, -0.86, 0.05, 0.055, SK);
+  if (f === 0) { line(g, [0.22, -1.36, 0.25, -1.1, 0.16, -1.02], 0.09, shade(TEE, -0.08)); ell(g, 0.15, -1.0, 0.05, 0.05, SK); }
+  else {
+    const wv = f === 1 ? -0.12 : 0.12;
+    line(g, [0.22, -1.38, 0.38, -1.62, 0.42 + wv, -1.9], 0.085, SK);
+    ell(g, 0.43 + wv, -1.95, 0.065, 0.075, SK);
+  }
+  rrect(g, -0.045, -1.52, 0.09, 0.11, 0.03, shade(SK, -0.1));
+  ell(g, 0, -1.63, 0.115, 0.135, SK);
+  // trimmed dark beard round the jaw, big smile
+  g.beginPath(); g.ellipse(0, -1.58, 0.118, 0.1, 0, 0.1, Math.PI - 0.1); g.lineWidth = 0.05; g.strokeStyle = BEARD; g.stroke();
+  g.beginPath(); g.ellipse(0, -1.585, 0.055, 0.03, 0, 0, Math.PI); g.fillStyle = '#fff'; g.fill();
+  g.beginPath(); g.ellipse(0, -1.585, 0.055, 0.03, 0, 0, Math.PI); g.lineWidth = 0.012; g.strokeStyle = '#6b2b24'; g.stroke();
+  ell(g, -0.042, -1.645, 0.014, 0.018, '#1a120d'); ell(g, 0.042, -1.645, 0.014, 0.018, '#1a120d');
+  // very short hair and the sunglasses pushed up
+  g.beginPath(); g.ellipse(0, -1.69, 0.118, 0.07, 0, Math.PI, 0); g.fillStyle = HAIR; g.fill();
+  rrect(g, -0.1, -1.76, 0.2, 0.04, 0.015, '#333'); ell(g, -0.05, -1.745, 0.035, 0.022, '#222'); ell(g, 0.05, -1.745, 0.035, 0.022, '#222');
+}
+/** A football fan in red (scarf, some with a flag). frame 0 idle, 1 cheering, 2 just nipped (hopping, yelping). */
+function drawFan(g: CanvasRenderingContext2D, v: number, f: number) {
+  const L = lookFor(v + 70);
+  const RED = '#d22e2e';
+  const hop = f === 2 ? -0.18 : 0;
+  ell(g, 0, 0, 0.3, 0.06, 'rgba(40,25,10,0.28)');
+  g.translate(0, hop);
+  rrect(g, -0.14, -0.86, 0.12, f === 2 ? 0.65 : 0.82, 0.04, L.pants);
+  rrect(g, 0.02, -0.86, 0.12, 0.82, 0.04, shade(L.pants, -0.1));
+  g.beginPath(); g.moveTo(-0.22, -1.42); g.lineTo(0.22, -1.42); g.lineTo(0.2, -0.82); g.lineTo(-0.2, -0.82); g.closePath(); g.fillStyle = RED; g.fill();
+  rrect(g, -0.06, -1.3, 0.12, 0.16, 0.02, '#f4f1ea');
+  // scarf: red and white stripes
+  for (let i = 0; i < 5; i++) rrect(g, -0.2 + i * 0.08, -1.46, 0.08, 0.08, 0.01, i % 2 ? '#f4f1ea' : RED);
+  rrect(g, 0.1, -1.4, 0.07, 0.36, 0.01, '#f4f1ea');
+  const up = f >= 1;
+  if (up) {
+    line(g, [-0.22, -1.38, -0.34, -1.62, -0.3, -1.86], 0.09, RED); ell(g, -0.3, -1.9, 0.05, 0.055, L.skin);
+    line(g, [0.22, -1.38, 0.34, -1.62, 0.3, -1.86], 0.09, RED); ell(g, 0.3, -1.9, 0.05, 0.055, L.skin);
+  } else {
+    line(g, [-0.22, -1.36, -0.27, -1.05, -0.25, -0.88], 0.09, RED); ell(g, -0.25, -0.86, 0.05, 0.055, L.skin);
+    line(g, [0.22, -1.36, 0.27, -1.05, 0.25, -0.88], 0.09, RED); ell(g, 0.25, -0.86, 0.05, 0.055, L.skin);
+  }
+  if (v % 3 === 0) {
+    // flag on a pole
+    const hx = up ? 0.3 : 0.25, hy = up ? -1.9 : -0.86;
+    line(g, [hx, hy, hx, hy - 0.9], 0.03, '#8a6a4a');
+    g.beginPath(); g.moveTo(hx, hy - 0.9); g.lineTo(hx + 0.42, hy - 0.8); g.lineTo(hx, hy - 0.62); g.closePath(); g.fillStyle = RED; g.fill();
+  }
+  rrect(g, -0.05, -1.5, 0.1, 0.1, 0.03, shade(L.skin, -0.1));
+  ell(g, 0, -1.62, 0.12, 0.14, L.skin);
+  ell(g, -0.045, -1.64, 0.016, 0.02, '#2a1d16'); ell(g, 0.045, -1.64, 0.016, 0.02, '#2a1d16');
+  if (f === 2) ell(g, 0, -1.56, 0.04, 0.035, '#6b2b24'); // yelp
+  else if (f === 1) { g.beginPath(); g.ellipse(0, -1.57, 0.05, 0.03, 0, 0, Math.PI); g.fillStyle = '#6b2b24'; g.fill(); }
+  else line(g, [-0.035, -1.56, 0, -1.545, 0.035, -1.56], 0.014, '#7a3b2e');
+  g.beginPath(); g.ellipse(0, -1.69, 0.125, 0.085, 0, Math.PI, 0); g.fillStyle = L.hair; g.fill();
+}
+
 function drawSolar(g: CanvasRenderingContext2D) {
   // rooftop solar water heater ("dud shemesh"): tank + tilted panels
   line(g, [-0.6, 0, -0.6, -0.5], 0.05, '#8a8a88');
@@ -688,6 +860,17 @@ export interface Sprites {
   roofFrond: Sprite;
   gantry: Sprite;
   canopyBeam: Sprite;
+  stadium2: Sprite;
+  siksik: Sprite;
+  mahmoudiya: Sprite;
+  hassanbek: Sprite;
+  policehq: Sprite;
+  skyline: Sprite;
+  stalls: Sprite[];
+  kishle: Sprite;
+  fountain: Sprite;
+  shai: Sprite;
+  fans: Sprite[];
 }
 
 export function buildSprites(): Sprites {
@@ -723,6 +906,17 @@ export function buildSprites(): Sprites {
     roofFrond: makeSprite(2.4, 1.6, 60, drawRoofFrond),
     gantry: makeSprite(2.2, 4.0, 40, drawGantry),
     canopyBeam: makeSprite(2.1, 0.8, 70, drawCanopyBeam),
+    stadium2: makeSprite(44, 31, 8, drawStadium2),
+    siksik: makeSprite(1.6, 13.6, 22, drawSiksik),
+    mahmoudiya: makeSprite(12, 18.8, 18, drawMahmoudiya),
+    hassanbek: makeSprite(9, 29.4, 12, drawHassanBek),
+    policehq: makeSprite(12.4, 27.6, 10, drawPoliceHQ),
+    skyline: makeSprite(56, 71, 5, drawSkyline),
+    stalls: [0, 1, 2].map((v) => makeSprite(3.2, 2.7, 40, (g) => drawStall(g, v))),
+    kishle: makeSprite(14.6, 13.6, 16, drawKishle),
+    fountain: makeSprite(2.6, 2.0, 50, drawFountain),
+    shai: makeSprite(1.1, 2.1, 90, (g, f) => drawShai(g, f), 3),
+    fans: [0, 1, 2, 3, 4, 5].map((v) => makeSprite(1.2, 2.9, 80, (g, f) => drawFan(g, v, f), 3)),
     bone: makeSprite(0.7, 0.42, 120, drawBone),
     boardItem: makeSprite(1.0, 0.55, 110, drawBoardItem),
     mult: makeSprite(0.7, 0.62, 120, drawMult),

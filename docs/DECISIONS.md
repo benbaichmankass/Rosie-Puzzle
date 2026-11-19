@@ -111,6 +111,23 @@ Ben's feedback (round 3):
   go 2.6 high and last 0.93 s: clear walkers and bikes, land on roofs from far off), alongside the skateboard and
   magnet. Treat trails lead up tram ramps onto the roofs (and ride along with the moving tram). The check script
   proves every run stays passable with spring-bootie jumps and at skateboard speed, and every treat collectable.
+- Realism per stretch (OpenStreetMap address points and POIs, Hebrew/English Wikipedia, Time Out, stadiumdb; see the
+  PR): even house numbers are on the WEST side (Rosie's left walking north), odd on the east. HaBesht: housing
+  blocks, Davidoff Garden and the tennis courts to the east. Isakov: the new residential tower at No. 139. Ehrlich:
+  Tzahalon Hospital (No. 100, white International Style) and Al-Nuzha Mosque (No. 82) on the west. Bloomfield: the
+  historic City Hall (No. 45) with its square and fountain, Mishkenot Ruth Daniel (No. 47), the Alhambra cinema
+  (No. 39, "ALHAMBRA" sign), and Bloomfield Stadium's white cladding and two giant floodlight trusses to the east
+  (the median trees open up there). Shalma: the Salame Road junction (side streets), Siksik Mosque to the west, the
+  police HQ to the east. North end: the Central Post Office (No. 12, striped ablaq stone), the Sheqem building
+  (No. 8), the old carriage station (No. 11, colonnade and little tower), Gesher Theatre. Clock tower area: the
+  tower, Mahmoudiya Mosque, the flea-market stalls, the Kishle. Clore Park: Beit Gidi, Hassan Bek Mosque's tall
+  minaret, the towers behind. Storefronts are real shops at their house numbers (no chains; English-only signs where
+  the Hebrew spelling wasn't confirmed).
+- Easter eggs: Shai waits on the Isakov platform with his grey backpack and waves at Rosie. Along the Bloomfield
+  stretch, groups of football fans in red (scarves, flags) stand by the bike path: tap one as Rosie passes and she
+  lunges and gives their trouser leg a cartoon nip ("CHOMP!", the fan yelps and hops, no harm done), +100. A tap is
+  a short press that moves < 12 px and never becomes a swipe (swipes need > 22 px). The HUD shows 🦷 count and the
+  game-over card "Fans bitten: N".
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,
