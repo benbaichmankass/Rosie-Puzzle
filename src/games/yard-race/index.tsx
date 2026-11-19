@@ -5,7 +5,7 @@ import { load, save } from '../../shared/storage';
 import { meta } from './meta';
 import { BUNNY_COST, TUNING, brakeDistance, createRace, step, type Input, type Race } from './sim';
 import { FOOD, LAP, WORLD, nextFood, pointAt } from './track';
-import { GOOD_BUNNY, bunnyBrain, mulberry, turtleBrain, type Brain } from './ai';
+import { CPU_BUNNY, CPU_TURTLE, bunnyBrain, mulberry, turtleBrain, type Brain } from './ai';
 import { C, drawBunny, drawFood, drawParticles, drawTurtle, paintYard, stepParticles, type Particle } from './art';
 import { Sfx } from './audio';
 
@@ -173,7 +173,7 @@ function drawRacers(g: CanvasRenderingContext2D, e: Engine) {
         scale: 1.2,
         steps: tu.steps,
         t: e.now,
-        tired: tu.energy <= 0 && !tu.finished,
+        tired: false,
         stepPhase: Math.min(1, since * TUNING.turtlePace),
       }),
   });
@@ -227,8 +227,8 @@ export default function Game({ onExit }: GameProps) {
     e.race = createRace(['turtle', 'bunny']);
     e.rng = mulberry((Math.random() * 1e9) | 0);
     e.brains = [
-      human(m, T) ? null : turtleBrain({ pace: 0.985, jitter: 0.1, adaptive: true }, e.rng),
-      human(m, B) ? null : bunnyBrain({ ...GOOD_BUNNY, aimErr: 10, react: 0.3 }, e.rng),
+      human(m, T) ? null : turtleBrain(CPU_TURTLE, e.rng),
+      human(m, B) ? null : bunnyBrain(CPU_BUNNY, e.rng),
     ];
     e.taps = 0;
     e.holds.clear();
@@ -417,7 +417,6 @@ export default function Game({ onExit }: GameProps) {
           const p = pointAt(r.racers[B].s, LANE);
           dust(p.x, p.y, 10, 14);
         } else if (ev.type === 'up') sfx.current.up();
-        else if (ev.type === 'tired') sfx.current.tired();
         else if (ev.type === 'finish') {
           if (ev.first) {
             takePhoto(ev.who);
@@ -464,33 +463,26 @@ export default function Game({ onExit }: GameProps) {
         if (fill) {
           fill.style.width = `${Math.max(0, rc.energy) * 100}%`;
           const low = rc.energy < 0.2;
-          fill.style.background = i === T ? (rc.energy <= 0 ? '#9a8a6a' : low ? '#d9a13a' : '#7fb24a') : rc.state === 'flop' ? '#c9a0a0' : low ? '#e86a5a' : '#f2a0b0';
+          fill.style.background = i === T ? '#7fb24a' : rc.state === 'flop' ? '#c9a0a0' : low ? '#e86a5a' : '#f2a0b0';
         }
         const mark = U.mark[i];
         let status = '';
         let tone = '';
         if (i === T) {
-          // ideal energy left = share of the lap left
-          const ideal = Math.max(0, 1 - rc.s / LAP);
-          if (mark) {
-            mark.style.left = `${ideal * 100}%`;
-            mark.style.opacity = rc.finished || e.phase === 'menu' ? '0' : '1';
-          }
-          const diff = rc.energy - ideal;
+          // the turtle's bar is a lap gauge (always exactly enough): coach the tapping speed instead
+          if (mark) mark.style.opacity = '0';
+          const pace = rc.v / TUNING.turtleMax;
           if (rc.finished) status = 'Finished!';
-          else if (e.phase === 'count') status = 'Tap in a steady rhythm';
-          else if (rc.energy <= 0) {
-            status = 'Out of puff… crawl!';
-            tone = 'bad';
-          } else if (rc.v < 4) status = 'Tap to walk';
-          else if (diff < -0.035) {
-            status = 'Too fast! Ease off';
-            tone = 'bad';
-          } else if (diff > 0.06) {
-            status = 'Spare energy: faster!';
+          else if (e.phase === 'count') status = 'Get ready to tap fast!';
+          else if (rc.v < 4) status = 'Tap to walk!';
+          else if (pace < 0.72) {
+            status = 'Faster! Tap tap tap!';
             tone = 'warn';
+          } else if (pace < 0.88) {
+            status = 'Good pace, keep it up';
+            tone = 'good';
           } else {
-            status = 'Slow and steady ✓';
+            status = 'Top speed! ✓';
             tone = 'good';
           }
         } else {
@@ -798,9 +790,8 @@ export default function Game({ onExit }: GameProps) {
             onContextMenu={(ev) => ev.preventDefault()}
             aria-label={turtle ? 'Turtle: tap to step' : 'Bunny: hold to run'}
           >
-            {turtle && phase === 'race' && <span className="yr-pulse" />}
             <span className="yr-big-label">{turtle ? 'TAP' : 'HOLD'}</span>
-            <span className="yr-big-sub">{turtle ? 'steady steps' : 'let go on food to eat'}</span>
+            <span className="yr-big-sub">{turtle ? 'tap fast & keep going' : 'let go on food to eat'}</span>
           </button>
         ) : (
           <div className="flex-1 flex items-center justify-center text-[13px] font-bold opacity-60 px-2 text-center">Computer</div>
@@ -836,8 +827,6 @@ export default function Game({ onExit }: GameProps) {
         .g-yard-race .yr-big[data-on="true"] { transform: translateY(4px); box-shadow: 0 2px 0 ${ink}; filter: brightness(1.06); }
         .g-yard-race .yr-big-label { font-size: 30px; font-weight: 700; letter-spacing: 0.06em; pointer-events: none; }
         .g-yard-race .yr-big-sub { font-size: 12px; font-weight: 600; opacity: 0.7; pointer-events: none; }
-        .g-yard-race .yr-pulse { position: absolute; left: 50%; top: 50%; width: 60%; aspect-ratio: 1; border-radius: 50%; border: 3px solid rgba(255,255,230,0.8); transform: translate(-50%,-50%) scale(0.4); opacity: 0; animation: yr-beat ${(1 / TUNING.turtlePace).toFixed(3)}s linear infinite; pointer-events: none; }
-        @keyframes yr-beat { 0% { transform: translate(-50%,-50%) scale(0.45); opacity: 0.9; } 100% { transform: translate(-50%,-50%) scale(1.15); opacity: 0; } }
       `}</style>
       <div ref={rootRef} className="relative h-full w-full max-w-[520px] mx-auto flex flex-col overflow-hidden" style={{ background: '#7a4f33' }}>
         <div className="relative shrink-0" style={{ height: trackH }}>
@@ -875,7 +864,7 @@ export default function Game({ onExit }: GameProps) {
               <h1 className="text-[30px] font-bold leading-none">Turtle vs Bunny</h1>
               <div className="text-[13px] font-semibold tracking-[0.25em] opacity-60 mt-1">ONE LAP OF THE YARD</div>
               <p className="text-[14px] leading-snug mt-3 text-left">
-                <b>Turtle:</b> tap in a steady rhythm. Just enough energy for one lap: rush and you'll crawl home.
+                <b>Turtle:</b> tap tap tap! The faster you keep tapping, the faster it walks, and it never runs out of energy.
               </p>
               <p className="text-[14px] leading-snug mt-1.5 text-left">
                 <b>Bunny:</b> hold to zoom. Let go on a food patch to stop and eat. Run dry and you flop!
