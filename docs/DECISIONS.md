@@ -77,6 +77,11 @@ Ben's feedback (round 1):
   from a tram puts her on its roof) or the treat magnet (10 s: pulls in treats from every lane). The active
   power-up shows with a timer bar. Treats are only placed where collecting them never forces a crash; the check
   script proves it for every treat with the real timings, and checks the run is passable at skateboard speed.
+Ben's feedback (round 2):
+- Day/night cycle by distance (one day = 1600 m; runs start in the afternoon): day, sunset, night, dawn, day.
+  Sky, sun, moon and stars change smoothly; the whole street takes the light's tint; at night street lamps and
+  the lamps on the catenary poles light pools on the ground, windows and shop fronts glow, trams light up their
+  windows and headlights, station shelters are lit. Rosie and Bentzi's arm stay a little brighter than the world.
 
 ## Hose Shooter (yard, back wall)
 First-person view of the yard's back wall: a tree, the fence/wall top, dirt yard. Drag to aim the hose nozzle,

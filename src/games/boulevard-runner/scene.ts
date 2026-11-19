@@ -3,6 +3,7 @@
  * (x across, y up, gap = distance ahead of Rosie) onto the canvas. Painter's algorithm, far to near.
  */
 import { type Obstacle, type Pickup, obstacleGap, RAMP_LEN, ROOF_H } from './spawner';
+import { lightAt, type Light } from './daynight';
 import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN, SHOPS_EVEN, SHOPS_ODD, type Shop } from './street';
 import { type Sprite, type Sprites, buildSprites, drawRosie, drawBentziArm, drawBoardUnder, fogc, shade, HAZE } from './art';
 
@@ -42,6 +43,8 @@ export interface Frame {
   shake: number;
   /** Extra camera height (follows Rosie up onto roofs). */
   camLift: number;
+  /** Time of day 0..1 (see daynight.ts). */
+  tod: number;
   pickups: Pickup[];
   /** Pickup id -> run time it was collected (for the pop). */
   taken: Map<number, number>;
@@ -74,7 +77,15 @@ export class Scene {
   horizon = 290;
   camX = 0;
   camH = CAM_H;
-  private sky: HTMLCanvasElement | null = null;
+  private L: Light = lightAt(0);
+  private tintRGB: [number, number, number] = [1, 1, 1];
+  private tintCache = new Map<string, string>();
+  private tintStep = -1;
+  private spriteTint = new Map<HTMLCanvasElement, { step: number; c: HTMLCanvasElement }>();
+  private retintBudget = 0;
+  private scratch: HTMLCanvasElement | null = null;
+  private scratch2: HTMLCanvasElement | null = null;
+  private glowImgs = new Map<string, HTMLCanvasElement>();
   private sp: Sprites;
   private dpr = 1;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -91,7 +102,6 @@ export class Scene {
     // Focal length from height, but keep all three lanes on narrow screens.
     this.F = Math.min(H * 0.98, W * 1.85);
     this.horizon = H * 0.80 - (CAM_H * this.F) / CAM_BACK;
-    this.sky = this.buildSky();
   }
 
   private P(x: number, y: number, gap: number): Pt {
@@ -104,51 +114,202 @@ export class Scene {
     return Math.max(0, Math.min(1, (z - 18) / 100)) * 0.9;
   }
 
-  private buildSky(): HTMLCanvasElement {
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(this.W * this.dpr);
-    c.height = Math.ceil((this.horizon + 4) * this.dpr);
+  // ---------- day / night ----------
+  private setLight(tod: number) {
+    const L = lightAt(tod);
+    this.L = L;
+    if (L.step !== this.tintStep) {
+      this.tintStep = L.step;
+      this.tintCache.clear();
+      const n = parseInt(L.tint.slice(1), 16);
+      this.tintRGB = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+    this.retintBudget = 16;
+  }
+  private get daylight() { return this.tintRGB[0] > 0.995 && this.tintRGB[1] > 0.995 && this.tintRGB[2] > 0.995; }
+  /** A colour (hex, rgb() or rgba()) multiplied by the current world tint. */
+  tc(color: string): string {
+    if (this.daylight) return color;
+    let v = this.tintCache.get(color);
+    if (v) return v;
+    let r = 0, g = 0, b = 0, a = 1;
+    if (color[0] === '#') {
+      const n = parseInt(color.slice(1, 7), 16);
+      r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255;
+    } else {
+      const m = color.match(/[\d.]+/g);
+      if (!m) return color;
+      r = +m[0]; g = +m[1]; b = +m[2]; if (m.length > 3) a = +m[3];
+    }
+    const [tr, tg, tb] = this.tintRGB;
+    v = `rgba(${Math.round(r * tr)},${Math.round(g * tg)},${Math.round(b * tb)},${a})`;
+    this.tintCache.set(color, v);
+    return v;
+  }
+  /** A tinted copy of a sprite canvas for the current light step (built lazily, a few per frame). */
+  private tintImg(img: HTMLCanvasElement): HTMLCanvasElement {
+    if (this.daylight) return img;
+    const hit = this.spriteTint.get(img);
+    if (hit && (hit.step === this.tintStep || this.retintBudget <= 0)) return hit.c;
+    if (this.retintBudget <= 0) return img;
+    this.retintBudget--;
+    const c = hit?.c ?? document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
     const g = c.getContext('2d')!;
-    g.scale(this.dpr, this.dpr);
-    const hz = this.horizon;
+    g.clearRect(0, 0, c.width, c.height);
+    g.drawImage(img, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = this.L.tint;
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(img, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    this.spriteTint.set(img, { step: this.tintStep, c });
+    return c;
+  }
+  /**
+   * Draw something procedural (Rosie, Bentzi's arm) through the night tint: render it into a scratch
+   * canvas, tint it (a bit lighter than the world so the heroes read), then copy it onto the screen.
+   */
+  private tinted(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+    if (this.daylight) { draw(g); return; }
+    x = Math.floor(x); y = Math.floor(y); w = Math.ceil(w); h = Math.ceil(h);
+    if (w < 1 || h < 1) return;
+    const d = this.dpr;
+    if (!this.scratch) { this.scratch = document.createElement('canvas'); this.scratch2 = document.createElement('canvas'); }
+    const c = this.scratch, c2 = this.scratch2!;
+    const need = (cv: HTMLCanvasElement) => { if (cv.width < w * d || cv.height < h * d) { cv.width = Math.max(cv.width, Math.ceil(w * d)); cv.height = Math.max(cv.height, Math.ceil(h * d)); } };
+    need(c); need(c2);
+    const s = c.getContext('2d')!, s2 = c2.getContext('2d')!;
+    s.setTransform(1, 0, 0, 1, 0, 0);
+    s.globalCompositeOperation = 'source-over';
+    s.clearRect(0, 0, w * d, h * d);
+    s.setTransform(d, 0, 0, d, -x * d, -y * d);
+    draw(s);
+    s.setTransform(1, 0, 0, 1, 0, 0);
+    // keep a copy for the alpha mask (multiply also fills the transparent pixels)
+    s2.setTransform(1, 0, 0, 1, 0, 0);
+    s2.globalCompositeOperation = 'copy';
+    s2.drawImage(c, 0, 0, w * d, h * d, 0, 0, w * d, h * d);
+    s2.globalCompositeOperation = 'source-over';
+    const [tr, tg, tb] = this.tintRGB;
+    const lift = (v: number) => Math.round(255 * (v + (1 - v) * 0.35));
+    s.globalCompositeOperation = 'multiply';
+    s.fillStyle = `rgb(${lift(tr)},${lift(tg)},${lift(tb)})`;
+    s.fillRect(0, 0, w * d, h * d);
+    s.globalCompositeOperation = 'destination-in';
+    s.drawImage(c2, 0, 0, w * d, h * d, 0, 0, w * d, h * d);
+    s.globalCompositeOperation = 'source-over';
+    g.drawImage(c, 0, 0, w * d, h * d, x, y, w, h);
+  }
+
+  private stars: [number, number, number][] = Array.from({ length: 70 }, (_, i) => [hash2(i, 101), hash2(i, 202), hash2(i, 303)]);
+
+  private drawSky(g: CanvasRenderingContext2D) {
+    const L = this.L, hz = this.horizon, W = this.W;
     const grd = g.createLinearGradient(0, 0, 0, hz);
-    grd.addColorStop(0, '#5b86b8');
-    grd.addColorStop(0.45, '#a8bfd2');
-    grd.addColorStop(0.75, '#f3c99a');
-    grd.addColorStop(1, '#ffdcae');
+    grd.addColorStop(0, L.skyTop);
+    grd.addColorStop(0.5, L.skyMid);
+    grd.addColorStop(0.85, L.skyLow);
+    grd.addColorStop(1, L.haze);
     g.fillStyle = grd;
-    g.fillRect(0, 0, this.W, hz + 4);
-    // low sun ahead, down the boulevard (walking toward the sea at sunset)
-    const sx = this.W * 0.58, sy = hz - 26;
-    const glow = g.createRadialGradient(sx, sy, 4, sx, sy, this.W * 0.75);
-    glow.addColorStop(0, 'rgba(255,240,200,0.95)');
-    glow.addColorStop(0.08, 'rgba(255,214,150,0.65)');
-    glow.addColorStop(0.35, 'rgba(255,190,130,0.18)');
-    glow.addColorStop(1, 'rgba(255,190,130,0)');
-    g.fillStyle = glow;
-    g.fillRect(0, 0, this.W, hz + 4);
-    g.beginPath(); g.arc(sx, sy, 15, 0, Math.PI * 2); g.fillStyle = '#fff4d6'; g.fill();
-    // soft streaky clouds
+    g.fillRect(0, 0, W, hz + 4);
+    // stars and moon
+    if (L.stars > 0.01) {
+      for (const [sx, sy, b] of this.stars) {
+        const tw = 0.6 + 0.4 * Math.sin(this.t * (1 + b * 3) + sx * 50);
+        g.globalAlpha = L.stars * tw * (0.4 + b * 0.6) * (1 - sy * 0.6);
+        g.fillStyle = '#ffffff';
+        const r = 0.6 + b * 1.1;
+        g.fillRect(sx * W, sy * hz * 0.8, r, r);
+      }
+      g.globalAlpha = 1;
+    }
+    if (L.moon > 0.01) {
+      const mx = W * 0.22, my = hz * 0.22;
+      g.globalAlpha = L.moon;
+      const mg = g.createRadialGradient(mx, my, 4, mx, my, 60);
+      mg.addColorStop(0, 'rgba(220,230,255,0.35)');
+      mg.addColorStop(1, 'rgba(220,230,255,0)');
+      g.fillStyle = mg; g.fillRect(mx - 60, my - 60, 120, 120);
+      g.beginPath(); g.arc(mx, my, 13, 0, Math.PI * 2); g.fillStyle = '#f4f1e2'; g.fill();
+      g.beginPath(); g.arc(mx + 6, my - 3, 11.5, 0, Math.PI * 2); g.fillStyle = L.skyTop; g.fill();
+      g.globalAlpha = 1;
+    }
+    // the sun, low ahead down the boulevard toward the sea
+    if (L.sun > -0.2) {
+      const sx = W * 0.58, sy = hz - 12 - Math.max(-0.2, L.sun) * hz * 0.55;
+      const glow = g.createRadialGradient(sx, sy, 4, sx, sy, W * 0.75);
+      const warm = L.sun < 0.5;
+      glow.addColorStop(0, warm ? 'rgba(255,240,200,0.95)' : 'rgba(255,255,240,0.9)');
+      glow.addColorStop(0.08, warm ? 'rgba(255,214,150,0.65)' : 'rgba(255,250,230,0.35)');
+      glow.addColorStop(0.35, warm ? 'rgba(255,190,130,0.18)' : 'rgba(255,250,230,0.08)');
+      glow.addColorStop(1, 'rgba(255,190,130,0)');
+      g.fillStyle = glow;
+      g.fillRect(0, 0, W, hz + 4);
+      if (sy < hz + 10) { g.beginPath(); g.arc(sx, sy, 15, 0, Math.PI * 2); g.fillStyle = L.sunColor; g.fill(); }
+    }
+    // soft streaky clouds, lit by the sky
     const clouds: [number, number, number][] = [[0.15, 0.35, 120], [0.72, 0.22, 150], [0.4, 0.55, 90], [0.9, 0.5, 110]];
     for (const [cx, cy, w] of clouds) {
-      g.fillStyle = 'rgba(255,225,205,0.55)';
-      g.beginPath(); g.ellipse(this.W * cx, hz * cy, w * 0.6, 7, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(240,170,150,0.35)';
-      g.beginPath(); g.ellipse(this.W * cx + 12, hz * cy + 5, w * 0.45, 4, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = this.tc('rgba(255,225,205,0.55)');
+      g.beginPath(); g.ellipse(W * cx, hz * cy, w * 0.6, 7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = this.tc('rgba(240,170,150,0.35)');
+      g.beginPath(); g.ellipse(W * cx + 12, hz * cy + 5, w * 0.45, 4, 0, 0, Math.PI * 2); g.fill();
     }
-    // distant city haze silhouettes at the end of the boulevard
-    g.fillStyle = 'rgba(214,170,140,0.55)';
+    // distant city silhouettes at the end of the boulevard (with a few lit windows at night)
+    g.fillStyle = this.tc('rgba(214,170,140,0.55)');
     for (let i = 0; i < 26; i++) {
-      const x = (i / 26) * this.W;
+      const x = (i / 26) * W;
       const h = 6 + hash2(i, 7) * 16;
-      g.fillRect(x, hz - h, this.W / 26 + 1, h + 4);
+      g.fillRect(x, hz - h, W / 26 + 1, h + 4);
     }
-    g.fillStyle = 'rgba(200,160,130,0.55)';
+    if (L.lamps > 0.05) {
+      g.fillStyle = `rgba(255,214,140,${0.7 * L.lamps})`;
+      for (let i = 0; i < 40; i++) if (hash2(i, 9) < 0.6) g.fillRect(hash2(i, 5) * W, hz - 3 - hash2(i, 6) * 14, 1.5, 1.5);
+    }
+    g.fillStyle = this.tc('rgba(200,160,130,0.55)');
     for (let i = 0; i < 8; i++) {
-      const x = hash2(i, 3) * this.W;
+      const x = hash2(i, 3) * W;
       g.fillRect(x, hz - 18 - hash2(i, 9) * 8, 1.4, 20);
       g.beginPath(); g.ellipse(x, hz - 20 - hash2(i, 9) * 8, 6, 3, 0, 0, Math.PI * 2); g.fill();
     }
+  }
+
+  /** Additive pool of lamplight lying on the ground (an ellipse in perspective). */
+  private groundPool(g: CanvasRenderingContext2D, p: Pt, r: number, a: number) {
+    const rx = p.s * r, ry = p.s * r * 0.32;
+    if (rx < 2) return;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = Math.min(1, a * 0.6);
+    g.drawImage(this.glowImg('255,200,120'), p.x - rx, p.y - ry, rx * 2, ry * 2);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  /** Warm glow (additive) around a light source, plus an optional pool of light on the ground. */
+  private glow(g: CanvasRenderingContext2D, x: number, y: number, r: number, a: number, color = '255,214,140') {
+    if (a <= 0.01 || r < 1) return;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = Math.min(1, a);
+    g.drawImage(this.glowImg(color), x - r, y - r, r * 2, r * 2);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+  /** Pre-rendered radial glow, so night scenes don't build gradients per lamp per frame. */
+  private glowImg(color: string): HTMLCanvasElement {
+    let c = this.glowImgs.get(color);
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, `rgba(${color},0.55)`);
+    rg.addColorStop(0.35, `rgba(${color},0.18)`);
+    rg.addColorStop(1, `rgba(${color},0)`);
+    g.fillStyle = rg;
+    g.fillRect(0, 0, 64, 64);
+    this.glowImgs.set(color, c);
     return c;
   }
 
@@ -157,13 +318,14 @@ export class Scene {
     this.ctx = g;
     this.t = fr.t;
     this.camH = CAM_H + fr.camLift;
+    this.setLight(fr.tod);
     const pl = fr.player;
     const px = (pl.lanePos - 1) * LANE_W;
     this.camX = px * 0.42;
     g.save();
     if (fr.shake > 0) g.translate((Math.random() - 0.5) * fr.shake * 10, (Math.random() - 0.5) * fr.shake * 6);
-    if (this.sky) g.drawImage(this.sky, 0, 0, W, this.horizon + 4);
-    g.fillStyle = '#d9b27c';
+    this.drawSky(g);
+    g.fillStyle = this.tc('#d9b27c');
     g.fillRect(0, this.horizon, W, H - this.horizon + 10);
 
     // ground first: its far haze band must not cover the shop fronts
@@ -185,6 +347,8 @@ export class Scene {
       // up on a roof she is above the tram, so draw her after it
       gap: pl.y > 0.6 ? -100 : 0.001,
       fn: () => {
+        const p0 = this.P(px, pl.y, 0), u0 = p0.s * 1.45;
+        this.tinted(g, p0.x - u0 * 1.1, p0.y - u0 * 2.4, u0 * 2.2, u0 * 2.9, (g) => {
         const p = this.P(px, pl.y, 0);
         // shadow on whatever she is above
         const ps = this.P(px, pl.base, 0);
@@ -243,6 +407,7 @@ export class Scene {
           } else drawRosie(g, 0, 0, p.s * 1.45, pl.phase, pl.wag, pl.lean, pl.airborne);
           g.restore();
         }
+        });
       },
     });
     items.sort((a, b) => b.gap - a.gap);
@@ -267,12 +432,15 @@ export class Scene {
     const dist = Math.hypot(ringX - startX, ringY - startY);
     const slack = Math.max(4, 34 - dist * 0.06 - lift * 20) * k;
     const swing = Math.sin(pl.phase) * 7 * k;
-    g.beginPath();
-    g.moveTo(startX, startY);
-    g.quadraticCurveTo((startX + ringX) / 2 + swing, (startY + ringY) / 2 + slack, ringX, ringY);
-    g.lineWidth = 3.2 * k; g.strokeStyle = '#c63a2c'; g.stroke();
-    g.lineWidth = 1 * k; g.strokeStyle = 'rgba(255,190,170,0.6)'; g.stroke();
-    drawBentziArm(g, handX, handY, k, tug + step * 0.04);
+    const top = Math.min(ringY, startY) - 12;
+    this.tinted(g, 0, top, W, H - top, (g) => {
+      g.beginPath();
+      g.moveTo(startX, startY);
+      g.quadraticCurveTo((startX + ringX) / 2 + swing, (startY + ringY) / 2 + slack, ringX, ringY);
+      g.lineWidth = 3.2 * k; g.strokeStyle = '#c63a2c'; g.stroke();
+      g.lineWidth = 1 * k; g.strokeStyle = 'rgba(255,190,170,0.6)'; g.stroke();
+      drawBentziArm(g, handX, handY, k, tug + step * 0.04);
+    });
 
     this.drawWarnings(g, fr);
     g.restore();
@@ -296,12 +464,32 @@ export class Scene {
     g.lineWidth = Math.max(1, r * 0.18); g.strokeStyle = '#5a2f17'; g.stroke();
   }
 
+  /** A quad drawn without the night tint (something that gives off light). */
+  private quadLit(g: CanvasRenderingContext2D, a: Pt, b: Pt, c: Pt, d: Pt, fill: string) {
+    g.beginPath();
+    g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(d.x, d.y);
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  }
+  /** Lit colour: between the tinted day colour and a warm glow, by how dark it is. */
+  private litColor(day: string, glowHex: string, k: number): string {
+    const t = this.tc(day);
+    if (k <= 0.01) return t;
+    const m = t[0] === '#' ? null : t.match(/[\d.]+/g);
+    let r: number, g: number, b: number;
+    if (m) { r = +m[0]; g = +m[1]; b = +m[2]; } else { const n = parseInt(t.slice(1, 7), 16); r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255; }
+    const n2 = parseInt(glowHex.slice(1), 16);
+    const R = (n2 >> 16) & 255, G = (n2 >> 8) & 255, B = n2 & 255;
+    return `rgb(${Math.round(r + (R - r) * k)},${Math.round(g + (G - g) * k)},${Math.round(b + (B - b) * k)})`;
+  }
+
   // ---------- ground ----------
   private quad(g: CanvasRenderingContext2D, a: Pt, b: Pt, c: Pt, d: Pt, fill: string) {
     g.beginPath();
     g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(d.x, d.y);
     g.closePath();
-    g.fillStyle = fill;
+    g.fillStyle = this.tc(fill);
     g.fill();
   }
   private strip(g: CanvasRenderingContext2D, x1: number, x2: number, g1: number, g2: number, fill: string, y = 0) {
@@ -373,8 +561,8 @@ export class Scene {
     // far haze over the ground
     const hz = this.horizon;
     const grd = g.createLinearGradient(0, hz, 0, hz + this.H * 0.12);
-    grd.addColorStop(0, HAZE);
-    grd.addColorStop(1, 'rgba(242,210,174,0)');
+    grd.addColorStop(0, this.L.haze);
+    grd.addColorStop(1, this.L.haze + '00');
     g.fillStyle = grd;
     g.fillRect(0, hz - 1, this.W, this.H * 0.12);
   }
@@ -392,7 +580,7 @@ export class Scene {
       g.stroke();
     };
     const p0 = this.P(x, 0, gap);
-    g.strokeStyle = color;
+    g.strokeStyle = this.tc(color);
     g.lineWidth = Math.max(1, p0.s * 0.04);
     const w = 0.72 * dir;
     ring(x, gap - w);
@@ -449,8 +637,8 @@ export class Scene {
         if (b + CAM_BACK < NEAR_Z) continue;
         const a2 = Math.max(a, NEAR_Z - CAM_BACK + 0.05);
         if (b <= a2) continue;
-        this.quad(g, this.P(X, 0.2, a2), this.P(X, 2.2, a2), this.P(X, 2.2, b), this.P(X, 0.2, b), fogc('#3d4650', fg));
-        this.quad(g, this.P(X, 1.3, a2), this.P(X, 2.1, a2), this.P(X, 2.1, b), this.P(X, 1.3, b), fogc('#6f8193', fg));
+        this.quadLit(g, this.P(X, 0.2, a2), this.P(X, 2.2, a2), this.P(X, 2.2, b), this.P(X, 0.2, b), this.litColor(fogc('#3d4650', fg), '#ffd98f', this.L.lamps * 0.9));
+        this.quadLit(g, this.P(X, 1.3, a2), this.P(X, 2.1, a2), this.P(X, 2.1, b), this.P(X, 1.3, b), this.litColor(fogc('#6f8193', fg), '#fff0c8', this.L.lamps * 0.9));
         // shop sign above the window (real shops on the boulevard), below the tree canopies
         if (a2 === a && a + CAM_BACK < 80) {
           const list = side < 0 ? SHOPS_EVEN : SHOPS_ODD;
@@ -473,7 +661,11 @@ export class Scene {
           const a = g0 + 0.9 + c * 3.0, b = a + 1.7;
           if (a + CAM_BACK < NEAR_Z + 0.2) continue;
           const open = hash2(k * 7 + f, c + side * 3) < 0.55;
-          this.quad(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 0.7, b), fogc(open ? '#3a4048' : sh, fg));
+          const lit = this.L.lamps * (hash2(k * 13 + f, c + side * 7) < 0.6 ? 1 : 0);
+          if (lit > 0.02) {
+            // someone's home: a warm window
+            this.quadLit(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 0.7, b), this.litColor(fogc(open ? '#3a4048' : sh, fg), hash2(k, c) < 0.3 ? '#ffe7b0' : '#ffc867', lit * (1 - fg * 0.5)));
+          } else this.quad(g, this.P(X, y0 + 0.7, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 0.7, b), fogc(open ? '#3a4048' : sh, fg));
           if (open) this.quad(g, this.P(X, y0 + 1.6, a), this.P(X, y0 + 2.5, a), this.P(X, y0 + 2.5, b), this.P(X, y0 + 1.6, b), fogc(sh, fg));
           if (balc && c % 2 === 0) {
             const bb = b + 1.3;
@@ -604,7 +796,7 @@ export class Scene {
     const w = B.x - A.x, h = B.y - A.y;
     if (w < 4) return;
     const bracket = this.P(x1, 4.3, gap), bracket2 = this.P(x2, 4.3, gap);
-    g.strokeStyle = fogc('#3a3a3a', fg); g.lineWidth = Math.max(1, A.s * 0.04);
+    g.strokeStyle = this.tc(fogc('#3a3a3a', fg)); g.lineWidth = Math.max(1, A.s * 0.04);
     g.beginPath(); g.moveTo(bracket.x, bracket.y); g.lineTo(bracket2.x, bracket2.y); g.stroke();
     g.drawImage(this.signCanvas(shop), A.x, A.y, w, h);
     if (fg > 0.15) { g.globalAlpha = Math.min(0.6, fg - 0.15); g.fillStyle = HAZE; g.fillRect(A.x, A.y, w, h); g.globalAlpha = 1; }
@@ -659,7 +851,7 @@ export class Scene {
     this.quad(g, this.P(xo, 0.32, a2), this.P(xo, 2.6, a2), this.P(xo, 2.6, b), this.P(xo, 0.32, b), fogc('#9fc3cf', fg));
     g.globalAlpha = 1;
     // posts
-    g.strokeStyle = fogc('#5c5f66', fg);
+    g.strokeStyle = this.tc(fogc('#5c5f66', fg));
     for (const z of [a, c, b]) {
       if (z < minGap) continue;
       for (const x of [xi + side * 0.08, xo]) {
@@ -674,6 +866,15 @@ export class Scene {
     this.quad(g, this.P(xi, 2.75, a2), this.P(xo + side * 0.1, 2.75, a2), this.P(xo + side * 0.1, 2.75, b), this.P(xi, 2.75, b), fogc('#e8e4dc', fg));
     this.quad(g, this.P(xi, 2.55, a2), this.P(xi, 2.8, a2), this.P(xi, 2.8, b), this.P(xi, 2.55, b), fogc('#d22e2e', fg));
     if (a > minGap) this.quad(g, this.P(xi, 2.55, a), this.P(xo + side * 0.1, 2.55, a), this.P(xo + side * 0.1, 2.8, a), this.P(xi, 2.8, a), fogc('#b82626', fg));
+    // shelter lights at night
+    if (this.L.lamps > 0.02) {
+      for (const z of [c - 3, c + 3]) {
+        if (z < minGap) continue;
+        const lp = this.P((xi + xo) / 2, 2.6, z);
+        this.glow(g, lp.x, lp.y, lp.s * 1.5, this.L.lamps, '230,240,255');
+        this.groundPool(g, this.P((xi + xo) / 2, 0.32, z), 1.4, this.L.lamps * 0.7);
+      }
+    }
   }
 
   /** A camera-facing sign: white board, red band, station name in Hebrew and English. */
@@ -706,7 +907,7 @@ export class Scene {
     if (gap + CAM_BACK < NEAR_Z + 0.3) return;
     const fg = this.fog(gap);
     const p1 = this.P(x, 0.32, gap), p2 = this.P(x, 2.9, gap);
-    g.strokeStyle = fogc('#4a4c52', fg); g.lineWidth = Math.max(1, p1.s * 0.08);
+    g.strokeStyle = this.tc(fogc('#4a4c52', fg)); g.lineWidth = Math.max(1, p1.s * 0.08);
     g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
     this.nameSign(g, x - 0.62, x + 0.62, 2.9, 3.75, gap, name);
   }
@@ -717,7 +918,7 @@ export class Scene {
     if (z < NEAR_Z + 0.3) return;
     const fg = this.fog(gap);
     const lvl = fg < 0.2 ? 0 : fg < 0.45 ? 1 : 2;
-    const img = sp.frames[frame % sp.frames.length][Math.min(lvl, sp.frames[0].length - 1)];
+    const img = this.tintImg(sp.frames[frame % sp.frames.length][Math.min(lvl, sp.frames[0].length - 1)]);
     const w = sp.w * p.s, h = sp.h * p.s;
     const fade = Math.max(0, Math.min(1, (FAR - z) / 18));
     if (fade < 1) g.globalAlpha = fade;
@@ -771,7 +972,18 @@ export class Scene {
       // street lamps on the sidewalk
       add(16, side * 3 + 4, (_k, gap) => {
         const x = side * 8.3;
-        items.push({ gap, fn: () => this.sprite(g, this.sp.lamp, this.P(x, 0, gap), gap, 0, side > 0) });
+        items.push({
+          gap,
+          fn: () => {
+            this.sprite(g, this.sp.lamp, this.P(x, 0, gap), gap, 0, side > 0);
+            const k = this.L.lamps;
+            if (k > 0.02) {
+              const head = this.P(x - side * 0.52, 4.8, gap), pool = this.P(x - side * 1.0, 0, gap);
+              this.groundPool(g, pool, 1.9, k);
+              this.glow(g, head.x, head.y, head.s * 1.6, k);
+            }
+          },
+        });
       });
     }
     // catenary poles with cantilever arms over each track
@@ -786,7 +998,7 @@ export class Scene {
           const fg = this.fog(gap);
           for (const side of [-1, 1]) {
             const b = this.P(side * 2.85, 0, gap), t = this.P(side * 2.85, 5.6, gap);
-            g.strokeStyle = fogc('#55585e', fg);
+            g.strokeStyle = this.tc(fogc('#55585e', fg));
             g.lineWidth = Math.max(1, b.s * 0.12);
             g.beginPath(); g.moveTo(b.x, b.y); g.lineTo(t.x, t.y); g.stroke();
             const a1 = this.P(side * 2.85, 5.3, gap), a2 = this.P(side * 1.4, 5.3, gap);
@@ -794,6 +1006,15 @@ export class Scene {
             g.beginPath(); g.moveTo(a1.x, a1.y); g.lineTo(a2.x, a2.y); g.stroke();
             const w = this.P(side * LANE_W, WIRE_Y, gap);
             g.beginPath(); g.moveTo(a1.x, a1.y + (t.y - a1.y) * 0.5); g.lineTo(w.x, w.y); g.stroke();
+            // a street light on each pole, lighting the tracks and the bike path at night
+            const k = this.L.lamps;
+            if (k > 0.02) {
+              const lamp = this.P(side * 2.55, 5.45, gap);
+              g.fillStyle = '#fff3cf';
+              g.beginPath(); g.ellipse(lamp.x, lamp.y, Math.max(1, lamp.s * 0.18), Math.max(0.6, lamp.s * 0.06), 0, 0, Math.PI * 2); g.fill();
+              this.groundPool(g, this.P(side * 1.5, 0, gap), 2.2, k * 0.8);
+              this.glow(g, lamp.x, lamp.y, lamp.s * 1.3, k * 0.8);
+            }
           }
         },
       });
@@ -864,7 +1085,7 @@ export class Scene {
       this.quad(g, this.P(xc - hw, y0, u0), this.P(xc + hw, y0, u0), this.P(xc + hw, y1, u1), this.P(xc - hw, y1, u1), fogc(i % 2 ? '#2b2b2b' : '#f2c230', fg));
     }
     // rails along the edges
-    g.strokeStyle = fogc('#9a9a9a', fg);
+    g.strokeStyle = this.tc(fogc('#9a9a9a', fg));
     for (const sx of [-hw, hw]) {
       const p1 = this.P(xc + sx, h0 + 0.1, z0), p2 = this.P(xc + sx, H + 0.1, top);
       g.lineWidth = Math.max(1, p1.s * 0.05);
@@ -907,8 +1128,12 @@ export class Scene {
         g.strokeStyle = BODY; g.lineWidth = Math.max(1, p1.s * 0.05);
         g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
       } else {
-        this.quad(g, this.P(inner, 1.25, a2), this.P(inner, 2.32, a2), this.P(inner, 2.32, b), this.P(inner, 1.25, b), GLASS);
-        this.quad(g, this.P(inner, 2.0, a2), this.P(inner, 2.32, a2), this.P(inner, 2.32, b), this.P(inner, 2.0, b), fogc('#4f6b84', fg));
+        if (this.L.lamps > 0.02) {
+          this.quadLit(g, this.P(inner, 1.25, a2), this.P(inner, 2.32, a2), this.P(inner, 2.32, b), this.P(inner, 1.25, b), this.litColor(GLASS, '#fff3c8', this.L.lamps * 0.85));
+        } else {
+          this.quad(g, this.P(inner, 1.25, a2), this.P(inner, 2.32, a2), this.P(inner, 2.32, b), this.P(inner, 1.25, b), GLASS);
+          this.quad(g, this.P(inner, 2.0, a2), this.P(inner, 2.32, a2), this.P(inner, 2.32, b), this.P(inner, 2.0, b), fogc('#4f6b84', fg));
+        }
       }
     }
     // articulation joints
@@ -916,14 +1141,14 @@ export class Scene {
       const z = near + (bodyLen * j) / 3;
       if (z < n || z > far) continue;
       const p1 = this.P(inner, y0, z), p2 = this.P(inner, y1, z);
-      g.strokeStyle = fogc('#5a5a60', fg); g.lineWidth = Math.max(1, p1.s * 0.05);
+      g.strokeStyle = this.tc(fogc('#5a5a60', fg)); g.lineWidth = Math.max(1, p1.s * 0.05);
       g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.stroke();
     }
     // pantograph up to the wire
     const pz = near + bodyLen * 0.5;
     if (pz > n && pz < far) {
       const b1 = this.P(xc - 0.4, y1, pz), b2 = this.P(xc + 0.4, y1, pz), top = this.P(xc, WIRE_Y, pz), mid = this.P(xc + 0.25, (y1 + WIRE_Y) / 2, pz);
-      g.strokeStyle = fogc('#2c2c30', fgF); g.lineWidth = Math.max(1, b1.s * 0.05);
+      g.strokeStyle = this.tc(fogc('#2c2c30', fgF)); g.lineWidth = Math.max(1, b1.s * 0.05);
       g.beginPath(); g.moveTo(b1.x, b1.y); g.lineTo(mid.x, mid.y); g.lineTo(top.x, top.y); g.moveTo(b2.x, b2.y); g.lineTo(mid.x, mid.y); g.stroke();
       const t1 = this.P(xc - 0.5, WIRE_Y, pz), t2 = this.P(xc + 0.5, WIRE_Y, pz);
       g.beginPath(); g.moveTo(t1.x, t1.y); g.lineTo(t2.x, t2.y); g.stroke();
@@ -935,15 +1160,15 @@ export class Scene {
       const L = a.x, T = b.y;
       g.save();
       g.beginPath(); g.roundRect(L, T, w, h, [s * 0.35, s * 0.35, s * 0.08, s * 0.08]);
-      g.fillStyle = BODY; g.fill();
+      g.fillStyle = this.tc(BODY); g.fill();
       g.clip();
       // red nose
-      g.fillStyle = RED;
+      g.fillStyle = this.tc(RED);
       g.beginPath(); g.moveTo(L, T + h * 0.62); g.quadraticCurveTo(L + w / 2, T + h * 0.5, L + w, T + h * 0.62); g.lineTo(L + w, T + h); g.lineTo(L, T + h); g.closePath(); g.fill();
       // windscreen
-      g.fillStyle = GLASS;
+      g.fillStyle = this.tc(GLASS);
       g.beginPath(); g.roundRect(L + w * 0.08, T + h * 0.1, w * 0.84, h * 0.4, [s * 0.3, s * 0.3, s * 0.05, s * 0.05]); g.fill();
-      g.fillStyle = fogc('#5f7d96', fg);
+      g.fillStyle = this.tc(fogc('#5f7d96', fg));
       g.beginPath(); g.moveTo(L + w * 0.15, T + h * 0.12); g.lineTo(L + w * 0.35, T + h * 0.12); g.lineTo(L + w * 0.2, T + h * 0.48); g.lineTo(L + w * 0.1, T + h * 0.48); g.closePath(); g.fill();
       // destination display
       g.fillStyle = '#1a1a1a';
@@ -957,6 +1182,10 @@ export class Scene {
         g.beginPath(); g.ellipse(L + w * lx, T + h * 0.72, w * 0.07, h * 0.035, 0, 0, Math.PI * 2); g.fill();
       }
       g.restore();
+      const nightLights = this.L.lamps;
+      if (nightLights > 0.05) {
+        for (const lx of [0.16, 0.84]) this.glow(g, L + w * lx, T + h * 0.72, w * (o.lane === 0 ? 0.9 : 0.5), nightLights, o.lane === 0 ? '255,245,210' : '255,70,50');
+      }
       if (o.kind === 'tramIn') {
         // headlight glare
         for (const lx of [0.16, 0.84]) {
