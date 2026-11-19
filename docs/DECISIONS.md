@@ -114,8 +114,12 @@ place soup pot, 2 trays, 2 challahs, 1 cake without anything toppling: simple st
 balance, more calls). Look: BoJack Horseman-like flat 2D cartoon.
 
 ## Squeegee Survival (bathroom)
-Side/top view: floor slopes from the shower down toward the sink; shower is on, water flows downhill. The player
-moves up/down along the floor and taps to swing the squeegee (one tap = one push of water toward the drain). Three
-shelves under the sink flood as water rises: bottom = cleaning supplies (suds, slippery controls), middle = toilet
-paper (falls in, clogs the drain, slower draining), top = electric toothbrush and trimmer (electrocution, game over).
-Score = survival time. Look: Maurice Sendak-like pen-and-ink with watercolor wash.
+Side view (cross-section) of the bathroom at realistic proportions: the floor falls gently from the shower down
+toward the sink (a slight, readable incline, not a ramp); shower is on, water runs downhill. Bentzi is drawn at full
+height; the sink counter is at about his hip height. The player moves up/down along the floor and taps to swing the
+squeegee (one tap = one push of water toward the drain). Under the sink stands an IKEA-style utility trolley (round-
+cornered metal cart, 3 lipped trays, 4 castors; drawn originally, no logo). It sits on the floor, so its trays flood
+as the water rises: bottom = cleaning supplies (suds, slippery controls), middle = toilet paper (falls in, clogs the
+drain, slower draining), top = electric toothbrush and trimmer (electrocution, game over). Back wall: a window, a
+hanging shower caddy with shampoo bottles, and plants. Score = survival time. Look: Maurice Sendak-like pen-and-ink
+with watercolor wash.

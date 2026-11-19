@@ -24,7 +24,7 @@ function run(name: string, policy: Policy, seed = 1, maxT = 900, dtFn?: (r: () =
     if (++steps % 30 === 0) {
       for (let i = 0; i < S.N; i++) {
         if (!Number.isFinite(s.h[i]) || s.h[i] < -1e-9) { bad(`${name}: bad depth ${s.h[i]} at cell ${i}, t=${s.t.toFixed(1)}`); return s; }
-        if (s.h[i] > 40) { bad(`${name}: runaway depth ${s.h[i].toFixed(1)} at cell ${i}`); return s; }
+        if (s.h[i] > S.SHELF_LEVELS[2] + S.SLOPE_DROP + 25) { bad(`${name}: runaway depth ${s.h[i].toFixed(1)} at cell ${i}`); return s; }
       }
       const err = Math.abs(s.inflowTotal - s.drained - S.totalWater(s));
       if (err > 1e-6 * Math.max(1, s.inflowTotal)) { bad(`${name}: water not conserved (error ${err})`); return s; }
