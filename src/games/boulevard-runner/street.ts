@@ -4,38 +4,11 @@
  * signs are drawn in plain lettering, no logos.
  */
 
-/** Red Line light-rail stations on the boulevard, north to south (Hebrew Wikipedia station articles). */
-export const STATIONS: { en: string; he: string }[] = [
-  { en: 'Shalma', he: 'שלמה' },
-  { en: 'Bloomfield Stadium', he: 'אצטדיון בלומפילד' },
-  { en: 'Ehrlich', he: 'ארליך' },
-  { en: 'Isakov', he: 'איסקוב' },
-  { en: 'HaBesht', he: 'הבעש"ט' },
-  { en: 'Machrozet', he: 'מחרוזת' },
-];
-
-/** Distance of the first station's platform start, the spacing between stations, and platform length. */
-export const STATION_FIRST = 260;
-export const STATION_SPACING = 430;
-export const PLATFORM_LEN = 36;
-
-export function stationStart(k: number): number {
-  return STATION_FIRST + k * STATION_SPACING;
-}
-/** Station k's name (they repeat in order: the walk loops along the boulevard). */
-export function stationName(k: number) {
-  return STATIONS[((k % STATIONS.length) + STATIONS.length) % STATIONS.length];
-}
-/** Index of the station whose platform covers distance d, or -1. */
-export function stationAt(d: number): number {
-  const k = Math.floor((d - STATION_FIRST) / STATION_SPACING);
-  if (k < 0) return -1;
-  return d - stationStart(k) <= PLATFORM_LEN ? k : -1;
-}
-
 /**
  * Businesses with storefronts on the boulevard (Time Out Tel Aviv, "Sderot Yerushalayim food guide",
- * Dec 2024; Maariv, Mar 2024). Even street numbers are on one side, odd on the other.
+ * Dec 2024; Maariv, Mar 2024). Even street numbers are on one side, odd on the other; the game puts each
+ * shop at its house number along the route (see route.ts numberToU), so they come up in real order.
+ * Station names and positions live in route.ts.
  */
 export interface Shop { he: string; en: string; no: number }
 export const SHOPS_EVEN: Shop[] = [

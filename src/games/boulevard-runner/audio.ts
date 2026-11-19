@@ -111,6 +111,12 @@ export class Sfx {
     this.noise(t, 0.12, 0.5, 2500);
     this.tone(500, t, 0.25, 'sawtooth', 0.12, 120);
   }
+  /** Arriving at Charles Clore Park. */
+  fanfare() {
+    if (!this.ok()) return;
+    const t = this.ctx!.currentTime;
+    [523, 659, 784, 1047, 784, 1047].forEach((f, i) => { this.tone(f, t + i * 0.11, 0.3, 'triangle', 0.18); this.tone(f * 2, t + i * 0.11, 0.12, 'sine', 0.05); });
+  }
   bonk() {
     if (!this.ok()) return;
     const t = this.ctx!.currentTime;

@@ -18,7 +18,7 @@
  * So by construction it never builds an unavoidable wall.
  */
 
-import { stationStart } from './street';
+import { platformStart, hasTracks, lapOf } from './route';
 
 export const LANES = 3;
 export type Lane = 0 | 1 | 2;
@@ -58,13 +58,17 @@ export interface Obstacle {
 export const SPEED0 = 8.5;
 export const SPEED_MAX = 19;
 export const RAMP = 1400;
-/** Rosie's speed (units/s) after walking d units. Smooth ramp toward SPEED_MAX. */
+/** Extra speed for each lap of the route completed (loop back to HaBesht one tier faster). */
+export const TIER_BOOST = 1.6;
+export const SPEED_CAP = 24;
+/** Rosie's speed (units/s) after walking d units: a smooth ramp, plus a step up for every lap. */
 export function speedAt(d: number): number {
-  return SPEED0 + (SPEED_MAX - SPEED0) * (1 - Math.exp(-Math.max(0, d) / RAMP));
+  const ramp = SPEED0 + (SPEED_MAX - SPEED0) * (1 - Math.exp(-Math.max(0, d) / RAMP));
+  return Math.min(SPEED_CAP, ramp + lapOf(d) * TIER_BOOST);
 }
-/** 0 at the start, approaching 1 at top speed. */
+/** 0 at the start, approaching 1 at top speed (and a little beyond on later laps, capped at 1). */
 export function difficultyAt(d: number): number {
-  return (speedAt(d) - SPEED0) / (SPEED_MAX - SPEED0);
+  return Math.min(1, (speedAt(d) - SPEED0) / (SPEED_MAX - SPEED0));
 }
 
 export interface Timings {
@@ -129,9 +133,10 @@ export function mulberry32(seed: number): () => number {
 }
 
 /** Build an obstacle with its occupancy interval. */
-export function makeObstacle(id: number, kind: Kind, D: number, variant: number, ramp = false, stopLane: Lane = 0): Obstacle {
+export function makeObstacle(id: number, kind: Kind, D: number, variant: number, ramp = false, laneArg?: Lane): Obstacle {
   const sD = speedAt(D);
-  let lane: Lane = 1;
+  // walkers, bikes and low things use the bike path unless told otherwise (no tracks in the park)
+  let lane: Lane = laneArg ?? 1;
   let len = 0.6;
   let v = 0;
   let tall = true;
@@ -164,7 +169,7 @@ export function makeObstacle(id: number, kind: Kind, D: number, variant: number,
       tram = true;
       break;
     case 'tramStop':
-      lane = stopLane;
+      lane = laneArg ?? 0;
       ramp = ramp && lane === 2; // only a tram facing away shows us its rear
       len = TRAM_LEN + (ramp ? RAMP_LEN : 0);
       v = 0;
@@ -400,13 +405,18 @@ export class Spawner {
     this.placePickups();
   }
 
-  private pick(diff: number): Kind {
-    const w: [Kind, number][] = [
+  private pick(diff: number, tracks: boolean): Kind {
+    const w: [Kind, number][] = tracks ? [
       ['walker', 3.2],
       ['bike', 0.8 + 2.4 * Math.min(1, diff * 2.5)],
       ['low', 1.6 + 0.8 * diff],
       ['tramIn', 1.4 + 2.0 * diff],
       ['tramOut', 1.0 + 1.2 * diff],
+    ] : [
+      // no tracks (the street crossing and Charles Clore Park): people, bikes and clutter on every path
+      ['walker', 3.4],
+      ['bike', 1.6 + 1.6 * diff],
+      ['low', 1.8],
     ];
     let total = 0;
     for (const [, x] of w) total += x;
@@ -423,7 +433,7 @@ export class Spawner {
     const gapT = (1.25 - 0.62 * diff) * (0.75 + r() * 0.6);
     let D = this.cursor + gapT * s;
     // A station platform comes up: park a tram at it on one or both tracks (if that stays passable).
-    const st = stationStart(this.nextStation) + 2;
+    const st = platformStart(this.nextStation) + 2;
     if (st <= D) {
       this.nextStation++;
       if (st >= this.cursor) {
@@ -439,8 +449,12 @@ export class Spawner {
       }
     }
     for (let attempt = 0; attempt < 12; attempt++) {
-      const kind = this.pick(diff);
-      const o = makeObstacle(this.nextId, kind, D, Math.floor(r() * 1000), r() < 0.6);
+      const tracks = hasTracks(D);
+      const kind = this.pick(diff, tracks);
+      const lane = tracks ? undefined : (Math.floor(r() * 3) as Lane);
+      const o = makeObstacle(this.nextId, kind, D, Math.floor(r() * 1000), r() < 0.6, lane);
+      // a tram must stay on the tracks for its whole length
+      if (o.tram && !hasTracks(o.end + 2)) { if (attempt % 3 === 2) D += 4; continue; }
       // Trams in the same lane keep a healthy spacing; nothing overlaps in its lane.
       const spacing = o.lane === 1 ? 1.5 : 14;
       if (o.start < this.laneFree[o.lane] + spacing) { if (attempt % 3 === 2) D += 4; continue; }

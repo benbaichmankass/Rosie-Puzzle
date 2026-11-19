@@ -5,6 +5,7 @@
 // It also proves the search is not vacuous (a hand-made wall is rejected), checks determinism and density,
 // and that no distance is blocked by tall obstacles in all three lanes. Exits non-zero on failure.
 import { timeOfDay, lightAt, phaseName, DAY_LENGTH, STEPS } from '../src/games/boulevard-runner/daynight';
+import { ROUTE_STATIONS, NORTH_END, PARK_START, LAP, TRACKS_END, numberToU, hasTracks } from '../src/games/boulevard-runner/route';
 import { Spawner, CONTROLS, speedAt, LANES, makeObstacle, BOARD_SPEED, type Obstacle, type Timings } from '../src/games/boulevard-runner/spawner';
 
 const SEEDS = 40;
@@ -204,6 +205,20 @@ if (!powers) fail('no power-ups generated');
     if (jump > 60) fail(`day/night colour jump of ${jump} at step ${i}`);
   }
   if (lightAt(0.6).lamps < 0.9 || lightAt(0.1).lamps > 0.01) fail('lamps should be on at night and off by day');
+}
+
+// The real route: stations northbound in order, the park after the north end, a faster tier on the next lap,
+// no trams beyond the end of the track, and street numbers counting down as Rosie walks north.
+{
+  const order = ROUTE_STATIONS.map((x) => x.en).join(',');
+  if (order !== 'HaBesht,Isakov,Ehrlich,Bloomfield Stadium,Shalma') fail(`station order ${order}`);
+  for (let i = 1; i < ROUTE_STATIONS.length; i++) if (!(ROUTE_STATIONS[i].at > ROUTE_STATIONS[i - 1].at)) fail('stations out of order');
+  if (!(ROUTE_STATIONS[4].at < TRACKS_END && TRACKS_END < NORTH_END && NORTH_END < PARK_START && PARK_START < LAP)) fail('route segments out of order');
+  if (!(speedAt(LAP + 300) > speedAt(300) + 1)) fail('second lap should be a faster tier');
+  if (!(numberToU(127) < numberToU(82) && numberToU(82) < numberToU(2))) fail('house numbers should count down northbound');
+  const sp = new Spawner(99); sp.ensure(LAP * 2 + 100);
+  const bad = sp.obstacles.find((o) => o.tram && (!hasTracks(o.start) || !hasTracks(o.end)));
+  if (bad) fail(`tram off the tracks at ${bad.start.toFixed(0)}m`);
 }
 
 const ms = performance.now() - t0;

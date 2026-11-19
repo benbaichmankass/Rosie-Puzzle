@@ -8,7 +8,7 @@ import { timeOfDay } from './daynight';
 import { Scene } from './scene';
 import { Sfx } from './audio';
 import type { Obstacle } from './spawner';
-import { stationStart, stationName, STATION_FIRST, STATION_SPACING, PLATFORM_LEN } from './street';
+import { stationsIn, station, platformStart, PLATFORM_LEN } from './route';
 
 type Screen = 'start' | 'play' | 'paused' | 'over';
 
@@ -22,7 +22,7 @@ const CSS = `
 .g-boulevard-runner .br-hud { text-shadow: 0 2px 0 rgba(90,40,10,0.45), 0 0 12px rgba(90,40,10,0.35); }
 .g-boulevard-runner .br-round { width: 40px; height: 40px; border-radius: 999px; background: rgba(255,248,236,0.85); color: #6b3a1f;
   display: flex; align-items: center; justify-content: center; font-weight: 800; box-shadow: 0 3px 10px rgba(80,35,10,0.25); }
-.g-boulevard-runner .br-exit { background: rgba(255,248,236,0.88); color: #6b3a1f; border: none; border-radius: 999px; padding: 10px 14px;
+.g-boulevard-runner .br-exit { white-space: nowrap; flex-shrink: 0; background: rgba(255,248,236,0.88); color: #6b3a1f; border: none; border-radius: 999px; padding: 10px 14px;
   box-shadow: 0 3px 10px rgba(80,35,10,0.25); }
 @keyframes br-swipe { 0%,15% { transform: translateX(-46px); opacity: 0 } 30% { opacity: 1 } 60% { transform: translateX(46px); opacity: 1 } 75%,100% { transform: translateX(46px); opacity: 0 } }
 .g-boulevard-runner .br-hand { animation: br-swipe 1.4s ease-in-out infinite; }
@@ -51,6 +51,8 @@ export default function Game({ onExit }: GameProps) {
   const powerRef = useRef<HTMLDivElement>(null);
   const powerBarRef = useRef<HTMLDivElement>(null);
   const powerLabelRef = useRef<HTMLSpanElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const bannerTimer = useRef(0);
   const [screen, setScreen] = useState<Screen>('start');
   const screenRef = useRef<Screen>('start');
   const [best, setBest] = useState(() => getHighScore(meta.id));
@@ -163,6 +165,17 @@ export default function Game({ onExit }: GameProps) {
     let hudTimer = 0;
     const idleObstacles: Obstacle[] = [];
     const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const showBanner = (title: string, sub: string) => {
+      const el = bannerRef.current;
+      if (!el) return;
+      el.innerHTML = '';
+      const t = document.createElement('div'); t.textContent = title; t.className = 'text-[30px] font-black leading-none';
+      const u = document.createElement('div'); u.textContent = sub; u.className = 'text-[15px] font-bold mt-1';
+      el.append(t, u);
+      el.style.opacity = '1'; el.style.transform = 'translateY(0) scale(1)';
+      window.clearTimeout(bannerTimer.current);
+      bannerTimer.current = window.setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-12px) scale(0.96)'; }, 2600);
+    };
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const dt = Math.min(1 / 30, (now - prev) / 1000);
@@ -189,6 +202,8 @@ export default function Game({ onExit }: GameProps) {
           else if (e === 'treat') sfx.current.treat();
           else if (e === 'power') sfx.current.power();
           else if (e === 'shield') { sfx.current.shield(); a.shake = 0.6; }
+          else if (e === 'park') { sfx.current.fanfare(); showBanner('Charles Clore Park!', 'The sea! +500'); }
+          else if (e === 'lap') { sfx.current.power(); showBanner('Back to HaBesht', 'Lap ' + (run.lap + 1) + ' · faster!'); }
         }
         if (run.crashed) {
           a.crashT += dt;
@@ -216,11 +231,12 @@ export default function Game({ onExit }: GameProps) {
           // "next stop" banner as a station comes up and while passing its platform
           const el = stopRef.current;
           if (el) {
-            const k = Math.max(0, Math.ceil((run.d - PLATFORM_LEN - STATION_FIRST) / STATION_SPACING));
-            const ahead = stationStart(k) - run.d;
-            const show = ahead < 70 && ahead > -PLATFORM_LEN;
+            const near = stationsIn(run.d - PLATFORM_LEN, run.d + 70);
+            const k = near.length ? near[near.length - 1] : -1;
+            const ahead = k >= 0 ? platformStart(k) - run.d : 999;
+            const show = k >= 0 && ahead < 70 && ahead > -PLATFORM_LEN;
             if (show) {
-              const n = stationName(k);
+              const n = station(k);
               const label = `${ahead > 0 ? 'Next stop' : 'Station'}: ${n.en} · ${n.he}`;
               if (el.textContent !== label) el.textContent = label;
             }
@@ -328,6 +344,8 @@ export default function Game({ onExit }: GameProps) {
           </div>
         </div>
       )}
+
+      <div ref={bannerRef} className="absolute inset-x-0 top-[24%] mx-auto w-fit max-w-[92%] px-6 py-3 rounded-2xl bg-[rgba(31,154,166,0.92)] text-white text-center pointer-events-none shadow-xl transition-all duration-500" style={{ opacity: 0, transform: 'translateY(-12px) scale(0.96)' }} />
 
       {screen === 'play' && hint && (
         <div className="absolute inset-x-0 top-[30%] flex flex-col items-center pointer-events-none br-pop">
