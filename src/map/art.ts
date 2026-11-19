@@ -423,21 +423,29 @@ function prop(p: Painter, o: Prop) {
       break;
     }
     case 'shelf': {
-      p.use(PAL.darkwood);
-      // wall shelf with books (against the top wall)
-      p.box(X, Y - 6, W, 14, 0, 1);
-      p.hline(X + 1, Y + 1, W - 2, 0);
-      let x = X + 2;
-      let i = 0;
-      while (x < X + W - 3) {
-        const w = 2 + Math.floor(hash(i, 1, 4) * 2), h = 4 + Math.floor(hash(i, 2, 4) * 3);
-        p.use(PAL.books).rect(x, Y + 1 - h, w, h, ((i % 3) + 1) as S);
-        p.use(PAL.darkwood);
-        x += w + (i % 4 === 3 ? 2 : 0);
-        i++;
+      // tall white bookcase standing against the top wall (3/4 view: it rises up over the wall face)
+      const L = X + 1, R = X + W - 1, T = Y - 18, B = Y + 14;
+      p.fill(L + 1, B, R - L - 1, 2, 'rgba(0,0,0,0.22)'); // shadow on the floor
+      p.use(PAL.cream).box(L, T, R - L, B - T, 0, 3);
+      p.hline(L + 1, T + 1, R - L - 2, 3);
+      p.vline(R - 2, T + 2, B - T - 4, 2); // side shading
+      const colours: Pal[] = [PAL.books, PAL.leaf, PAL.rug, PAL.books, PAL.brass, PAL.water];
+      for (let k = 0; k < 4; k++) {
+        const top = T + 3 + k * 7;
+        p.use(PAL.cream).rect(L + 2, top, R - L - 5, 5, 2); // back of the compartment
+        p.hline(L + 2, top + 5, R - L - 5, 1); // shelf board
+        let x = L + 3, i = 0;
+        while (x < R - 4) {
+          const w = 2 + Math.floor(hash(k, i, 4) * 2), h = 3 + Math.floor(hash(k, i, 5) * 3);
+          if (k === 2 && i === 2) { x += 4; i++; continue; } // a gap with a little ornament
+          const pal = colours[(k * 3 + i) % colours.length];
+          p.use(pal).rect(x, top + 5 - h, Math.min(w, R - 4 - x), h, (1 + ((i + k) % 2)) as S);
+          p.use(pal).px(x, top + 5 - h, 3);
+          x += w + (hash(k, i, 6) < 0.25 ? 1 : 0);
+          i++;
+        }
       }
-      // shadow on the floor
-      p.hline(X + 1, Y + 8, W - 2, 2);
+      p.use(PAL.cream).rect(L + 1, B - 3, R - L - 2, 2, 1); // plinth
       break;
     }
     case 'lamp': {

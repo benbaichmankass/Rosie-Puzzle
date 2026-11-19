@@ -79,7 +79,7 @@ export const PROPS: Prop[] = [
   { kind: 'pool', ...R(1, 29, 5, 4), solid: true },
   // living room
   { kind: 'rug', ...R(15, 10, 5, 5), solid: false },
-  { kind: 'shelf', ...R(13, 8, 3, 1), solid: true },
+  { kind: 'shelf', ...R(13, 8, 2, 1), solid: true },
   { kind: 'lamp', ...R(17, 8, 1, 1), solid: false },
   { kind: 'sofaV', ...R(21, 10, 1, 5), solid: true },
   { kind: 'sofaH', ...R(17, 14, 4, 1), solid: true },
