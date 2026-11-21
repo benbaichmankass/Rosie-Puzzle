@@ -171,4 +171,53 @@ export class Sfx {
   gameOver() {
     [440, 415, 392, 370, 349].forEach((f, i) => this.tone(f, 0.3, 0.18, 'sawtooth', i * 0.18));
   }
+
+  /** A pickup pops out of a smashed item. */
+  pop() {
+    this.tone(700, 0.08, 0.12, 'sine', 0, 1100);
+  }
+
+  /** Catching a pickup. */
+  pickup(kind: 'lemon' | 'tahini' | 'coffee' | 'tabasco') {
+    switch (kind) {
+      case 'lemon':
+        [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.16, 0.14, 'triangle', i * 0.06));
+        break;
+      case 'tahini':
+        // Gloopy downward slide.
+        this.tone(420, 0.35, 0.22, 'sine', 0, 140);
+        this.burst(0.2, 0.3, 'lowpass', 500, 4, 0.05);
+        break;
+      case 'coffee':
+        // Rising whoosh.
+        this.tone(260, 0.3, 0.16, 'sawtooth', 0, 900);
+        this.burst(0.3, 0.35, 'bandpass', 2500, 1.5);
+        break;
+      case 'tabasco':
+        this.tone(110, 0.4, 0.3, 'sawtooth', 0, 55); // whoomp
+        this.burst(0.5, 0.5, 'highpass', 3000, 0.7, 0.05); // sizzle
+        break;
+    }
+  }
+
+  /** A missed pickup smashes or splats on the counter. */
+  splat(kind: 'lemon' | 'tahini' | 'coffee' | 'tabasco') {
+    if (kind === 'lemon' || kind === 'coffee') {
+      this.burst(0.14, 0.5, 'lowpass', 700, 3);
+      this.tone(160, 0.1, 0.15, 'sine', 0, 80);
+    } else {
+      this.burst(0.08, 0.45, 'highpass', 4000, 0.7);
+      for (let i = 0; i < 5; i++) this.tone(3500 + Math.random() * 3000, 0.1, 0.06, 'sine', Math.random() * 0.15);
+    }
+  }
+
+  /** The fireball burning through an item. */
+  sizzle() {
+    this.burst(0.25, 0.35, 'highpass', 3500 + Math.random() * 1500, 0.8);
+  }
+
+  /** A spare lemon drops behind the counter. */
+  plop() {
+    this.tone(300, 0.12, 0.14, 'sine', 0, 150);
+  }
 }

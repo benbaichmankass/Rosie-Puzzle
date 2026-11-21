@@ -232,7 +232,7 @@ export default function Game({ onExit }: GameProps) {
               <h1 className="text-[34px] font-bold leading-none mt-1">Cabinet Breaker</h1>
               <p className="text-[16px] mt-3 leading-snug">
                 Drag the bamboo board along the counter, bounce the lemon and smash everything off the shelves: the pink French
-                press, the clay pot, the air fryer… Squish a slug or a speedy cockroach for a bonus!
+                press, the clay pot, the air fryer… Catch falling lemons, tahini, coffee and Tabasco for surprises, and squish slugs and cockroaches for a bonus!
               </p>
               <div className="text-[15px] mt-3">
                 Best: <b>{best}</b>

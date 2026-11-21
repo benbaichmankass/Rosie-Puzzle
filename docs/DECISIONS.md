@@ -168,6 +168,14 @@ steel bowls, the green colander, Spark soap + pump, the pink French press, the f
 things: coffee bag + bean jar, cereal, tea boxes, sugar/flour canisters, spice jars, olive oil, honey, mugs (1 hit);
 kettle, moka pot, tomato cans, utensil crock, SodaStream, steel pot (2 hits); clay pot, air fryer, pan (3 hits).
 No paper rolls (Ben: they read as toilet paper).
+Pickups (Ben's call): about one smashed item in five drops a pickup that falls toward the counter; catch it on the
+board for its effect, miss it and it splats/smashes harmlessly. Lemon (+ badge) = an extra lemon ball, up to 4 in
+play, plus 250 points (Ben gave no bonus; multi-lemon is the manager's default); losing a spare lemon costs nothing,
+a life is lost only when the last lemon drops. Tahini jar = slower lemons for 8 s (tahini drips). Coffee cup = faster
+lemons and double points for 8 s (steam). Tahini and coffee cancel each other. Tabasco = fireball for 6 s: it burns
+through every item it touches (any number of hits) without bouncing, bouncing only off walls and the board; the
+rarest drop. Catching the same pickup again refreshes its timer; nothing stacks. Active effects show as chips with
+an icon and draining bar under the cabinets.
 
 ## Getting Ready for Shabbos (kitchen counter)
 Shabbat candle-lighting time for Tel Aviv from Hebcal (no key, CORS ok):
