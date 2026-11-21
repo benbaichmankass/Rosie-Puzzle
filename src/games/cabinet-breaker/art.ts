@@ -1974,48 +1974,7 @@ export function drawPickup(c: C, kind: 'lemon' | 'tahini' | 'coffee' | 'tabasco'
       return;
     }
     case 'tahini': {
-      // Squat glass jar of tahini with a red lid and a sesame label.
-      c.fillStyle = '#d9b27c';
-      c.beginPath();
-      c.roundRect(-8, -6, 16, 15, 3);
-      c.fill();
-      c.fillStyle = 'rgba(255,240,210,0.5)';
-      c.fillRect(-6.5, -4.5, 2, 11);
-      c.fillStyle = '#f7efdc';
-      c.beginPath();
-      c.roundRect(-6, -2, 12, 7, 1.5);
-      c.fill();
-      c.fillStyle = '#2d6aa6';
-      c.fillRect(-6, -2, 12, 2);
-      c.fillStyle = '#8a6a3a';
-      for (const [sx, sy, a] of [
-        [-3, 2.6, 0.4],
-        [0, 1.8, -0.3],
-        [3, 2.8, 0.2],
-        [-1.4, 3.8, -0.5],
-        [1.8, 4, 0.6],
-      ]) {
-        c.beginPath();
-        c.ellipse(sx, sy, 0.7, 1.1, a, 0, Math.PI * 2);
-        c.fill();
-      }
-      c.strokeStyle = 'rgba(80,60,30,0.9)';
-      c.beginPath();
-      c.roundRect(-8, -6, 16, 15, 3);
-      c.stroke();
-      c.fillStyle = '#c8352e';
-      c.strokeStyle = PAL.ink;
-      c.beginPath();
-      c.roundRect(-8.5, -10.5, 17, 5, 1.5);
-      c.fill();
-      c.stroke();
-      c.fillStyle = 'rgba(255,255,255,0.3)';
-      c.fillRect(-7, -9.5, 14, 1);
-      // A drip of tahini down the side.
-      c.fillStyle = '#d9b27c';
-      c.beginPath();
-      c.ellipse(6.5, -4, 1.4, 2.6, 0, 0, Math.PI * 2);
-      c.fill();
+      drawTahiniJar(c, 0, 1, 1);
       break;
     }
     case 'coffee': {
@@ -2103,5 +2062,101 @@ export function drawPickup(c: C, kind: 'lemon' | 'tahini' | 'coffee' | 'tabasco'
       break;
     }
   }
+  c.restore();
+}
+
+/**
+ * Achva-style whole tahini jar (the Israeli green one): white bulbous plastic jar, green screw lid,
+ * a dark-green round medallion in a herb wreath with the Hebrew lettering, a small green badge and the
+ * brown oval brand logo underneath. Drawn in the game's style; centred on (x, y), about 20×26 at s = 1.
+ */
+export function drawTahiniJar(c: C, x: number, y: number, s: number) {
+  c.save();
+  c.translate(x, y);
+  c.scale(s, s);
+  c.lineJoin = 'round';
+  // Jar body: slightly bulging white plastic.
+  const g = c.createLinearGradient(-10, 0, 10, 0);
+  g.addColorStop(0, '#d9d7d0');
+  g.addColorStop(0.3, '#ffffff');
+  g.addColorStop(0.75, '#f3f2ee');
+  g.addColorStop(1, '#c9c6bd');
+  c.fillStyle = g;
+  c.strokeStyle = PAL.ink;
+  c.lineWidth = 0.9;
+  c.beginPath();
+  c.moveTo(-8, -8);
+  c.quadraticCurveTo(-11, -2, -10.2, 6);
+  c.quadraticCurveTo(-10, 12, -6, 12.5);
+  c.lineTo(6, 12.5);
+  c.quadraticCurveTo(10, 12, 10.2, 6);
+  c.quadraticCurveTo(11, -2, 8, -8);
+  c.closePath();
+  c.fill();
+  c.stroke();
+  // Green screw lid with ridges.
+  c.fillStyle = '#1f8a3a';
+  c.beginPath();
+  c.roundRect(-8.6, -13, 17.2, 5.6, 1.6);
+  c.fill();
+  c.stroke();
+  c.strokeStyle = 'rgba(0,40,10,0.45)';
+  c.lineWidth = 0.5;
+  for (let i = -7; i <= 7; i += 1.75) {
+    c.beginPath();
+    c.moveTo(i, -12.3);
+    c.lineTo(i, -8);
+    c.stroke();
+  }
+  c.fillStyle = 'rgba(255,255,255,0.35)';
+  c.fillRect(-7.6, -12.4, 15, 1);
+  // Herb wreath around the medallion.
+  const cy = -1.4;
+  const leafCols = ['#4e9a3a', '#7cbf4a', '#3a7a2a', '#a8c84a'];
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    c.save();
+    c.translate(Math.cos(a) * 7.4, cy + Math.sin(a) * 7.4);
+    c.rotate(a + Math.PI / 2 + (i % 2 ? 0.5 : -0.5));
+    c.fillStyle = leafCols[i % leafCols.length];
+    c.beginPath();
+    c.ellipse(0, 0, 1.1, 2.3, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+  c.fillStyle = '#f2c94c';
+  for (const a of [0.4, 2.2, 3.9, 5.4]) {
+    c.beginPath();
+    c.arc(Math.cos(a) * 8.2, cy + Math.sin(a) * 8.2, 0.7, 0, Math.PI * 2);
+    c.fill();
+  }
+  // Dark-green medallion with the Hebrew lettering.
+  c.fillStyle = '#1d5a2c';
+  c.beginPath();
+  c.arc(0, cy, 6.4, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#ffffff';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.font = `700 3.6px "Fredoka", "Rubik", "Arial Hebrew", system-ui, sans-serif`;
+  c.fillText('טחינה', 0, cy - 1.7);
+  c.font = `700 4.2px "Fredoka", "Rubik", "Arial Hebrew", system-ui, sans-serif`;
+  c.fillText('מלאה', 0, cy + 2.1);
+  // Small green badge.
+  c.fillStyle = '#5fb43a';
+  c.beginPath();
+  c.arc(6.2, 4.6, 2.3, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#ffffff';
+  c.lineWidth = 0.4;
+  c.stroke();
+  // Brown oval brand logo.
+  c.fillStyle = '#6a3a22';
+  c.beginPath();
+  c.ellipse(0, 9.3, 5.4, 2.3, 0, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#f6e9d4';
+  c.font = `700 2.9px "Fredoka", "Rubik", "Arial Hebrew", system-ui, sans-serif`;
+  c.fillText('אחוה', 0, 9.4);
   c.restore();
 }
