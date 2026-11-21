@@ -2,18 +2,24 @@
  * Cabinet Breaker runtime: canvas rendering, the fixed-step loop, input and all the juice
  * (particles, shake, popups, hit-stop). Rules live in sim.ts.
  */
-import { BOARD_MAX_H, BOARD_MIN_H, BOARD_W, levelDef, plankY, type Brick, type ItemKind } from './levels';
+import { BOARD_MAX_H, BOARD_MIN_H, BOARD_W, CABINET_BOTTOM, levelDef, plankY, type Brick, type ItemKind } from './levels';
 import {
   BALL_R,
   createSim,
+  EFFECT_TIME,
+  isStuck,
   launch,
+  mainBall,
+  type EffectKind,
+  type Pickup,
+  type PickupKind,
   resize as resizeSim,
   startLevel,
   step,
   type Sim,
   type SimEvent,
 } from './sim';
-import { counterTop, drawBackground, drawBall, drawCritter, drawItem, drawPaddle, drawSplat, drawSlime, itemColors, PAL, SLOT_H, SLOT_W } from './art';
+import { counterTop, drawBackground, drawBall, drawPickup, drawCritter, drawItem, drawPaddle, drawSplat, drawSlime, itemColors, PAL, SLOT_H, SLOT_W } from './art';
 import { Sfx } from './audio';
 
 export interface Hud {
@@ -39,7 +45,7 @@ interface Particle {
   max: number;
   size: number;
   color: string;
-  shape: 'shard' | 'ring' | 'spark' | 'dust' | 'item' | 'goo';
+  shape: 'shard' | 'ring' | 'spark' | 'dust' | 'item' | 'goo' | 'flame' | 'steam';
   kind?: ItemKind;
   variant?: number;
   damage?: number;
@@ -81,7 +87,7 @@ export class Engine {
   private ballSquash = 0;
   private combo = 0;
   private spin = 0;
-  private trail: { x: number; y: number }[] = [];
+  private trails = new Map<number, { x: number; y: number }[]>();
   private slimeStart: number | null = null;
   private banner = 0;
   private lostFlash = 0;
@@ -160,7 +166,7 @@ export class Engine {
     this.sim = createSim(this.H);
     this.particles = [];
     this.popups = [];
-    this.trail = [];
+    this.trails.clear();
     this.slimeStart = null;
     this.splats = [];
     this.levelBanner();
@@ -174,7 +180,7 @@ export class Engine {
     this.particles = this.particles.filter((p) => p.shape !== 'item');
     this.slimeStart = null;
     this.splats = [];
-    this.trail = [];
+    this.trails.clear();
     this.levelBanner();
     this.pushHud();
     this.start();
@@ -219,9 +225,9 @@ export class Engine {
   }
 
   release() {
-    if (this.sim.ball.stuck && !this.paused) {
+    if (isStuck(this.sim) && !this.paused) {
       launch(this.sim);
-      if (!this.sim.ball.stuck) {
+      if (!isStuck(this.sim)) {
         this.sfx.launch();
         this.banner = Math.min(this.banner, 0.4);
       }
@@ -258,14 +264,9 @@ export class Engine {
       }
       const evs = step(s, STEP, tgt);
       for (const e of evs) this.onEvent(e);
-      if (!s.ball.stuck) {
-        this.spin += (s.ball.vx * STEP) / BALL_R;
-      }
+      if (!isStuck(s) && s.balls.length) this.spin += (mainBall(s).vx * STEP) / BALL_R;
     }
-    if (!s.ball.stuck && !s.cleared) {
-      this.trail.push({ x: s.ball.x, y: s.ball.y });
-      if (this.trail.length > 9) this.trail.shift();
-    } else this.trail = [];
+    this.updateBallFx(dt);
     const c = s.critter;
     if (c && c.kind === 'slug') {
       if (this.slimeStart === null) this.slimeStart = c.x;
@@ -295,6 +296,13 @@ export class Engine {
         p.size += dt * 14;
       } else if (p.shape === 'goo') {
         p.vy += g * 0.4 * dt;
+      } else if (p.shape === 'flame') {
+        p.vy -= 160 * dt;
+        p.vx *= 1 - dt * 4;
+      } else if (p.shape === 'steam') {
+        p.vy -= 20 * dt;
+        p.vx += Math.sin((this.time + p.rot) * 6) * 30 * dt;
+        p.size += dt * 6;
       } else p.vy += g * (p.shape === 'spark' ? 0.5 : 1) * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -344,6 +352,27 @@ export class Engine {
       }
       case 'break':
         this.smash(e.brick, e.points);
+        if (e.burnt) {
+          this.sfx.sizzle();
+          const bx = e.brick.x + e.brick.w / 2;
+          const by = e.brick.y + e.brick.h / 2;
+          for (let i = 0; i < 10; i++) this.spark(bx, by, this.rand(-200, 200), this.rand(-260, 20), i % 2 ? '#ff7a1a' : '#ffd23f');
+          this.flames(bx, by, 6, 10);
+        }
+        break;
+      case 'pickupSpawn':
+        this.sfx.pop();
+        break;
+      case 'pickupCatch':
+        this.onCatch(e.pickup, e.points);
+        break;
+      case 'pickupMiss':
+        this.onMiss(e.pickup);
+        break;
+      case 'ballLost':
+        this.sfx.plop();
+        this.trails.delete(e.ball.id);
+        this.popup(Math.max(30, Math.min(BOARD_W - 30, e.ball.x)), this.sim.paddle.y - 20, e.left === 1 ? 'one lemon left' : `${e.left} lemons left`, '#ffd23f', false);
         break;
       case 'critterSpawn':
         this.sfx.critter();
@@ -379,7 +408,7 @@ export class Engine {
         this.sfx.lose();
         this.shake = 9;
         this.lostFlash = 0.5;
-        this.trail = [];
+        this.trails.clear();
         if (e.livesLeft <= 0) {
           this.sfx.gameOver();
           this.pushHud();
@@ -424,7 +453,7 @@ export class Engine {
     const heavy = m === 'metal' || m === 'iron' || m === 'tin' || m === 'clay' || b.def.hits >= 3;
     this.shake = Math.max(this.shake, b.def.hits >= 3 ? 4.5 : heavy ? 3.5 : 2.2);
     if (b.def.hits >= 2 && (m === 'iron' || m === 'metal' || m === 'clay' || b.def.hits >= 3)) this.hitStop = 0.05;
-    const ball = this.sim.ball;
+    const ball = mainBall(this.sim) ?? { vx: 1 };
     const push = Math.sign(ball.vx || 1) * 40;
     const cols = itemColors(b.def.kind, variant);
     if (m === 'ceramic' || m === 'glass' || m === 'clay') {
@@ -611,17 +640,8 @@ export class Engine {
     c.beginPath();
     c.rect(0, 0, BOARD_W, counterTop(this.H) + 2);
     c.clip();
-    if (!s.over) {
-      for (let i = 0; i < this.trail.length; i++) {
-        const t = this.trail[i];
-        const a = (i + 1) / this.trail.length;
-        c.fillStyle = `rgba(255,220,60,${a * 0.28})`;
-        c.beginPath();
-        c.arc(t.x, t.y, BALL_R * (0.4 + a * 0.5), 0, Math.PI * 2);
-        c.fill();
-      }
-      drawBall(c, s.ball.x, s.ball.y, BALL_R, this.spin, this.ballSquash, Math.atan2(s.ball.vy, s.ball.vx));
-    }
+    for (const q of s.pickups) drawPickup(c, q.kind, q.x, q.y, q.t);
+    if (!s.over) for (const b of s.balls) this.drawLemon(c, b.id, b.x, b.y, b.vx, b.vy);
 
     // Particles.
     for (const q of this.particles) {
@@ -661,9 +681,17 @@ export class Engine {
         c.moveTo(q.x, q.y);
         c.lineTo(q.x - q.vx * 0.025, q.y - q.vy * 0.025);
         c.stroke();
+      } else if (q.shape === 'flame') {
+        c.globalCompositeOperation = 'lighter';
+        c.fillStyle = q.color;
+        c.globalAlpha = a * 0.8;
+        c.beginPath();
+        c.arc(q.x, q.y, q.size * (0.4 + 0.6 * (q.life / q.max)), 0, Math.PI * 2);
+        c.fill();
+        c.globalCompositeOperation = 'source-over';
       } else {
         c.fillStyle = q.color;
-        c.globalAlpha = a * (q.shape === 'dust' ? 0.55 : 1);
+        c.globalAlpha = a * (q.shape === 'dust' ? 0.55 : q.shape === 'steam' ? 0.35 : 1);
         c.beginPath();
         c.arc(q.x, q.y, q.size, 0, Math.PI * 2);
         c.fill();
@@ -688,6 +716,8 @@ export class Engine {
     }
     c.globalAlpha = 1;
 
+    this.drawEffects(c);
+
     // Banner + launch hint.
     const mid = (plankY(7) + p.y) / 2 + 20;
     if (this.banner > 0 && !s.over && !s.cleared) {
@@ -706,7 +736,7 @@ export class Engine {
       c.fillText(this.bannerSub, BOARD_W / 2, mid + 10);
       c.globalAlpha = 1;
     }
-    if (this.running && s.ball.stuck && !s.over && !s.cleared && !this.paused) {
+    if (this.running && isStuck(s) && !s.over && !s.cleared && !this.paused) {
       c.globalAlpha = 0.6 + 0.4 * Math.sin(this.time * 5);
       c.font = `600 13px ${FONT}`;
       c.lineWidth = 2.5;
@@ -720,6 +750,208 @@ export class Engine {
     if (this.lostFlash > 0) {
       c.fillStyle = `rgba(200,40,30,${this.lostFlash * 0.35})`;
       c.fillRect(0, 0, BOARD_W, this.H);
+    }
+  }
+
+  /* ---------------------------------------------------------------- pickups & effects */
+
+  private updateBallFx(dt: number) {
+    const s = this.sim;
+    const live = new Set<number>();
+    for (const b of s.balls) {
+      live.add(b.id);
+      if (b.stuck || s.cleared) {
+        this.trails.delete(b.id);
+        continue;
+      }
+      const tr = this.trails.get(b.id) ?? [];
+      tr.push({ x: b.x, y: b.y });
+      if (tr.length > 9) tr.shift();
+      this.trails.set(b.id, tr);
+      if (this.paused) continue;
+      const e = s.effects;
+      if (e.fire > 0) this.flames(b.x, b.y, Math.random() < 0.5 ? 2 : 1, 5);
+      else if (e.slow > 0 && Math.random() < dt * 14) {
+        // Gooey tahini drips.
+        this.particles.push({
+          x: b.x + this.rand(-3, 3),
+          y: b.y + 3,
+          vx: this.rand(-10, 10),
+          vy: this.rand(10, 40),
+          rot: 0,
+          vr: 0,
+          life: 0.9,
+          max: 0.9,
+          size: this.rand(1.4, 2.4),
+          color: Math.random() < 0.5 ? '#d9b27c' : '#c79a5e',
+          shape: 'goo',
+        });
+      } else if (e.fast > 0 && Math.random() < dt * 22) {
+        // Coffee steam.
+        this.particles.push({
+          x: b.x + this.rand(-3, 3),
+          y: b.y - 2,
+          vx: this.rand(-8, 8),
+          vy: this.rand(-40, -20),
+          rot: this.rand(0, 6),
+          vr: 0,
+          life: 0.8,
+          max: 0.8,
+          size: this.rand(2, 3.5),
+          color: '#f2ece2',
+          shape: 'steam',
+        });
+      }
+    }
+    for (const id of this.trails.keys()) if (!live.has(id)) this.trails.delete(id);
+  }
+
+  private flames(x: number, y: number, n: number, size: number) {
+    const cols = ['#ff4a12', '#ff8a1a', '#ffd23f', '#ff6a00'];
+    for (let i = 0; i < n; i++) {
+      this.particles.push({
+        x: x + this.rand(-3, 3),
+        y: y + this.rand(-3, 3),
+        vx: this.rand(-30, 30),
+        vy: this.rand(-40, 10),
+        rot: 0,
+        vr: 0,
+        life: this.rand(0.25, 0.45),
+        max: 0.45,
+        size: this.rand(size * 0.5, size),
+        color: cols[Math.floor(Math.random() * cols.length)],
+        shape: 'flame',
+      });
+    }
+  }
+
+  private drawLemon(c: CanvasRenderingContext2D, id: number, x: number, y: number, vx: number, vy: number) {
+    const e = this.sim.effects;
+    const tr = this.trails.get(id) ?? [];
+    const trailCol = e.fire > 0 ? '255,110,30' : e.slow > 0 ? '205,165,110' : e.fast > 0 ? '235,225,210' : '255,220,60';
+    for (let i = 0; i < tr.length; i++) {
+      const t = tr[i];
+      const a = (i + 1) / tr.length;
+      c.fillStyle = `rgba(${trailCol},${a * (e.fire > 0 ? 0.45 : 0.28)})`;
+      c.beginPath();
+      c.arc(t.x, t.y, BALL_R * (0.4 + a * 0.5), 0, Math.PI * 2);
+      c.fill();
+    }
+    if (e.fire > 0) {
+      const flicker = 1 + Math.sin(this.time * 30 + id) * 0.08;
+      const g = c.createRadialGradient(x, y, 2, x, y, BALL_R * 3.4 * flicker);
+      g.addColorStop(0, 'rgba(255,220,90,0.9)');
+      g.addColorStop(0.4, 'rgba(255,110,20,0.55)');
+      g.addColorStop(1, 'rgba(255,60,0,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(x, y, BALL_R * 3.4 * flicker, 0, Math.PI * 2);
+      c.fill();
+    }
+    drawBall(c, x, y, BALL_R, this.spin + id, this.ballSquash, Math.atan2(vy, vx));
+    if (e.fire > 0) {
+      c.globalCompositeOperation = 'lighter';
+      c.fillStyle = 'rgba(255,90,20,0.55)';
+      c.beginPath();
+      c.arc(x, y, BALL_R * 1.1, 0, Math.PI * 2);
+      c.fill();
+      c.globalCompositeOperation = 'source-over';
+    } else if (e.slow > 0) {
+      // Tahini coating drip on the lemon.
+      c.fillStyle = 'rgba(214,176,120,0.85)';
+      c.beginPath();
+      c.ellipse(x - 1, y - 2.5, BALL_R * 0.9, BALL_R * 0.5, 0, Math.PI, 0);
+      c.fill();
+      c.beginPath();
+      c.ellipse(x + 2, y + 1 + Math.sin(this.time * 4) * 0.6, 1.4, 2.6, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  private onCatch(q: Pickup, points: number) {
+    const s = this.sim;
+    const labels: Record<PickupKind, [string, string]> = {
+      lemon: ['EXTRA LEMON!', '#ffd23f'],
+      tahini: ['TAHINI: SLOW', '#e0bf8a'],
+      coffee: ['COFFEE RUSH x2', '#f0d9b5'],
+      tabasco: ['FIREBALL!', '#ff6a2a'],
+    };
+    const [txt, col] = labels[q.kind];
+    this.sfx.pickup(q.kind);
+    this.shake = Math.max(this.shake, q.kind === 'tabasco' ? 4 : 2);
+    this.squash = 1;
+    this.popup(Math.max(50, Math.min(BOARD_W - 50, q.x)), s.paddle.y - 26, `${txt} +${points}`, col, true);
+    for (let i = 0; i < 10; i++) this.spark(q.x, s.paddle.y, this.rand(-180, 180), this.rand(-260, -60), i % 2 ? col : '#ffffff');
+    if (q.kind === 'tabasco') this.flames(q.x, s.paddle.y - 4, 14, 9);
+  }
+
+  private onMiss(q: Pickup) {
+    const y = counterTop(this.H) - 2;
+    this.sfx.splat(q.kind);
+    const goo: Record<PickupKind, string[]> = {
+      lemon: ['#ffd92e', '#fff3a0', '#e0a300'],
+      tahini: ['#d9b27c', '#c79a5e', 'rgba(220,238,245,0.9)'],
+      coffee: ['#5a3420', '#7a4a2a', '#ffffff'],
+      tabasco: ['#d0201a', '#ff4a2a', 'rgba(220,238,245,0.9)'],
+    };
+    const cols = goo[q.kind];
+    for (let i = 0; i < 14; i++) {
+      this.particles.push({
+        x: q.x + this.rand(-6, 6),
+        y,
+        vx: this.rand(-120, 120),
+        vy: this.rand(-200, -40),
+        rot: this.rand(0, 6),
+        vr: this.rand(-10, 10),
+        life: this.rand(0.4, 0.8),
+        max: 0.8,
+        size: this.rand(1.4, 3),
+        color: cols[i % cols.length],
+        shape: i % 3 === 2 && q.kind !== 'lemon' && q.kind !== 'coffee' ? 'shard' : 'goo',
+      });
+    }
+  }
+
+  /** Active effects as little chips (icon + draining bar) on the backsplash under the cabinets. */
+  private drawEffects(c: CanvasRenderingContext2D) {
+    const s = this.sim;
+    const chips: { kind: PickupKind; frac: number; label: string }[] = [];
+    const map: [EffectKind, PickupKind, string][] = [
+      ['fire', 'tabasco', 'FIRE'],
+      ['slow', 'tahini', 'SLOW'],
+      ['fast', 'coffee', 'x2'],
+    ];
+    for (const [k, kind, label] of map) if (s.effects[k] > 0) chips.push({ kind, frac: s.effects[k] / EFFECT_TIME[k], label });
+    if (s.balls.length > 1) chips.push({ kind: 'lemon', frac: 1, label: `x${s.balls.length}` });
+    if (!chips.length) return;
+    let x = 20;
+    const y = CABINET_BOTTOM + 14;
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    for (const ch of chips) {
+      const w = 62;
+      c.fillStyle = 'rgba(20,18,16,0.72)';
+      c.beginPath();
+      c.roundRect(x, y, w, 22, 11);
+      c.fill();
+      c.strokeStyle = 'rgba(255,255,255,0.25)';
+      c.lineWidth = 1;
+      c.stroke();
+      c.save();
+      c.translate(x + 11, y + 11);
+      c.scale(0.62, 0.62);
+      drawPickup(c, ch.kind, 0, 0, 0, false);
+      c.restore();
+      c.font = `700 9px ${FONT}`;
+      c.fillStyle = '#fff';
+      c.fillText(ch.label, x + 22, y + 8);
+      // Draining timer bar (blinks when nearly out).
+      const blink = ch.frac < 0.25 && Math.sin(this.time * 18) > 0;
+      c.fillStyle = 'rgba(255,255,255,0.18)';
+      c.fillRect(x + 22, y + 14, w - 30, 3);
+      c.fillStyle = blink ? '#ffffff' : ch.kind === 'tabasco' ? '#ff6a2a' : ch.kind === 'tahini' ? '#e0bf8a' : ch.kind === 'coffee' ? '#c9935a' : '#ffd23f';
+      c.fillRect(x + 22, y + 14, (w - 30) * ch.frac, 3);
+      x += w + 6;
     }
   }
 

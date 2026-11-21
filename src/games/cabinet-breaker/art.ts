@@ -1920,3 +1920,188 @@ export function drawSlime(c: C, y: number, x0: number, x1: number) {
 
 export const SLOT_W = COL_W - 4;
 export const SLOT_H = ITEM_H;
+
+/* ------------------------------------------------------------------ pickups */
+
+/**
+ * A falling pickup, centred on (x, y), about 18×22 units. `t` drives a gentle sway; `halo` adds the
+ * soft glow that marks it as something to catch.
+ */
+export function drawPickup(c: C, kind: 'lemon' | 'tahini' | 'coffee' | 'tabasco', x: number, y: number, t: number, halo = true) {
+  c.save();
+  c.translate(x, y);
+  if (halo) {
+    const pulse = 1 + Math.sin(t * 7) * 0.08;
+    const glowCol =
+      kind === 'tabasco' ? '255,90,40' : kind === 'coffee' ? '240,210,170' : kind === 'tahini' ? '235,205,150' : '255,230,90';
+    const g = c.createRadialGradient(0, 0, 3, 0, 0, 17 * pulse);
+    g.addColorStop(0, `rgba(${glowCol},0.55)`);
+    g.addColorStop(1, `rgba(${glowCol},0)`);
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(0, 0, 17 * pulse, 0, Math.PI * 2);
+    c.fill();
+    c.rotate(Math.sin(t * 4) * 0.18);
+  }
+  c.lineJoin = 'round';
+  c.lineCap = 'round';
+  c.lineWidth = 1;
+  c.strokeStyle = PAL.ink;
+  switch (kind) {
+    case 'lemon': {
+      c.restore();
+      drawBall(c, x, y, 8.5, halo ? Math.sin(t * 4) * 0.4 - 0.3 : -0.3);
+      if (halo) {
+        // "+" badge so an extra-lemon pickup never looks like a lemon in play.
+        c.save();
+        c.fillStyle = '#3c9a3a';
+        c.strokeStyle = '#ffffff';
+        c.lineWidth = 1.2;
+        c.beginPath();
+        c.arc(x + 8, y - 7, 4.6, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+        c.lineWidth = 1.6;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(x + 8, y - 9.4);
+        c.lineTo(x + 8, y - 4.6);
+        c.moveTo(x + 5.6, y - 7);
+        c.lineTo(x + 10.4, y - 7);
+        c.stroke();
+        c.restore();
+      }
+      return;
+    }
+    case 'tahini': {
+      // Squat glass jar of tahini with a red lid and a sesame label.
+      c.fillStyle = '#d9b27c';
+      c.beginPath();
+      c.roundRect(-8, -6, 16, 15, 3);
+      c.fill();
+      c.fillStyle = 'rgba(255,240,210,0.5)';
+      c.fillRect(-6.5, -4.5, 2, 11);
+      c.fillStyle = '#f7efdc';
+      c.beginPath();
+      c.roundRect(-6, -2, 12, 7, 1.5);
+      c.fill();
+      c.fillStyle = '#2d6aa6';
+      c.fillRect(-6, -2, 12, 2);
+      c.fillStyle = '#8a6a3a';
+      for (const [sx, sy, a] of [
+        [-3, 2.6, 0.4],
+        [0, 1.8, -0.3],
+        [3, 2.8, 0.2],
+        [-1.4, 3.8, -0.5],
+        [1.8, 4, 0.6],
+      ]) {
+        c.beginPath();
+        c.ellipse(sx, sy, 0.7, 1.1, a, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.strokeStyle = 'rgba(80,60,30,0.9)';
+      c.beginPath();
+      c.roundRect(-8, -6, 16, 15, 3);
+      c.stroke();
+      c.fillStyle = '#c8352e';
+      c.strokeStyle = PAL.ink;
+      c.beginPath();
+      c.roundRect(-8.5, -10.5, 17, 5, 1.5);
+      c.fill();
+      c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.fillRect(-7, -9.5, 14, 1);
+      // A drip of tahini down the side.
+      c.fillStyle = '#d9b27c';
+      c.beginPath();
+      c.ellipse(6.5, -4, 1.4, 2.6, 0, 0, Math.PI * 2);
+      c.fill();
+      break;
+    }
+    case 'coffee': {
+      // Takeaway cup with sleeve, lid and steam.
+      c.fillStyle = '#ffffff';
+      c.beginPath();
+      c.moveTo(-7, -6);
+      c.lineTo(7, -6);
+      c.lineTo(5.2, 11);
+      c.lineTo(-5.2, 11);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#b8895a';
+      c.beginPath();
+      c.moveTo(-6.4, -1);
+      c.lineTo(6.4, -1);
+      c.lineTo(5.8, 6);
+      c.lineTo(-5.8, 6);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#5a3420';
+      c.beginPath();
+      c.ellipse(0, 2.5, 2.2, 1.6, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#3a2a22';
+      c.beginPath();
+      c.roundRect(-8, -9.5, 16, 4, 1.5);
+      c.fill();
+      c.fillRect(-5, -11, 10, 2);
+      // Steam.
+      c.strokeStyle = 'rgba(255,255,255,0.85)';
+      c.lineWidth = 1.2;
+      for (const sx of [-2.5, 2]) {
+        c.beginPath();
+        c.moveTo(sx, -12);
+        c.bezierCurveTo(sx - 2.5, -14.5, sx + 2.5, -16, sx, -19 - Math.sin(t * 5 + sx) * 0.8);
+        c.stroke();
+      }
+      break;
+    }
+    case 'tabasco': {
+      // Small hot-sauce bottle: red sauce, red cap, green neck band, pale diamond label.
+      c.fillStyle = '#c4161c';
+      c.beginPath();
+      c.moveTo(-2.4, -6);
+      c.lineTo(2.4, -6);
+      c.quadraticCurveTo(6.5, -3, 6.5, 2);
+      c.lineTo(6.5, 10);
+      c.quadraticCurveTo(6.5, 12, 4.5, 12);
+      c.lineTo(-4.5, 12);
+      c.quadraticCurveTo(-6.5, 12, -6.5, 10);
+      c.lineTo(-6.5, 2);
+      c.quadraticCurveTo(-6.5, -3, -2.4, -6);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.35)';
+      c.fillRect(-5, 0, 1.6, 9);
+      // Diamond label.
+      c.fillStyle = '#f6ecd2';
+      c.beginPath();
+      c.moveTo(0, -1);
+      c.lineTo(5, 4.5);
+      c.lineTo(0, 10);
+      c.lineTo(-5, 4.5);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#c4161c';
+      c.beginPath();
+      c.ellipse(0, 4.5, 1.6, 2.4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#3c7a2e';
+      c.fillRect(-2.6, -8.5, 5.2, 3);
+      // Neck + cap.
+      c.fillStyle = '#c4161c';
+      c.strokeStyle = PAL.ink;
+      c.beginPath();
+      c.roundRect(-2, -13, 4, 5, 1);
+      c.fill();
+      c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.5)';
+      c.fillRect(-1.2, -12.2, 0.9, 3);
+      break;
+    }
+  }
+  c.restore();
+}
