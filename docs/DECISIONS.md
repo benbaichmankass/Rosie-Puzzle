@@ -171,7 +171,8 @@ No paper rolls (Ben: they read as toilet paper).
 Pickups (Ben's call): about one smashed item in five drops a pickup that falls toward the counter; catch it on the
 board for its effect, miss it and it splats/smashes harmlessly. Lemon (+ badge) = an extra lemon ball, up to 4 in
 play, plus 250 points (Ben gave no bonus; multi-lemon is the manager's default); losing a spare lemon costs nothing,
-a life is lost only when the last lemon drops. Tahini jar = slower lemons for 8 s (tahini drips). Coffee cup = faster
+a life is lost only when the last lemon drops. Tahini jar (drawn after Achva's green whole tahini: white jar, green lid, green herb-wreath
+medallion reading טחינה מלאה, brown oval אחוה logo) = slower lemons for 8 s (tahini drips). Coffee cup = faster
 lemons and double points for 8 s (steam). Tahini and coffee cancel each other. Tabasco = fireball for 6 s: it burns
 through every item it touches (any number of hits) without bouncing, bouncing only off walls and the board; the
 rarest drop. Catching the same pickup again refreshes its timer; nothing stacks. Active effects show as chips with
